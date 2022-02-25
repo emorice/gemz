@@ -43,6 +43,7 @@ def cmk_one(
     
     # 1
     log_evidence = (
+        - 0.5 * n_samples * np.log(2*np.pi)
         - np.log(np.diagonal(cho_data_cov)).sum()
         # The two terms below sum to - N / 2 at equilibrium
         - 0.5 * rss / data_var
