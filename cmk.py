@@ -13,18 +13,18 @@ def cmk_one(
         group_grams
     ):
     """Target-specific MK update computations"""
-    
+
     n_samples = len(target)
-    
+
     group_grams_notarget = np.array(group_grams, copy=True)
     group_grams_notarget[target_group] = (
         group_grams[target_group] - target[:, None] * target[None, :]
     )
     del group_grams
-    
+
     # K x N x N, weighted gram matrices
     gram_w1 = prior_vars[:, None, None] * group_grams_notarget
-    
+
     # N x N
     gram_w1_sum = np.sum(gram_w1, 0)
     # N x N
@@ -43,7 +43,7 @@ def cmk_one(
     rss = np.sum((target - preds)**2)
     # 1
     new_data_var = rss / (n_samples - eff_params.sum())
-    
+
     # 1
     log_evidence = (
         - 0.5 * n_samples * np.log(2*np.pi)
@@ -52,7 +52,7 @@ def cmk_one(
         - 0.5 * rss / data_var
         - 0.5 * (subsizes / prior_vars).sum()
     )
-        
+
     # trans_target is useful for predictions too
     # Note that the trans target matches the *old* data/prior_vars
     return {
@@ -68,7 +68,6 @@ def cmk_one(
         # Pre-computation
         'trans_target': trans_target
     }
-
 
 def cmk_one_scaled(
         # Target
@@ -102,10 +101,10 @@ def cmk_factor_roots(group_grams, compact_covariance):
 @jax.jit
 def cmk_many(group_grams, compact_covariance, groups, values, data_vars, n_samples, n_groups):
     arange_K =  jnp.cumsum(jnp.ones_like(compact_covariance[0])) - 1.
-    
+
     # K x P
     groups_onehot = 1. * (groups[None, :] == arange_K[:, None])
-                                                      
+
     # K x N x N, K
     root_precisions, root_log_dets = cmk_factor_roots(group_grams, compact_covariance)
     # K x K (D1: target group, D2: predictor group)
@@ -114,7 +113,7 @@ def cmk_many(group_grams, compact_covariance, groups, values, data_vars, n_sampl
     ) * compact_covariance
     # K
     root_eff_parameters_total = jnp.sum(root_eff_parameters, 1)
-    
+
     # K x N x P
     #all_trans_values = jnp.tensordot(root_precisions, values, 1) # !! O(K N^2 P)
     # N x P
@@ -148,21 +147,21 @@ def cmk_many(group_grams, compact_covariance, groups, values, data_vars, n_sampl
             r1u_factors * trans_values_values
         )
     )
-    
+
     # P
     trans_values_ss = jnp.sum(trans_values**2, 0)
     # P
     rss = trans_values_ss * r1u_prefactor **2
-    
+
     # K x P
     model_sizes_cross = group_covariances**2 * trans_values_grams * (r1u_prefactor **2)
-    
+
     # P
     model_sizes = model_sizes_cross - groups_onehot * (
         trans_values_values * trans_values_values *
         r1u_factors * r1u_factors
     )
-    
+
     
     # P 
     log_likelihoods = (
@@ -172,10 +171,10 @@ def cmk_many(group_grams, compact_covariance, groups, values, data_vars, n_sampl
         - 0.5 * jnp.log(1. - own_group_covariance * trans_values_values)
         - 0.5 * trans_values_values * r1u_prefactor / data_vars
     )
-    
+
     # N x P (Lambda X)
     trans_targets = trans_values * r1u_prefactor /  data_vars
-        
+
     return {
         'eff_params': eff_parameters,
         'rss': rss, 
@@ -196,9 +195,9 @@ def cmk_update(
     # Aux
     group_covariances, groups_onehot,
     **_):
-    
+
     tiny = jnp.finfo(model_sizes.dtype).tiny
-    
+
     vanished_model_sizes = model_sizes <= tiny
     vanished_group_covariances = group_covariances <= tiny
     group_covariances = jnp.where(
@@ -206,17 +205,17 @@ def cmk_update(
         1.0,
         group_covariances
     )
-    
+
     new_data_vars = (
         rss + (model_sizes / group_covariances).sum(0)
     ) / n_samples
-    
+
     # K x K
     tot_eff_params =  jnp.tensordot(
             groups_onehot,
             eff_params.T,
             1)
-    
+
     tiny = jnp.finfo(tot_eff_params.dtype).tiny
     vanished_eff_params = tot_eff_params <= tiny
     tot_eff_params = jnp.where(
@@ -224,7 +223,7 @@ def cmk_update(
         1.0,
         tot_eff_params
     )
-    
+
     tot_model_sizes =  jnp.tensordot(
             groups_onehot,
             (model_sizes / data_vars).T,
@@ -248,3 +247,33 @@ def cmk_update(
         'inf_compact_covariance': jnp.sum(vanished_eff_params & (~ vanished_tot_model_sizes)),
         'vanished_compact_covariance': jnp.sum(vanished_eff_params & vanished_tot_model_sizes),
     }
+
+def cmk_predict(
+    # New inputs
+    new_values,
+    # Inputs
+    values, groups, n_groups,
+    compact_covariance, data_vars,
+    # Intermediates
+    trans_target,
+    # Aux
+    own_group_covariance,
+    **_):
+
+    # K x N' x N
+    group_xgrams = jax.vmap(lambda k: (new_values * (groups == k) @ values.T))(jnp.arange(n_groups))
+
+    # K x N' x N
+    root_xgrams = jnp.tensordot(compact_covariance, group_xgrams, 1)
+
+    # K x N' x P
+    all_root_preds = jnp.tensordot(root_xgrams, trans_target, 1) * data_vars
+    # N' x P
+    root_preds = jnp.take_along_axis(all_root_preds, groups[None, None, :], 0)[0]
+    # N' x P
+    preds = (
+        root_preds
+        - jnp.sum(values * trans_target, 0) * data_vars * own_group_covariance * new_values
+    )
+
+    return preds
