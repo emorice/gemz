@@ -31,7 +31,7 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     rng = np.random.default_rng(1234)
     n_samples = 1000
 
-    corr = 0.99
+    corr = 0.75
     # N x 2
     linear2d = rng.multivariate_normal(
         np.zeros(2),
@@ -45,7 +45,7 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     # Fits
     # ====
 
-    n_clusters = 4
+    n_clusters = 32
     kmeans_model = models.kmeans.fit(linear2d, n_clusters=n_clusters)
 
     # Plots
@@ -69,9 +69,9 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     fig_clusters = fig_data.add_trace(
         go.Scatter(
             x=kmeans_model['means'][:, 0],
-            y=kmeans_model['means'][:, 0],
-            error_x={'array': np.sqrt(kmeans_model['variances'][:, 0])},
-            error_y={'array': np.sqrt(kmeans_model['variances'][:, 1])},
+            y=kmeans_model['means'][:, 1],
+            error_x={'array': np.sqrt(kmeans_model['variances'])},
+            error_y={'array': np.sqrt(kmeans_model['variances'])},
             mode='markers',
             name='Cluster means'
             )

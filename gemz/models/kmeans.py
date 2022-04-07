@@ -28,7 +28,7 @@ def fit(data, n_clusters):
 
     centered_data = data - one_hot.T @ means
 
-    variances = one_hot @ (centered_data**2) / sizes[:, None]
+    variances = one_hot @ (centered_data**2).sum(-1) / sizes
 
     return {
         'groups': groups,
