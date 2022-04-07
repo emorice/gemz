@@ -10,6 +10,9 @@ import webbrowser
 import gemz.cases
 
 def status(output_dir):
+    """
+    List available demonstration cases to stdout
+    """
     cases = gemz.cases.get_cases()
     if not cases:
         print("No demo cases defined")
@@ -29,6 +32,9 @@ def status(output_dir):
                 ))
 
 def run(output_dir, case):
+    """
+    Execute a demonstration case to create the case report
+    """
     cases = gemz.cases.get_cases()
 
     if case in cases:
@@ -44,13 +50,19 @@ def run(output_dir, case):
         logging.error('No such demonstration case: %s', case)
 
 def show(output_dir, case):
+    """
+    Run a case, then open the report in the default browser
+    """
     run(output_dir, case)
 
     path = gemz.cases.get_report_path(output_dir, case)
 
-    webbrowser.open(f'file://{os.path.abspath(path)}')
+    webbrowser.open(f'file://{os.path.abspath(path)}', new=1)
 
 def main(args):
+    """
+    Main entry point, execute the action implied by the args.
+    """
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -68,7 +80,13 @@ def main(args):
     if args.show:
         return show(args.output_dir, args.show)
 
+    logging.error('Nothing to do')
+    return True
+
 def add_parser_arguments(parser):
+    """
+    Build the argument parser for the demo entry point
+    """
     parser.add_argument('output_dir', help=
         "Directory where to write the demo reports"
         )
@@ -89,6 +107,6 @@ def add_parser_arguments(parser):
     return parser
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    add_parser_arguments(parser)
-    main(parser.parse_args())
+    _parser = argparse.ArgumentParser()
+    add_parser_arguments(_parser)
+    main(_parser.parse_args())

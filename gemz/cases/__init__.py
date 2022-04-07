@@ -18,12 +18,21 @@ def case(function):
     return function
 
 def get_cases():
+    """
+    Get the dictionary of existing case entry points
+    """
     return _cases
 
 def get_report_extension():
+    """
+    Get the extension to add to a case name to build its default report path
+    """
     return '.html'
 
 def get_report_path(output_dir, name):
+    """
+    Build the default report path for a case
+    """
     ext = get_report_extension()
     return os.path.join(
         output_dir,
