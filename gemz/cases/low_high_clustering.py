@@ -24,9 +24,10 @@ def plot_pc_clusters(data, n_clusters):
 
     stds = []
     for i in range(2):
-        centered = data @ pcs[i] - np.choose(
+        centered = data @ pcs[i] - np.take_along_axis(
+            clustering['means'] @ pcs[i],
             clustering['groups'],
-            clustering['means'] @ pcs[i]
+            0
             )
         l2s = np.bincount(
             clustering['groups'],
@@ -87,7 +88,7 @@ def low_high_clustering(output_dir, case_name, report_path):
     high_d = 1000
     high = rng.normal(0., 1., size=(n_samples, high_d))
 
-    n_clusters = 12
+    n_clusters = 33
     fig_low = plot_pc_clusters(low, n_clusters)
     fig_low.update_layout(title='Most information in a few dimensions')
 
