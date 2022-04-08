@@ -17,26 +17,38 @@ def plot_pc_clusters(data, n_clusters):
     """
 
     clustering = gemz.models.kmeans.fit(data, n_clusters=n_clusters)
-    dev_1d = np.sqrt(clustering['variances'] / data.shape[-1])
 
     _, _, left_t = np.linalg.svd(data)
 
-    pc1, pc2 = left_t[:2]
+    pcs = left_t[:2]
+
+    stds = []
+    for i in range(2):
+        centered = data @ pcs[i] - np.choose(
+            clustering['groups'],
+            clustering['means'] @ pcs[i]
+            )
+        l2s = np.bincount(
+            clustering['groups'],
+            weights=centered**2)
+        stds.append(np.sqrt(
+            l2s / np.bincount(clustering['groups'])
+            ))
 
     fig = go.Figure(
         data=[
             go.Scatter(
-                x=data @ pc1,
-                y=data @ pc2,
+                x=data @ pcs[0],
+                y=data @ pcs[1],
                 mode='markers',
                 name='Data',
                 marker={'size': 3}
                 ),
             go.Scatter(
-                x=clustering['means'] @ pc1,
-                y=clustering['means'] @ pc2,
-                error_x={'array': dev_1d},
-                error_y={'array': dev_1d},
+                x=clustering['means'] @ pcs[0],
+                y=clustering['means'] @ pcs[1],
+                error_x={'array': stds[0]},
+                error_y={'array': stds[1]},
                 mode='markers',
                 name='Cluster means',
                 )
