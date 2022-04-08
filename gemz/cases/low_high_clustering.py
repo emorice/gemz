@@ -17,7 +17,7 @@ def plot_pc_clusters(data, n_clusters):
     """
 
     clustering = gemz.models.kmeans.fit(data, n_clusters=n_clusters)
-    dev_1d = np.sqrt(clustering['variances'])
+    dev_1d = np.sqrt(clustering['variances'] / data.shape[-1])
 
     _, _, left_t = np.linalg.svd(data)
 
@@ -80,7 +80,7 @@ def low_high_clustering(output_dir, case_name, report_path):
     fig_low.update_layout(title='Most information in a few dimensions')
 
     fig_high = plot_pc_clusters(high, n_clusters)
-    fig_high.update_layout(title='Information spread across dimsensions')
+    fig_high.update_layout(title='Information spread across dimensions')
 
     with open(report_path, 'w', encoding='utf8') as fd:
         fd.write(case_name)
