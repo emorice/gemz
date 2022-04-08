@@ -3,21 +3,11 @@ Demonstrate the effects of centering or not the features in CMK models
 """
 
 import numpy as np
-import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
 
 from gemz import models
 from gemz.cases import case
-
-def write_fig(fd, fig):
-    """
-    Converts a figure to html and write it to the document
-    """
-    fig_html = pio.to_html(fig,
-        full_html=False
-        )
-    fd.write(fig_html)
+from gemz.reporting import write_fig
 
 @case
 def cmk_cluster_means(output_dir, case_name, report_path):
@@ -66,7 +56,7 @@ def cmk_cluster_means(output_dir, case_name, report_path):
             )
         )
 
-    fig_clusters = fig_data.add_trace(
+    fig_clusters = go.Figure(fig_data).add_trace(
         go.Scatter(
             x=kmeans_model['means'][:, 0],
             y=kmeans_model['means'][:, 1],
