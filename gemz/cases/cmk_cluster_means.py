@@ -42,19 +42,22 @@ def cmk_cluster_means(output_dir, case_name, report_path):
         )
 
     # 2 x n_samples x n_features
-    data = signal + rng.normal(0., 0.2, size=(2, n_samples, n_features))
+    data = signal + rng.normal(0., .5, size=(2, n_samples, n_features))
+
+    # Center each feature over all samples
+    data -= np.mean(data, 1)[:, None, :]
 
     train, test = data
 
     # Fits
     # ====
 
-    n_clusters = 2
+    n_clusters = 4
 
     kmeans_model = models.kmeans.fit(train, n_clusters=n_clusters)
 
     _, _, left_t = np.linalg.svd(train)
-    pc_nl = left_t[1]
+    pc_nl = left_t[0]
 
     test_idx = 1
     target = test[:, test_idx]
@@ -62,13 +65,32 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     # For a new feature, we can make a basic prediction by predicting the mean
     # of all (other) samples of the group
 
+    group_sizes = np.bincount(kmeans_model['groups'])
     test_means = (
         np.bincount(kmeans_model['groups'], weights=target)
-        / np.bincount(kmeans_model['groups'])
+        / (group_sizes - 1)
+        )
+    test_means_preds = (
+        test_means[kmeans_model['groups']]
+        - target / (group_sizes[kmeans_model['groups']] - 1)
         )
 
     # We can also use a simple linear model
-    test_lin = train @ np.linalg.solve(train.T @ train, train.T @ target)
+    ## inverse correlation between features, from all samples
+    base_prec = np.linalg.inv(train.T @ train)
+    ## corr between features and target, idem
+    base_covs = train.T @ target
+    ## per-sample LOO corrs
+    covs = base_covs[:, None] - train.T * target
+    ## still biases by use of self in prec
+    base_weights = base_prec @ covs
+    weights = (
+        base_weights
+        + (base_prec @ train.T)
+            * np.sum((base_prec @ train.T) * covs, 0)
+            / (1. - np.sum(train.T * (base_prec @ train.T), 0))
+        )
+    test_lin = np.sum(train.T * weights, 0)
 
     # Plots
     # =====
@@ -91,7 +113,7 @@ def cmk_cluster_means(output_dir, case_name, report_path):
                 ),
             go.Scatter(
                 x=(train @ pc_nl)[order],
-                y=test_means[kmeans_model['groups']][order],
+                y=test_means_preds[order],
                 mode='lines',
                 name='K-means prediction'
                 )
