@@ -4,7 +4,9 @@ Demonstrate the effects of centering or not the features in CMK models
 
 import numpy as np
 
-#from gemz import models
+import plotly.graph_objects as go
+
+from gemz import models
 from gemz.cases import case
 from gemz.reporting import write_fig
 
@@ -20,6 +22,8 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     # ====
 
     rng = np.random.default_rng(1234)
+
+    # samples = dimension being split by clustering
     n_samples = 100
     n_features = 30
 
@@ -47,13 +51,56 @@ def cmk_cluster_means(output_dir, case_name, report_path):
 
     n_clusters = 2
 
-    #kmeans_model = models.kmeans.fit(data, n_clusters=n_clusters)
+    kmeans_model = models.kmeans.fit(train, n_clusters=n_clusters)
+
+    _, _, left_t = np.linalg.svd(train)
+    pc_nl = left_t[1]
+
+    test_idx = 1
+    target = test[:, test_idx]
+
+    # For a new feature, we can make a basic prediction by predicting the mean
+    # of all (other) samples of the group
+
+    test_means = (
+        np.bincount(kmeans_model['groups'], weights=target)
+        / np.bincount(kmeans_model['groups'])
+        )
+
+    # We can also use a simple linear model
+    test_lin = train @ np.linalg.solve(train.T @ train, train.T @ target)
 
     # Plots
     # =====
+
+    order = np.argsort(train @ pc_nl)
+
+    fig_test = go.Figure(
+        data=[
+            go.Scatter(
+                x=(train @ pc_nl)[order],
+                y=test[:, test_idx][order],
+                mode='markers',
+                name='New feature'
+                ),
+            go.Scatter(
+                x=(train @ pc_nl)[order],
+                y=test_lin[order],
+                mode='lines',
+                name='Linear prediction'
+                ),
+            go.Scatter(
+                x=(train @ pc_nl)[order],
+                y=test_means[kmeans_model['groups']][order],
+                mode='lines',
+                name='K-means prediction'
+                )
+            ]
+        )
 
     fig_pcs = plot_pc_clusters(train, n_clusters=n_clusters)
 
     with open(report_path, 'w', encoding='utf8') as fd:
         fd.write(case_name)
         write_fig(fd, fig_pcs)
+        write_fig(fd, fig_test)
