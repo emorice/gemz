@@ -3,11 +3,12 @@ Demonstrate the effects of centering or not the features in CMK models
 """
 
 import numpy as np
-import plotly.graph_objects as go
 
-from gemz import models
+#from gemz import models
 from gemz.cases import case
 from gemz.reporting import write_fig
+
+from gemz.cases.low_high_clustering import plot_pc_clusters
 
 @case
 def cmk_cluster_means(output_dir, case_name, report_path):
@@ -19,55 +20,40 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     # ====
 
     rng = np.random.default_rng(1234)
-    n_samples = 1000
+    n_samples = 100
+    n_features = 30
 
-    corr = 0.75
-    # N x 2
-    linear2d = rng.multivariate_normal(
-        np.zeros(2),
-        np.array([
-            [1., corr],
-            [corr, 1.]
-            ]),
-        size=n_samples
+    hidden_factor = rng.normal(0., 1., size=n_samples)
+    hidden_class = hidden_factor > 0.
+
+    #corr = 0.9
+
+    support_points = rng.normal(0., 1., size=(3, 2, n_features))
+
+    # 2 x  n_samples x n_features
+    signal = support_points[0][:, None, :] + np.where(
+        hidden_class[None, :, None],
+        + hidden_factor[None, :, None] * support_points[1][:, None, :],
+        - hidden_factor[None, :, None] * support_points[2][:, None, :]
         )
+
+    # 2 x n_samples x n_features
+    data = signal + rng.normal(0., 0.2, size=(2, n_samples, n_features))
+
+    train, test = data
 
     # Fits
     # ====
 
-    n_clusters = 32
-    kmeans_model = models.kmeans.fit(linear2d, n_clusters=n_clusters)
+    n_clusters = 2
+
+    #kmeans_model = models.kmeans.fit(data, n_clusters=n_clusters)
 
     # Plots
     # =====
 
-    fig_data = go.Figure(
-        data = [
-            go.Scatter(
-                x=linear2d[:, 0],
-                y=linear2d[:, 1],
-                mode='markers',
-                marker={'size': 3},
-                name='Data'
-                )
-            ],
-        layout=dict(
-            yaxis={'scaleanchor': 'x', 'scaleratio': 1}
-            )
-        )
-
-    fig_clusters = go.Figure(fig_data).add_trace(
-        go.Scatter(
-            x=kmeans_model['means'][:, 0],
-            y=kmeans_model['means'][:, 1],
-            error_x={'array': np.sqrt(kmeans_model['variances'])},
-            error_y={'array': np.sqrt(kmeans_model['variances'])},
-            mode='markers',
-            name='Cluster means'
-            )
-        )
+    fig_pcs = plot_pc_clusters(train, n_clusters=n_clusters)
 
     with open(report_path, 'w', encoding='utf8') as fd:
         fd.write(case_name)
-        write_fig(fd, fig_data)
-        write_fig(fd, fig_clusters)
+        write_fig(fd, fig_pcs)
