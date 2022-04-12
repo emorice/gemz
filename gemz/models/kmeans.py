@@ -35,3 +35,23 @@ def fit(data, n_clusters):
         'means': means,
         'variances': variances
         }
+
+def predict_loo(model, new_data):
+    """
+    Leave-one out prediction from existing clusters on new observations
+    """
+    groups = model['groups']
+    group_sizes = np.bincount(groups)
+
+    # Means of new observations on all samples
+    base_means = (
+        np.bincount(groups, weights=new_data)
+        / (group_sizes - 1)
+        )
+    # LOO correction
+    preds = (
+        base_means[groups]
+        - new_data / (group_sizes[groups] - 1)
+        )
+
+    return preds

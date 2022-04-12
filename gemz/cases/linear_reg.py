@@ -1,5 +1,5 @@
 """
-Demonstrate the effects of centering or not the features in CMK models
+Demonstrate the effects of regularising high-dimensional linear models
 """
 
 import numpy as np
@@ -13,7 +13,7 @@ from gemz.reporting import write_fig
 from gemz.cases.low_high_clustering import plot_pc_clusters
 
 @case
-def cmk_cluster_means(output_dir, case_name, report_path):
+def linear_reg(output_dir, case_name, report_path):
     """
     Case entry point
     """
@@ -24,7 +24,7 @@ def cmk_cluster_means(output_dir, case_name, report_path):
     rng = np.random.default_rng(1234)
 
     # samples = dimension being split by clustering
-    n_samples = 100
+    n_samples = 1000
     n_features = 30
 
     hidden_factor = rng.normal(0., 1., size=n_samples)
@@ -54,66 +54,41 @@ def cmk_cluster_means(output_dir, case_name, report_path):
 
     n_clusters = 4
 
+    # don't copy paste the next one
     kmeans_model = models.kmeans.fit(train, n_clusters=n_clusters)
+    linear_model = models.linear.fit(train)
 
-    _, _, left_t = np.linalg.svd(train)
-    pc_nl = left_t[0]
-
-    test_idx = 1
+    test_idx = 2
     target = test[:, test_idx]
 
     # For a new feature, we can make a basic prediction by predicting the mean
     # of all (other) samples of the group
 
-    group_sizes = np.bincount(kmeans_model['groups'])
-    test_means = (
-        np.bincount(kmeans_model['groups'], weights=target)
-        / (group_sizes - 1)
-        )
-    test_means_preds = (
-        test_means[kmeans_model['groups']]
-        - target / (group_sizes[kmeans_model['groups']] - 1)
-        )
-
-    # We can also use a simple linear model
-    ## inverse correlation between features, from all samples
-    base_prec = np.linalg.inv(train.T @ train)
-    ## corr between features and target, idem
-    base_covs = train.T @ target
-    ## per-sample LOO corrs
-    covs = base_covs[:, None] - train.T * target
-    ## still biases by use of self in prec
-    base_weights = base_prec @ covs
-    weights = (
-        base_weights
-        + (base_prec @ train.T)
-            * np.sum((base_prec @ train.T) * covs, 0)
-            / (1. - np.sum(train.T * (base_prec @ train.T), 0))
-        )
-    test_lin = np.sum(train.T * weights, 0)
+    kmeans_preds = models.kmeans.predict_loo(kmeans_model, target)
+    linear_preds = models.linear.predict_loo(linear_model, target)
 
     # Plots
     # =====
 
-    order = np.argsort(train @ pc_nl)
+    order = np.argsort(hidden_factor)
 
     fig_test = go.Figure(
         data=[
             go.Scatter(
-                x=(train @ pc_nl)[order],
+                x=hidden_factor[order],
                 y=test[:, test_idx][order],
                 mode='markers',
                 name='New feature'
                 ),
             go.Scatter(
-                x=(train @ pc_nl)[order],
-                y=test_lin[order],
+                x=hidden_factor[order],
+                y=linear_preds[order],
                 mode='lines',
                 name='Linear prediction'
                 ),
             go.Scatter(
-                x=(train @ pc_nl)[order],
-                y=test_means_preds[order],
+                x=hidden_factor[order],
+                y=kmeans_preds[order],
                 mode='lines',
                 name='K-means prediction'
                 )
