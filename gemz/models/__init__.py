@@ -1,4 +1,4 @@
 """
 Module containing all statistical model fit and prediction code
 """
-from . import kmeans, linear
+from . import kmeans, linear, wishart

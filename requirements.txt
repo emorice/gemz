@@ -3,3 +3,6 @@ numpy
 plotly
 pandas
 sklearn
+jax
+jaxlib
+distrax

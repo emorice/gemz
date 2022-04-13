@@ -52,11 +52,18 @@ def linear_reg(output_dir, case_name, report_path):
     # Fits
     # ====
 
-    n_clusters = 4
+    model_args = {
+        'linear': {},
+        'kmeans': dict(n_clusters=4),
+        'wishart': {}
+        }
 
-    # don't copy paste the next one
-    kmeans_model = models.kmeans.fit(train, n_clusters=n_clusters)
-    linear_model = models.linear.fit(train)
+    model_fits = {
+        k: getattr(models, k).fit(train, **kwargs)
+        for k, kwargs in model_args.items()
+        }
+
+    print(model_fits['wishart'])
 
     test_idx = 2
     target = test[:, test_idx]
@@ -64,8 +71,10 @@ def linear_reg(output_dir, case_name, report_path):
     # For a new feature, we can make a basic prediction by predicting the mean
     # of all (other) samples of the group
 
-    kmeans_preds = models.kmeans.predict_loo(kmeans_model, target)
-    linear_preds = models.linear.predict_loo(linear_model, target)
+    preds = {
+        k: getattr(models, k).predict_loo(fit, target)
+        for k, fit in model_fits.items()
+        }
 
     # Plots
     # =====
@@ -79,25 +88,45 @@ def linear_reg(output_dir, case_name, report_path):
                 y=test[:, test_idx][order],
                 mode='markers',
                 name='New feature'
-                ),
+                )
+        ] + [
             go.Scatter(
                 x=hidden_factor[order],
-                y=linear_preds[order],
+                y=pred[order],
                 mode='lines',
-                name='Linear prediction'
+                name=f'{k.capitalize()} prediction'
+                )
+            for k, pred in preds.items()
+            ]
+        )
+
+    fig_pcs = plot_pc_clusters(
+        train,
+        n_clusters=model_args['kmeans']['n_clusters']
+        )
+
+    spectrum = (np.linalg.svd(train)[1]**2) / n_samples
+    prior_var = np.exp(model_fits['wishart']['opt']['prior_var_ln'])
+    prior_edf = np.exp(model_fits['wishart']['opt']['prior_edf_ln'])
+    adj_spectrum = (n_samples * spectrum + prior_var) / (n_samples + prior_edf - 1)
+
+    fig_spectrum = go.Figure(
+        data=[
+            go.Scatter(
+                y=spectrum,
+                mode='lines',
+                name='Covariance spectrum'
                 ),
             go.Scatter(
-                x=hidden_factor[order],
-                y=kmeans_preds[order],
+                y=adj_spectrum,
                 mode='lines',
-                name='K-means prediction'
+                name='Regularized covariance spectrum'
                 )
             ]
         )
 
-    fig_pcs = plot_pc_clusters(train, n_clusters=n_clusters)
-
     with open(report_path, 'w', encoding='utf8') as fd:
         fd.write(case_name)
         write_fig(fd, fig_pcs)
+        write_fig(fd, fig_spectrum)
         write_fig(fd, fig_test)
