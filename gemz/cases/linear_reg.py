@@ -105,17 +105,52 @@ def linear_reg(output_dir, case_name, report_path):
         n_clusters=model_args['kmeans']['n_clusters']
         )
 
-    spectrum = (np.linalg.svd(train)[1]**2) / n_samples
+    # N x K, K, K x D
+    _, singulars, left_t = np.linalg.svd(train)
+    spectrum = singulars**2 / n_samples
+
+    # This shoud just yield spectrum again
+    spectrum_mean = np.mean((left_t @ train.T)**2, -1)
+    # This is new
+    spectrum_var = np.mean((
+        (left_t @ train.T)**2
+        - spectrum_mean[:, None]
+        )**2, -1) / n_samples
+
     prior_var = np.exp(model_fits['wishart']['opt']['prior_var_ln'])
     prior_edf = np.exp(model_fits['wishart']['opt']['prior_edf_ln'])
-    adj_spectrum = (n_samples * spectrum + prior_var) / (n_samples + prior_edf - 1)
 
+    #adj_spectrum = (n_samples * spectrum + prior_var) / (n_samples + prior_edf - 1)
+    adj_spectrum = spectrum + np.sum(spectrum)/n_samples
+
+    n_sd = 1.
     fig_spectrum = go.Figure(
         data=[
             go.Scatter(
                 y=spectrum,
                 mode='lines',
                 name='Covariance spectrum'
+                ),
+            go.Scatter(
+                #x=np.repeat(np.arange(len(spectrum)), n_samples),
+                #y=(left_t @ train.T)**2).flatten(),
+                y=spectrum_mean,
+                error_y={'array': n_sd*np.sqrt(spectrum_var)},
+                #mode='markers',
+                name='Re-estimated spectrum'
+                ),
+            go.Scatter(
+                y=spectrum_mean,
+                error_y={'array': n_sd*spectrum_mean*np.sqrt(2/n_samples)},
+                #mode='markers',
+                name='Asymptotic spectrum distribution'
+                ),
+            go.Scatter(
+                y=spectrum_mean,
+                error_y={'array':
+                n_sd*spectrum_mean*np.sqrt(spectrum_mean.sum()/spectrum_mean*1/n_samples)},
+                #mode='markers',
+                name='Asymptotic Wishart distribution'
                 ),
             go.Scatter(
                 y=adj_spectrum,
@@ -125,8 +160,26 @@ def linear_reg(output_dir, case_name, report_path):
             ]
         )
 
+    char_domain = np.linspace(0.1, 15., 10000)
+    char_values = np.prod(spectrum - char_domain[:, None], -1)
+
+    fig_char = go.Figure(
+        data=[
+            go.Scatter(
+                x=char_domain,
+                #y=char_values,
+                y=np.sign(char_values)*(np.log10(np.abs(char_values)) -
+                np.log10(np.min(np.abs(char_values)))),
+                )
+            ],
+        layout=dict(
+            xaxis_type='log'
+            )
+        )
+
     with open(report_path, 'w', encoding='utf8') as fd:
         fd.write(case_name)
         write_fig(fd, fig_pcs)
         write_fig(fd, fig_spectrum)
+        write_fig(fd, fig_char)
         write_fig(fd, fig_test)
