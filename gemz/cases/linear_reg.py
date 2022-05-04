@@ -92,7 +92,7 @@ def linear_reg(output_dir, case_name, report_path):
         ] + [
             go.Scatter(
                 x=hidden_factor[order],
-                y=pred[order],
+                y=pred[order].flatten(),
                 mode='lines',
                 name=f'{k.capitalize()} prediction'
                 )
@@ -117,8 +117,8 @@ def linear_reg(output_dir, case_name, report_path):
         - spectrum_mean[:, None]
         )**2, -1) / n_samples
 
-    prior_var = np.exp(model_fits['wishart']['opt']['prior_var_ln'])
-    prior_edf = np.exp(model_fits['wishart']['opt']['prior_edf_ln'])
+    #prior_var = np.exp(model_fits['wishart']['opt']['prior_var_ln'])
+    #prior_edf = np.exp(model_fits['wishart']['opt']['prior_edf_ln'])
 
     #adj_spectrum = (n_samples * spectrum + prior_var) / (n_samples + prior_edf - 1)
     adj_spectrum = spectrum + np.sum(spectrum)/n_samples
