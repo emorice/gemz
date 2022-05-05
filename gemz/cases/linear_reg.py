@@ -54,6 +54,7 @@ def linear_reg(output_dir, case_name, report_path):
 
     model_args = {
         'linear': {},
+        'linear_shrinkage': {'prior_var': 100},
         'kmeans': dict(n_clusters=4),
         'wishart': {}
         }
