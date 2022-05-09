@@ -4,6 +4,9 @@ Linear algebra utils
 
 import numpy as np
 
+# The __array_* protocol methods actually define a public interface but pylint
+# does not know that
+# pylint: disable=too-few-public-methods
 class ImplicitMatrix:
     """
     Base class for integration of implicit matrices with regular numpy code.
@@ -89,7 +92,6 @@ def _add(obj, *args):
     if right is obj:
         return obj.add(left)
     return NotImplemented
-
 
 class ScaledIdentity(ImplicitMatrix):
     """

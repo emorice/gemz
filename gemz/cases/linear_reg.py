@@ -12,8 +12,24 @@ from gemz.reporting import write_fig
 
 from gemz.cases.low_high_clustering import plot_pc_clusters
 
+def plot_cv_rss(cv_model, grid_name):
+    """
+    Generate a scatter plot of the validated rss along the cv search grid
+    """
+    return go.Figure(
+        data=go.Scatter(
+            x=cv_model['cv_grid'],
+            y=cv_model['cv_rss'],
+            mode='lines+markers',
+            ),
+        layout={
+            'title': 'Cross-validated RSS',
+            'xaxis': { 'title': grid_name, 'type': 'log'},
+            'yaxis_title': 'RSS'
+            }
+        )
 @case
-def linear_reg(output_dir, case_name, report_path):
+def linear_reg(_, case_name, report_path):
     """
     Case entry point
     """
@@ -24,8 +40,14 @@ def linear_reg(output_dir, case_name, report_path):
     rng = np.random.default_rng(1234)
 
     # samples = dimension being split by clustering
-    n_samples = 1000
-    n_features = 30
+    # Collected interesting cases:
+    # 1000, 297
+    # 50, 50
+    # 201, 50
+    # 201, 200 is really weird ??
+    # 201, 196
+    n_samples = 201
+    n_features = 100
 
     hidden_factor = rng.normal(0., 1., size=n_samples)
     hidden_class = hidden_factor > 0.
@@ -54,17 +76,23 @@ def linear_reg(output_dir, case_name, report_path):
 
     model_args = {
         'linear': {},
-        'linear_shrinkage': {'prior_var': 100},
+
+        # Superseded by the cv version
+        # 'linear_shrinkage': {'prior_var': 100},
+
+        'linear_shrinkage_cv': {
+            'prior_var_grid': 10**np.linspace(-2, 2, 20)
+            },
         'kmeans': dict(n_clusters=4),
-        'wishart': {}
+
+        # In progress
+        # 'wishart': {}
         }
 
     model_fits = {
         k: getattr(models, k).fit(train, **kwargs)
         for k, kwargs in model_args.items()
         }
-
-    print(model_fits['wishart'])
 
     test_idx = 2
     target = test[:, test_idx]
@@ -161,26 +189,8 @@ def linear_reg(output_dir, case_name, report_path):
             ]
         )
 
-    char_domain = np.linspace(0.1, 15., 10000)
-    char_values = np.prod(spectrum - char_domain[:, None], -1)
-
-    fig_char = go.Figure(
-        data=[
-            go.Scatter(
-                x=char_domain,
-                #y=char_values,
-                y=np.sign(char_values)*(np.log10(np.abs(char_values)) -
-                np.log10(np.min(np.abs(char_values)))),
-                )
-            ],
-        layout=dict(
-            xaxis_type='log'
+    with open(report_path, 'w', encoding='utf8') as stream:
+        stream.write(case_name)
+        write_fig(stream, fig_pcs, fig_test, fig_spectrum,
+            plot_cv_rss(model_fits['linear_shrinkage_cv'], 'Prior variance')
             )
-        )
-
-    with open(report_path, 'w', encoding='utf8') as fd:
-        fd.write(case_name)
-        write_fig(fd, fig_pcs)
-        write_fig(fd, fig_spectrum)
-        write_fig(fd, fig_char)
-        write_fig(fd, fig_test)
