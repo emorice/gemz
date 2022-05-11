@@ -30,7 +30,7 @@ def spectrum(data, prior_var):
     """
     orig_spectrum = linear_spectrum(data)
     adjusted_spectrum = orig_spectrum + prior_var
-    return adjusted_spectrum / adjusted_spectrum.sum() * orig_spectrum.sum()
+    return adjusted_spectrum
 
 def predict_loo(model, new_data):
     """

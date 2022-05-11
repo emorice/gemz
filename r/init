@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Creates a R environment based on a DESCRIPTION file and helper scripts to use
+# it
+
+# R works with the description in the current directory, so we cd first
+cd "$(dirname "$0")"
+
+# Create the envionment
+# This creates a .Rprofile referencing the created renv
+R -e "renv::init(bare=TRUE)"
+
+# Install packages
+# This uses the local .Rprofile to operate in the correct renv
+R -e "renv::install()"
+
+# Creates a R script to activate by absolute path
+# This does not resolves links, which is usually the intended behavior
+echo "renv::activate(\"$(pwd)\")" > Renv
+
+# Creates a sourceable bash script to link the renv loaded in environment
+# variables
+cat > activate << EOF
+#!/bin/bash
+export R_PROFILE_USER="$(pwd)/Renv"
+export R_ENVIRON_USER=""
+export PS1="{renv} \$PS1"
+EOF
+
+chmod +x activate
+
+

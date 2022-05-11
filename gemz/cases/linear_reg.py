@@ -143,22 +143,28 @@ def linear_reg(_, case_name, report_path):
         model_fits['linear_shrinkage_cv']['cv_best']
         )
 
+    opt_spectrum = models.nonlinear_shrinkage.spectrum(train)
+
+    log1p = False
+
     fig_spectrum = go.Figure(
         data=[
             go.Scatter(
-                y=spectrum + 1.,
+                y=spec / spec.sum() * spectrum.sum() + 1. * log1p,
                 mode='lines+markers',
-                name='Covariance spectrum'
-                ),
-            go.Scatter(
-                y=adj_spectrum + 1.,
-                mode='lines+markers',
-                name='Regularized covariance spectrum'
+                name=name,
                 )
+            for spec, name in [
+                (spectrum, 'Covariance spectrum'),
+                (adj_spectrum, 'Linearly regularized covariance spectrum'),
+                (opt_spectrum, 'Non-Linearly regularized covariance spectrum')
+                ]
             ],
         layout={
             'title': 'Spectra',
-            'yaxis': {'title': 'Eigenvariances (log1p)', 'type': 'log'}
+            'yaxis': {
+                'title': 'Eigenvariances' + log1p * ' (log1p)',
+                'type': 'log' if log1p else 'linear'}
             }
         )
 

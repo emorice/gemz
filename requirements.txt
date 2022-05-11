@@ -6,3 +6,4 @@ sklearn
 jax
 jaxlib
 distrax
+rpy2
