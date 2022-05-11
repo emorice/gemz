@@ -85,6 +85,7 @@ def linear_reg(_, case_name, report_path):
             'prior_var_grid': 10**np.linspace(-2, 2, 20)
             },
         'kmeans': dict(n_clusters=4),
+        'nonlinear_shrinkage': {},
 
         # In progress
         # 'wishart': {}
@@ -109,25 +110,33 @@ def linear_reg(_, case_name, report_path):
     # Plots
     # =====
 
-    order = np.argsort(hidden_factor)
+    # Plot against first PC
+    covariate = train @ np.linalg.svd(train)[-1][0]
+
+    order = np.argsort(covariate)
 
     fig_test = go.Figure(
         data=[
             go.Scatter(
-                x=hidden_factor[order],
+                x=covariate[order],
                 y=test[:, test_idx][order],
                 mode='markers',
                 name='New feature'
                 )
         ] + [
             go.Scatter(
-                x=hidden_factor[order],
+                x=covariate[order],
                 y=pred[order].flatten(),
                 mode='lines',
                 name=f'{k.capitalize()} prediction'
                 )
             for k, pred in preds.items()
-            ]
+            ],
+        layout={
+            'title': 'Predictions of a new dimension',
+            'xaxis': {'title': 'PC1'},
+            'yaxis': {'title': 'New dimension'}
+            }
         )
 
     fig_pcs = plot_pc_clusters(
@@ -143,7 +152,7 @@ def linear_reg(_, case_name, report_path):
         model_fits['linear_shrinkage_cv']['cv_best']
         )
 
-    opt_spectrum = models.nonlinear_shrinkage.spectrum(train)
+    opt_spectrum = model_fits['nonlinear_shrinkage']['spectrum']
 
     log1p = False
 
