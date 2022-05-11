@@ -49,6 +49,22 @@ def predict_loo(model, new_data):
 
     return predictions
 
+def spectrum(data):
+    """
+    Estimated spectrum used implicitely by the linear interpolation
+
+    Args:
+        data: N1 x N2, assuming N1 > N2
+    Returns:
+        spectrum of the N1 covariance, of length N1, in descending order,
+        including zeros at the end
+    """
+    len1, len2 = data.shape
+    singular_values = np.linalg.svd(data)[1]
+    return np.hstack((
+        singular_values ** 2 / len1,
+        np.zeros(len1 - len2)
+        ))
 
 # Older reference implementations
 # ===============================

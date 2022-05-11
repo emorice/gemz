@@ -29,6 +29,7 @@ def fit(data, prior_var_grid):
     return {
         'model': model,
         'cv_grid': prior_var_grid,
+        'cv_best': best_prior_var,
         'cv_rss': rss_grid
        }
 
