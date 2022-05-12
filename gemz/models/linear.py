@@ -60,7 +60,7 @@ def spectrum(data):
         including zeros at the end
     """
     len1, len2 = data.shape
-    singular_values = np.linalg.svd(data)[1]
+    singular_values = np.linalg.svd(data, compute_uv=False)
     return np.hstack((
         singular_values ** 2 / len1,
         np.zeros(len1 - len2)

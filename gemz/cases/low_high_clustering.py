@@ -18,7 +18,7 @@ def plot_pc_clusters(data, n_clusters):
 
     clustering = gemz.models.kmeans.fit(data, n_clusters=n_clusters)
 
-    _, _, left_t = np.linalg.svd(data)
+    _, _, left_t = np.linalg.svd(data, full_matrices=False)
 
     pcs = left_t[:2]
 
@@ -67,7 +67,7 @@ def plot_pc_clusters(data, n_clusters):
     return fig
 
 @case
-def low_high_clustering(output_dir, case_name, report_path):
+def low_high_clustering(_, case_name, report_path):
     """
     Case entry point, see module docstring
     """

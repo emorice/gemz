@@ -111,7 +111,7 @@ def linear_reg(_, case_name, report_path):
     # =====
 
     # Plot against first PC
-    covariate = train @ np.linalg.svd(train)[-1][0]
+    covariate = np.linalg.svd(train, full_matrices=False)[0][:, 0]
 
     order = np.argsort(covariate)
 

@@ -32,15 +32,27 @@ def fit(data):
     """
     Estimates spectrum and builds a representation of the corresponding
     precision matrix
-    """
-    _, len2 = np.shape(data)
-    left, _, _ = np.linalg.svd(data)
 
-    opt_spectrum = spectrum(data)
+    Args:
+        data: N1 x N2, N1 > N2
+    """
+    len1, len2 = np.shape(data)
+    left, _, _ = np.linalg.svd(data, full_matrices=False)
+
+    cov_spectrum = spectrum(data)
+    inv_spectrum = 1.0 / cov_spectrum
+
+    null_precision = inv_spectrum[-1]
+
+    assert np.allclose(inv_spectrum[len2:len1], null_precision)
 
     return {
-        'precision': linalg.RWSS(0., left, np.diag(len2 / opt_spectrum)),
-        'spectrum': opt_spectrum
+        'precision': linalg.RWSS(
+            null_precision,
+            left,
+            np.diag(inv_spectrum[:len2] - null_precision)
+            ),
+        'spectrum': cov_spectrum
         }
 
 def predict_loo(model, new_data):
