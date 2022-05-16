@@ -69,7 +69,8 @@ def plot_pc_clusters(data, n_clusters):
 @case
 def low_high_clustering(_, case_name, report_path):
     """
-    Case entry point, see module docstring
+    Clustering of points from an essentially low or high dimensional
+    distribution
     """
 
     rng = np.random.default_rng(1234)
@@ -95,7 +96,7 @@ def low_high_clustering(_, case_name, report_path):
     fig_high = plot_pc_clusters(high, n_clusters)
     fig_high.update_layout(title='Information spread across dimensions')
 
-    with open(report_path, 'w', encoding='utf8') as fd:
-        fd.write(case_name)
-        write_fig(fd, fig_low)
-        write_fig(fd, fig_high)
+    with open(report_path, 'w', encoding='utf8') as stream:
+        stream.write(case_name)
+        write_fig(stream, fig_low)
+        write_fig(stream, fig_high)

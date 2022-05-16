@@ -20,16 +20,21 @@ def status(output_dir):
         print('Demonstration cases:')
         base_length = max(map(len, cases)) + 4
 
-        for case in cases:
+        for name, case in cases.items():
             avail = os.path.exists(
-                gemz.cases.get_report_path(output_dir, case)
+                gemz.cases.get_report_path(output_dir, name)
                 )
             print((
-                '    '
-                + case
-                + ''.join([' '] * (base_length - len(case)))
+                ' ' * 4
+                + name
+                + ''.join([' '] * (base_length - len(name)))
                 + ('available' if avail else 'missing')
                 ))
+            print(*(
+                ' ' * 8 + line.strip() + '\n'
+                for line in case.__doc__.splitlines()
+                if line.strip()
+                ), end='', sep='')
 
 def run(output_dir, case):
     """

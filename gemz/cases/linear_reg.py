@@ -32,7 +32,7 @@ def plot_cv_rss(cv_model, grid_name):
 @case
 def linear_reg(_, case_name, report_path):
     """
-    Case entry point
+    Regularized and unregularized high-dimensional linear models
     """
 
     # Data
