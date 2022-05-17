@@ -21,7 +21,11 @@ def write_header(stream, case_name):
     Should be replaced with templates at some point.
     """
     print(
-        '<!doctype html><html><body><h1>'
+        '<!doctype html><html>'
+        '<head><title>'
+        + case_name
+        + '</title></head>'
+        '<body><h1>'
         + case_name
         + '</h1>',
         file=stream
