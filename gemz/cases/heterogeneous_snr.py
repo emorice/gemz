@@ -51,17 +51,17 @@ def plot_fits(data, target, subsets, predictions):
     order = np.argsort(covariate)
     rev_order = np.argsort(order)
 
-    fig = make_subplots(3, 2)
+    fig = make_subplots(3, 2, shared_xaxes='all', shared_yaxes='all')
 
     for i_fit, (k_fit, fit_predictions) in enumerate(predictions.items()):
-        for i_refit, (k_refit, refit_predictions) in enumerate(fit_predictions.items()):
+        for i_refit, k_refit in enumerate(['low', 'high']):
             subset = subsets[k_refit]
             imp_order = np.argsort(rev_order[subset])
 
             sub_covariate = covariate[subset][imp_order]
 
             coos = i_fit + 1, i_refit + 1
-            fid = i_fit * len(fit_predictions) + i_refit
+            fid = i_fit * 2 + i_refit
             fid = fid + 1 if fid else ''
 
             for sub, color in [
@@ -77,16 +77,28 @@ def plot_fits(data, target, subsets, predictions):
                         marker={'color': color}
                     ),
                     *coos)
-            fig.add_trace(
-                go.Scatter(
-                    x=sub_covariate,
-                    y=refit_predictions.flatten()[imp_order],
-                    mode='lines',
-                    name=f'{k_fit} => {k_refit}',
-                    showlegend=False,
-                    line={'color': 'red'}
+
+            for preds, color, name in [
+                (
+                    fit_predictions[k_refit].flatten()[imp_order],
+                    'blue', 'Using only low or high'
                     ),
-                *coos)
+                (
+                    fit_predictions['pooled'].flatten()[subset][imp_order],
+                    'red', 'Using all features'
+                    )
+                ]:
+                fig.add_trace(
+                    go.Scatter(
+                        x=sub_covariate,
+                        y=preds,
+                        mode='lines',
+                        name=name,
+                        legendgroup=name,
+                        showlegend=not fid,
+                        line={'color': color}
+                        ),
+                    *coos)
             fig.update_layout({
                 f'xaxis{fid}_title': 'PC1',
                 f'yaxis{fid}_title': 'New observations',
@@ -169,7 +181,6 @@ def heterogeneous_snr(_, case_name, report_path):
                 train[subset],
                 prior_var=fit['cv_best'])
             for k_refit, subset in subsets.items()
-            if k_refit != 'pooled'
             }
        for k_fit, fit in fits.items()
     }
