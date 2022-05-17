@@ -7,12 +7,22 @@ import numpy as np
 from . import linear_shrinkage
 from .cv import fit_cv
 
-def fit(data, prior_var_grid):
+def default_grid():
+    """
+    A standard grid of prior vars to screen
+    """
+
+    return 10**np.linspace(-2, 2, 20)
+
+def fit(data, prior_var_grid=None):
     """
     Cross validated linearly regularized precision matrix.
 
     Basic grid-search strategy.
     """
+
+    if prior_var_grid is None:
+        prior_var_grid = default_grid()
 
     rss_grid = []
     for prior_var in prior_var_grid:

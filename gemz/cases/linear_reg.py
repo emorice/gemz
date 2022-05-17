@@ -12,6 +12,41 @@ from gemz.reporting import write_fig
 
 from gemz.cases.low_high_clustering import plot_pc_clusters
 
+def gen_hyperv(len1, len2, noise_sd=1., seed=0):
+    """
+    Generates a high-dimensional "V" shape
+    """
+
+    rng = np.random.default_rng(seed)
+
+    # The coordinate along the length of the V
+    hidden_factor = rng.normal(0., 1., size=len1)
+
+    # Whether we are in the first or second arm of the V
+    hidden_class = hidden_factor > 0.
+
+    # The ends and middle of the V
+    support_points = rng.normal(0., 1., size=(3, 2, len2))
+
+    # 2 x  len1 x len2
+    signal = support_points[0][:, None, :] + np.where(
+        hidden_class[None, :, None],
+        + hidden_factor[None, :, None] * support_points[1][:, None, :],
+        - hidden_factor[None, :, None] * support_points[2][:, None, :]
+        )
+
+    # 2 x len1 x len2
+    data = (
+        signal
+        + rng.normal(0., 1., size=(2, len1, len2))
+            * np.array(noise_sd)[..., None]
+        )
+
+    # Center each feature over all samples
+    data -= np.mean(data, 1)[:, None, :]
+
+    return data
+
 def plot_cv_rss(cv_model, grid_name):
     """
     Generate a scatter plot of the validated rss along the cv search grid
@@ -38,39 +73,16 @@ def linear_reg(_, case_name, report_path):
     # Data
     # ====
 
-    rng = np.random.default_rng(1234)
 
-    # samples = dimension being split by clustering
+    # len1 = dimension being split by clustering
     # Collected interesting cases:
     # 1000, 297
     # 50, 50
     # 201, 50
     # 201, 200 is really weird ??
     # 201, 196
-    n_samples = 201
-    n_features = 100
 
-    hidden_factor = rng.normal(0., 1., size=n_samples)
-    hidden_class = hidden_factor > 0.
-
-    #corr = 0.9
-
-    support_points = rng.normal(0., 1., size=(3, 2, n_features))
-
-    # 2 x  n_samples x n_features
-    signal = support_points[0][:, None, :] + np.where(
-        hidden_class[None, :, None],
-        + hidden_factor[None, :, None] * support_points[1][:, None, :],
-        - hidden_factor[None, :, None] * support_points[2][:, None, :]
-        )
-
-    # 2 x n_samples x n_features
-    data = signal + rng.normal(0., .5, size=(2, n_samples, n_features))
-
-    # Center each feature over all samples
-    data -= np.mean(data, 1)[:, None, :]
-
-    train, test = data
+    train, test = gen_hyperv(201, 100, noise_sd=.5)
 
     # Fits
     # ====
@@ -81,9 +93,7 @@ def linear_reg(_, case_name, report_path):
         # Superseded by the cv version
         # 'linear_shrinkage': {'prior_var': 100},
 
-        'linear_shrinkage_cv': {
-            'prior_var_grid': 10**np.linspace(-2, 2, 20)
-            },
+        'linear_shrinkage_cv': {},
         'kmeans': dict(n_clusters=4),
         'nonlinear_shrinkage': {},
 
