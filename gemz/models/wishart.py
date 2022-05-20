@@ -74,23 +74,27 @@ def predict_loo(model, new_data):
     """
 
     train = model['train']
-    reg_cov = train.T @ train + np.exp(model['opt']['prior_var_ln'])
+    joint = np.hstack((new_data[:, None], train))
+
+    reg_cov = joint.T @ joint + np.exp(model['opt']['prior_var_ln'])
+
     base_prec = np.linalg.inv(reg_cov)
 
-    t_train = train @ base_prec
+    base_raw_preds = - train @ base_prec[0, 1:]
+    base_scale = base_prec[0, 0]
 
-    base_covs = train.T @ new_data
-    covs = base_covs[:, None] - train.T * new_data
+    trans = joint @ base_prec
 
-    ## still biases by use of self in prec
-    base_weights = base_prec @ covs
-    weights = (
-        base_weights
-        + t_train.T
-            * np.sum(t_train.T * covs, 0)
-            / (1. - np.sum(train * t_train, 1))
+    r1fs = 1. + jnp.sum(trans * joint, 1)
+
+    raw_preds = (
+        base_raw_preds
+        - trans[:, 0] / r1fs * jnp.sum(trans[:, 1:] * train, 1)
         )
 
-    preds = np.sum(train.T * weights, 0)
+    scale = (
+        base_scale
+        + trans[:, 0]**2 / r1fs
+        )
 
-    return preds
+    return raw_preds / scale
