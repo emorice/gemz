@@ -30,8 +30,7 @@ def fit(data):
             )
         )
 
-
-    return opt
+    return {**opt, 'train': data}
 
 def wishart_marginal_likelihood(data_cov_spectrum, n_samples, n_dims, prior_edf_ln, prior_var_ln):
     """
@@ -73,4 +72,25 @@ def predict_loo(model, new_data):
     """
     Leave-one out prediction from existing clusters on new observations
     """
-    return np.full_like(new_data, np.nan)
+
+    train = model['train']
+    reg_cov = train.T @ train + np.exp(model['opt']['prior_var_ln'])
+    base_prec = np.linalg.inv(reg_cov)
+
+    t_train = train @ base_prec
+
+    base_covs = train.T @ new_data
+    covs = base_covs[:, None] - train.T * new_data
+
+    ## still biases by use of self in prec
+    base_weights = base_prec @ covs
+    weights = (
+        base_weights
+        + t_train.T
+            * np.sum(t_train.T * covs, 0)
+            / (1. - np.sum(train * t_train, 1))
+        )
+
+    preds = np.sum(train.T * weights, 0)
+
+    return preds

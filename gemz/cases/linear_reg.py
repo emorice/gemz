@@ -96,9 +96,7 @@ def linear_reg(_, case_name, report_path):
         'linear_shrinkage_cv': {},
         'kmeans': dict(n_clusters=4),
         'nonlinear_shrinkage': {},
-
-        # In progress
-        # 'wishart': {}
+        'wishart': {}
         }
 
     model_fits = {
@@ -164,6 +162,13 @@ def linear_reg(_, case_name, report_path):
 
     opt_spectrum = model_fits['nonlinear_shrinkage']['spectrum']
 
+    wh_fit = models.wishart.fit(train)
+    print(wh_fit)
+    wh_spectrum = (
+        spectrum
+        + np.exp(wh_fit['opt']['prior_var_ln']) / train.shape[-1]
+        )
+
     log1p = False
 
     fig_spectrum = go.Figure(
@@ -176,7 +181,8 @@ def linear_reg(_, case_name, report_path):
             for spec, name in [
                 (spectrum, 'Covariance spectrum'),
                 (adj_spectrum, 'Linearly regularized covariance spectrum'),
-                (opt_spectrum, 'Non-Linearly regularized covariance spectrum')
+                (opt_spectrum, 'Non-Linearly regularized covariance spectrum'),
+                (wh_spectrum, 'Lin. reg. covariance spectrum (Wishart EM)')
                 ]
             ],
         layout={
