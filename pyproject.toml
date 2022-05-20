@@ -1,3 +1,10 @@
+[project]
+name = "gemz"
+version = "0.0.1"
+dependencies = [
+  "rpy2 >= 3.5.1, < 4"
+]
+
 [build-system]
 requires = [
   "setuptools >= 40.8.0",
