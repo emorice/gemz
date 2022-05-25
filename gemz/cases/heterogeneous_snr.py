@@ -140,37 +140,12 @@ def plot_cvs(fits):
             }
         )
 
-@case
-def heterogeneous_snr(_, case_name, report_path):
+def eval_loss(loss_name, train, test, subsets):
     """
-    Regularized high-dimensional models with variation in SNR between variables
+    Run models with one loss aggregation strategy
     """
-
-    # Len1 is working dimension, len2 number of replicas
-    len1, len2 = 200, 100
-
-    rng = np.random.default_rng(4589)
-
-    noise_class = rng.choice(2, size=len1).astype(np.bool)
-
-    low_noise, high_noise = .1, 1.
-
-    noise_sd = np.where(noise_class, high_noise, low_noise)
-
-    train, test = gen_hyperv(len1, len2, noise_sd)
-
-    # Train and eval models on subsets
-    # We train on low, high and pool settings, and plot for low and high but not
-    # pooled
-
-    subsets = {
-        'low': ~noise_class,
-        'high': noise_class,
-        'pooled': np.full_like(noise_class, True)
-        }
-
     fits = {
-        k: linear_shrinkage_cv.fit(train[subset])
+        k: linear_shrinkage_cv.fit(train[subset], loss_name=loss_name)
         for k, subset in subsets.items()
         }
 
@@ -196,14 +171,47 @@ def heterogeneous_snr(_, case_name, report_path):
         for k_fit, _refits in refits.items()
     }
 
-    initial_plot = plot_data(train, noise_class)
     fit_plot = plot_fits(train, test[:, 0], subsets, predictions)
+
+    return [fit_plot, plot_cvs(fits)]
+
+@case
+def heterogeneous_snr(_, case_name, report_path):
+    """
+    Regularized high-dimensional models with variation in SNR between variables
+    """
+
+    # Len1 is working dimension, len2 number of replicas
+    len1, len2 = 200, 100
+
+    rng = np.random.default_rng(4589)
+
+    noise_class = rng.choice(2, size=len1).astype(np.bool)
+
+    noise_sd = np.where(noise_class, 1.0, 0.1)
+
+    train, test = gen_hyperv(len1, len2, noise_sd)
+
+    # Train and eval models on subsets
+    # We train on low, high and pool settings, and plot for low and high but not
+    # pooled
+
+    subsets = {
+        'low': ~noise_class,
+        'high': noise_class,
+        'pooled': np.full_like(noise_class, True)
+        }
+
+    initial_plot = plot_data(train, noise_class)
 
     with open(report_path, 'w', encoding='utf8') as stream:
         write_header(stream, case_name)
-        write_fig(stream,
-            initial_plot,
-            fit_plot,
-            plot_cvs(fits)
-            )
+
+        write_fig(stream, initial_plot)
+
+        for loss_name in ['RSS', 'GEOM']:
+            figs = eval_loss(loss_name, train, test, subsets)
+            print("<h2>", loss_name, "</h2>", file=stream)
+            write_fig(stream, *figs)
+
         write_footer(stream)

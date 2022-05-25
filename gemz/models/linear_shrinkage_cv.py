@@ -14,7 +14,7 @@ def default_grid():
 
     return 10**np.linspace(-2, 2, 20)
 
-def fit(data, prior_var_grid=None):
+def fit(data, prior_var_grid=None, loss_name=None):
     """
     Cross validated linearly regularized precision matrix.
 
@@ -27,7 +27,7 @@ def fit(data, prior_var_grid=None):
     rss_grid = []
     for prior_var in prior_var_grid:
         rss_grid.append(
-            fit_cv(data, linear_shrinkage, prior_var=prior_var)
+            fit_cv(data, linear_shrinkage, prior_var=prior_var, loss_name=loss_name)
             )
 
     best_prior_var = prior_var_grid[

@@ -47,20 +47,31 @@ def gen_hyperv(len1, len2, noise_sd=1., seed=0):
 
     return data
 
-def plot_cv_rss(cv_model, grid_name):
+def plot_cv_rss(cv_models, grid_name):
     """
     Generate a scatter plot of the validated rss along the cv search grid
     """
     return go.Figure(
-        data=go.Scatter(
-            x=cv_model['cv_grid'],
-            y=cv_model['cv_rss'],
-            mode='lines+markers',
-            ),
+        data=[
+            go.Scatter(
+                x=cv_model['cv_grid'],
+                y=cv_model['cv_rss'],
+                yaxis=f'y{i+1 if i else ""}',
+                mode='lines+markers',
+                )
+            for i, cv_model in enumerate(cv_models)
+            ],
         layout={
             'title': 'Cross-validated RSS',
             'xaxis': { 'title': grid_name, 'type': 'log'},
-            'yaxis_title': 'RSS'
+            'yaxis_visible': False,
+            **{
+                f'yaxis{i+1}': {
+                    'overlaying': 'y',
+                    'visible': False
+                    }
+                for i in range(1, len(cv_models))
+                }
             }
         )
 
@@ -87,22 +98,23 @@ def linear_reg(_, case_name, report_path):
     # Fits
     # ====
 
-    model_args = {
-        'linear': {},
+    model_args = [
+        ('linear',  {}),
 
         # Superseded by the cv version
-        # 'linear_shrinkage': {'prior_var': 100},
+        # ('linear_shrinkage': {'prior_var',  100}),
 
-        'linear_shrinkage_cv': {},
-        'kmeans': dict(n_clusters=4),
-        'nonlinear_shrinkage': {},
-        'wishart': {}
-        }
+        ('linear_shrinkage_cv',  {}),
+        ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
+        ('kmeans',  {'n_clusters': 4}),
+        ('nonlinear_shrinkage',  {}),
+        ('wishart',  {}),
+        ]
 
-    model_fits = {
-        k: getattr(models, k).fit(train, **kwargs)
-        for k, kwargs in model_args.items()
-        }
+    model_fits = [
+        (k, getattr(models, k).fit(train, **kwargs))
+        for k, kwargs in model_args
+        ]
 
     test_idx = 2
     target = test[:, test_idx]
@@ -110,10 +122,10 @@ def linear_reg(_, case_name, report_path):
     # For a new feature, we can make a basic prediction by predicting the mean
     # of all (other) samples of the group
 
-    preds = {
-        k: getattr(models, k).predict_loo(fit, target)
-        for k, fit in model_fits.items()
-        }
+    preds = [
+        (k, getattr(models, k).predict_loo(fit, target))
+        for k, fit in model_fits
+        ]
 
     # Plots
     # =====
@@ -138,7 +150,7 @@ def linear_reg(_, case_name, report_path):
                 mode='lines',
                 name=f'{k.capitalize()} prediction'
                 )
-            for k, pred in preds.items()
+            for k, pred in preds
             ],
         layout={
             'title': 'Predictions of a new dimension',
@@ -149,7 +161,8 @@ def linear_reg(_, case_name, report_path):
 
     fig_pcs = plot_pc_clusters(
         train,
-        n_clusters=model_args['kmeans']['n_clusters']
+        n_clusters=next(args['n_clusters'] for name, args in model_args
+            if name == 'kmeans')
         )
 
 
@@ -157,10 +170,12 @@ def linear_reg(_, case_name, report_path):
 
     adj_spectrum = models.linear_shrinkage.spectrum(
         train,
-        model_fits['linear_shrinkage_cv']['cv_best']
+        next(model['cv_best'] for name, model in model_fits
+            if name == 'linear_shrinkage_cv')
         )
 
-    opt_spectrum = model_fits['nonlinear_shrinkage']['spectrum']
+    opt_spectrum = next(model['spectrum'] for name, model in model_fits
+        if name == 'nonlinear_shrinkage')
 
     wh_fit = models.wishart.fit(train)
     print(wh_fit)
@@ -193,8 +208,14 @@ def linear_reg(_, case_name, report_path):
             }
         )
 
+    fig_cv = plot_cv_rss([
+                model for name, model in model_fits
+                if name == 'linear_shrinkage_cv'
+            ], 'Prior variance')
+
     with open(report_path, 'w', encoding='utf8') as stream:
         stream.write(case_name)
-        write_fig(stream, fig_pcs, fig_test, fig_spectrum,
-            plot_cv_rss(model_fits['linear_shrinkage_cv'], 'Prior variance')
+        write_fig(stream,
+            fig_pcs, fig_test, fig_spectrum,
+            fig_cv
             )
