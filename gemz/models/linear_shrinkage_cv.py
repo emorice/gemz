@@ -14,7 +14,7 @@ def default_grid():
 
     return 10**np.linspace(-2, 2, 20)
 
-def fit(data, prior_var_grid=None, loss_name=None):
+def fit(data, prior_var_grid=None, loss_name=None, target=None):
     """
     Cross validated linearly regularized precision matrix.
 
@@ -34,7 +34,7 @@ def fit(data, prior_var_grid=None, loss_name=None):
         np.argmin(rss_grid)
         ]
 
-    model = linear_shrinkage.fit(data, prior_var=best_prior_var)
+    model = linear_shrinkage.fit(data, prior_var=best_prior_var, target=target)
 
     return {
         'model': model,

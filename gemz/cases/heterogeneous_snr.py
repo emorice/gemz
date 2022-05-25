@@ -11,7 +11,7 @@ from gemz.cases import case
 from gemz.cases.linear_reg import gen_hyperv
 from gemz.reporting import write_header, write_footer, write_fig
 
-from gemz.models import linear_shrinkage_cv, linear_shrinkage
+from gemz import models
 
 def plot_data(data, noise_class):
     """
@@ -78,16 +78,19 @@ def plot_fits(data, target, subsets, predictions):
                     ),
                     *coos)
 
-            for preds, color, name in [
-                (
+            prediction_displays = []
+            if k_refit in fit_predictions:
+                prediction_displays.append((
                     fit_predictions[k_refit].flatten()[imp_order],
                     'blue', 'Using only low or high'
-                    ),
-                (
+                    ))
+            if 'pooled' in fit_predictions:
+                prediction_displays.append((
                     fit_predictions['pooled'].flatten()[subset][imp_order],
                     'red', 'Using all features'
-                    )
-                ]:
+                    ))
+
+            for preds, color, name in prediction_displays:
                 fig.add_trace(
                     go.Scatter(
                         x=sub_covariate,
@@ -140,29 +143,45 @@ def plot_cvs(fits):
             }
         )
 
-def eval_loss(loss_name, train, test, subsets):
+def eval_model(model, train, test, subsets):
     """
     Run models with one loss aggregation strategy
     """
+    name, args = model
+
+    module = models.get(name)
+
     fits = {
-        k: linear_shrinkage_cv.fit(train[subset], loss_name=loss_name)
+        k: module.fit(train[subset], **args)
         for k, subset in subsets.items()
         }
 
     # Fit regularized model once for each eval case with the preset prior var
-    refits = {
-        k_fit: {
-            k_refit: linear_shrinkage.fit(
-                train[subset],
-                prior_var=fit['cv_best'])
-            for k_refit, subset in subsets.items()
+    if name == 'linear_shrinkage_cv':
+        refits = {
+            k_fit: {
+                k_refit: models.linear_shrinkage.fit(
+                    train[subset],
+                    prior_var=fit['cv_best'])
+                for k_refit, subset in subsets.items()
+                }
+           for k_fit, fit in fits.items()
+        }
+        pred_module = models.linear_shrinkage
+    else:
+        # For diagonal target chimera models are not defined so just skip
+        # re-fits
+        refits = {
+            k_fit: {
+                k_fit: fit
+                }
+            for k_fit, fit in fits.items()
             }
-       for k_fit, fit in fits.items()
-    }
+        pred_module = module
 
     predictions = {
         k_fit: {
-            k_refit: linear_shrinkage.predict_loo(
+            k_refit: pred_module.predict_loo(
                 refit,
                 test[subsets[k_refit], 0]
                 )
@@ -204,14 +223,21 @@ def heterogeneous_snr(_, case_name, report_path):
 
     initial_plot = plot_data(train, noise_class)
 
+    model_definitions = [
+        ('linear_shrinkage_cv', {'loss_name': 'RSS'}),
+        ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
+        ('lscv_precision_target', {})
+        ]
+
     with open(report_path, 'w', encoding='utf8') as stream:
         write_header(stream, case_name)
 
         write_fig(stream, initial_plot)
 
-        for loss_name in ['RSS', 'GEOM']:
-            figs = eval_loss(loss_name, train, test, subsets)
-            print("<h2>", loss_name, "</h2>", file=stream)
+        for model_def in model_definitions:
+            name, args = model_def
+            figs = eval_model(model_def, train, test, subsets)
+            print("<h2>", name, *[f"{k} = {v}" for k,v in args.items()], "</h2>", file=stream)
             write_fig(stream, *figs)
 
         write_footer(stream)

@@ -10,14 +10,17 @@ from .linear import (
     spectrum as linear_spectrum
     )
 
-def fit(data, prior_var):
+def fit(data, prior_var, target=None):
     """
     Computes a representation of a linearily regularized precision matrix
     """
 
     _, len2 = data.shape
 
-    regularized_covariance = linalg.RWSS(prior_var, data, 1./len2)
+    if target is None:
+        target = 1.
+
+    regularized_covariance = linalg.RWSS(prior_var * target, data, 1./len2)
 
     return {
         'precision': np.linalg.inv(regularized_covariance),

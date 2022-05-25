@@ -134,6 +134,32 @@ class ScaledIdentity(ImplicitMatrix):
         dim = np.shape(other)[0]
         return other + self.scalar * np.eye(dim)
 
+class Diagonal(ImplicitMatrix):
+    """
+    Implicit diagonal matrix
+    """
+    def __init__(self, diagonal):
+        self._diagonal = diagonal
+
+    def diagonal(self):
+        """
+        Diagonal as a vector
+        """
+        return self._diagonal
+
+    def inv(self):
+        """
+        Diagonal inverse of diagonal matrix
+        """
+        return Diagonal(1. / self._diagonal)
+
+    def matmul_right(self, right):
+        """
+        Matmul of self @ right, i.e. multiplying elementwise each column
+        """
+        return self._diagonal[:, None] * right
+
+
 class RWSS(ImplicitMatrix):
     """
     Regularized weighted symmetric square of a matrix, stored symbolically.
@@ -209,7 +235,7 @@ def as_matrix(obj):
     if len(shape) == 0:
         return ScaledIdentity(obj)
     if len(shape) == 1:
-        raise NotImplementedError
+        return Diagonal(obj)
     if len(shape) == 2:
         return obj
 
