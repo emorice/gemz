@@ -24,14 +24,15 @@ def fit(data, prior_var_grid=None, loss_name=None, target=None):
     if prior_var_grid is None:
         prior_var_grid = default_grid()
 
-    rss_grid = []
+    loss_grid = []
     for prior_var in prior_var_grid:
-        rss_grid.append(
-            fit_cv(data, linear_shrinkage, prior_var=prior_var, loss_name=loss_name)
+        loss_grid.append(
+            fit_cv(data, linear_shrinkage, prior_var=prior_var,
+            loss_name=loss_name, target=target)
             )
 
     best_prior_var = prior_var_grid[
-        np.argmin(rss_grid)
+        np.argmin(loss_grid)
         ]
 
     model = linear_shrinkage.fit(data, prior_var=best_prior_var, target=target)
@@ -40,7 +41,9 @@ def fit(data, prior_var_grid=None, loss_name=None, target=None):
         'model': model,
         'cv_grid': prior_var_grid,
         'cv_best': best_prior_var,
-        'cv_rss': rss_grid
+        # Obsolete name for cv_loss, to be removed
+        'cv_rss': loss_grid,
+        'cv_loss': loss_grid
        }
 
 def predict_loo(model, new_data):

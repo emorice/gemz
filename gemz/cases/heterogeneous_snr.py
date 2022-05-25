@@ -237,7 +237,7 @@ def heterogeneous_snr(_, case_name, report_path):
         for model_def in model_definitions:
             name, args = model_def
             figs = eval_model(model_def, train, test, subsets)
-            print("<h2>", name, *[f"{k} = {v}" for k,v in args.items()], "</h2>", file=stream)
+            print("<h2>", name, *[f"{k}={v}" for k,v in args.items()], "</h2>", file=stream)
             write_fig(stream, *figs)
 
         write_footer(stream)
