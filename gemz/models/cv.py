@@ -24,6 +24,15 @@ def rss_loss(method, model, test):
     predictions = method.predict_loo(model, test)
     return np.sum((test - predictions)**2)
 
+@loss('iRSS')
+def irss_loss(method, model, test):
+    """
+    Classical RSS loss but unaggregated.
+    """
+
+    predictions = method.predict_loo(model, test)
+    return np.sum((test - predictions)**2, -1)
+
 @loss('NAIC')
 def naic_loss(method, model, test):
     """

@@ -3,23 +3,23 @@ Linear shrinkage through cross-validation towards a diagonal precision-adjusted
 target
 """
 
-import numpy as np
-
-from gemz.models import linear_shrinkage_cv
+from gemz.models import linear, linear_shrinkage_cv, cv
 
 def fit(data):
     """
     Fit a diagonally shrunk linear model in two steps.
 
-    First, fit an identity-shrunk model to get a first estimate of precisions.
+    First, fit an unshrunk model to get a first estimate of precisions.
     Then, build a shrinkage target from it and fit a second shrinkage model
     """
 
-    homoskedastic_cv = linear_shrinkage_cv.fit(data, loss_name="GEOM")
+    indiv_rss = cv.fit_cv(data, linear, loss_name='iRSS')
 
-    diag = np.diagonal(homoskedastic_cv['model']['precision'])
-
-    model = linear_shrinkage_cv.fit(data, loss_name='GEOM', target=1. / diag)
+    model = linear_shrinkage_cv.fit(
+        data,
+        loss_name='GEOM',
+        target=indiv_rss / data.shape[-1]
+        )
 
     return model
 

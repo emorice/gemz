@@ -29,7 +29,7 @@ def fit(data, prior_var, target=None):
 
 def spectrum(data, prior_var):
     """
-    Spectrum implicitely used by the regularized model
+    Spectrum implicitely used by the regularized model when target is None
     """
     orig_spectrum = linear_spectrum(data)
     adjusted_spectrum = orig_spectrum + prior_var
