@@ -40,6 +40,30 @@ class ImplicitMatrix:
             return imp(self, args)
         return NotImplemented
 
+    def __matmul__(self, right):
+        """
+        Self @ right
+        """
+        return self.matmul_right(right)
+
+    def matmul_right(self, right):
+        """
+        Self @ right
+        """
+        raise NotImplementedError
+
+    def __add__(self, right):
+        """
+        Self + right
+        """
+        return self.add(right)
+
+    def add(self, other):
+        """
+        Self + other
+        """
+        raise NotImplementedError
+
 def _ensure_unary(obj, args):
     """
     Raises if args not a 1-tuple of obj

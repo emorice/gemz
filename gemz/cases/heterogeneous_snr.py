@@ -133,6 +133,7 @@ def plot_cvs(fits):
                 name=name
                 )
             for name, model in fits.items()
+            if 'cv_grid' in model
             ],
         layout={
             'yaxis_title': 'Loss',
@@ -226,7 +227,8 @@ def heterogeneous_snr(_, case_name, report_path):
     model_definitions = [
         ('linear_shrinkage_cv', {'loss_name': 'RSS'}),
         ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
-        ('lscv_precision_target', {})
+        ('lscv_precision_target', {}),
+        ('lscv_free_diagonal', {})
         ]
 
     with open(report_path, 'w', encoding='utf8') as stream:

@@ -65,8 +65,8 @@ def fit_cv(data, method, fold_count=10, seed=1234, loss_name=None, **method_kwar
     """
 
     _, len2 = data.shape
-    rng = np.random.default_rng(seed)
 
+    rng = np.random.default_rng(seed)
     random_rank = rng.choice(len2, len2)
 
     total_loss = 0.

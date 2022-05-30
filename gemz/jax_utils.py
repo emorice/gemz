@@ -102,9 +102,9 @@ def vj_argnames(function, names):
         return value, jac, aux
     return _vg
 
-def maximize(native_obj, init, data):
+def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
     """
-    High-level maximization function
+    High-level minimization function
 
     Args:
         native_obj: an objective funtion accepting parameters and fixed values
@@ -123,8 +123,11 @@ def maximize(native_obj, init, data):
 
     init_anon, shapes, struct = pack(unapply_bijs(init, bijectors))
 
-    anon_obj = gen_obj(shapes, struct, bijectors, lambda **kw: - native_obj(**kw, **data))
-    _obj_bfgs = to_np64(jax.jit(anon_obj))
+    anon_obj = gen_obj(shapes, struct, bijectors, lambda **kw: obj_mult * native_obj(**kw, **data))
+
+    _obj_bfgs = to_np64(jax.jit(anon_obj) if jit else anon_obj)
+
+    scipy_method = scipy_method or 'BFGS'
 
     def obj_bfgs(flat_params):
         """
@@ -137,7 +140,7 @@ def maximize(native_obj, init, data):
     opt = scipy.optimize.minimize(
         obj_bfgs,
         init_anon,
-        method='BFGS',
+        method=scipy_method,
         jac=True,
     )
 
@@ -148,3 +151,13 @@ def maximize(native_obj, init, data):
         'hist': hist_bfgs,
         'scipy_opt': opt
         }
+
+def maximize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
+    """
+    Counterpart to minimize
+    """
+    return minimize(
+        native_obj, init, data, scipy_method=scipy_method,
+        obj_mult=-obj_mult,
+        jit=jit
+        )

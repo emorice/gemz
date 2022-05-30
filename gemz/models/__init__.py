@@ -8,6 +8,7 @@ from . import (
     linear_shrinkage,
     linear_shrinkage_cv,
     lscv_precision_target,
+    lscv_free_diagonal,
     nonlinear_shrinkage
     )
 
