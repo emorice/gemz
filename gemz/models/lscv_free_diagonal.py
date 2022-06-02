@@ -27,7 +27,8 @@ def fit(data, scale=1.):
 
     opt = minimize(
         cv_loss,
-        init=init, data=opt_data
+        init=init, data=opt_data,
+        scipy_method='L-BFGS-B',
         )
 
     final_log_scale = (

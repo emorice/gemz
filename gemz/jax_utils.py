@@ -112,7 +112,7 @@ def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
         init: a dictionary of initial values for the parameters to optimize
         data: a dictionary of fixed values for the other parameters
     """
-    hist_bfgs = []
+    hist = []
 
     # Ensure arrays
     init = { k: jnp.array(v) for k,v in init.items() }
@@ -125,20 +125,20 @@ def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
 
     anon_obj = gen_obj(shapes, struct, bijectors, lambda **kw: obj_mult * native_obj(**kw, **data))
 
-    _obj_bfgs = to_np64(jax.jit(anon_obj) if jit else anon_obj)
+    _obj_scipy = to_np64(jax.jit(anon_obj) if jit else anon_obj)
 
     scipy_method = scipy_method or 'BFGS'
 
-    def obj_bfgs(flat_params):
+    def obj_scipy(flat_params):
         """
         Simple wrapper to record the objective values
         """
-        value, grad = _obj_bfgs(flat_params)
-        hist_bfgs.append(value)
+        value, grad = _obj_scipy(flat_params)
+        hist.append(value)
         return value, grad
 
     opt = scipy.optimize.minimize(
-        obj_bfgs,
+        obj_scipy,
         init_anon,
         method=scipy_method,
         jac=True,
@@ -148,7 +148,7 @@ def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
 
     return {
         'opt': nat_opt,
-        'hist': hist_bfgs,
+        'hist': hist,
         'scipy_opt': opt
         }
 
