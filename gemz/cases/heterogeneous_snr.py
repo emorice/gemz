@@ -144,6 +144,28 @@ def plot_cvs(fits):
             }
         )
 
+def plot_hist(fits):
+    """Summarizes the optimization trace"""
+    return go.Figure(
+        data=[
+            go.Scatter(
+                y=model['opt']['hist'],
+                mode='lines+markers',
+                name=name
+                )
+            for name, model in fits.items()
+            if 'opt' in model
+            if 'hist' in model['opt']
+            ],
+        layout={
+            'yaxis_title': 'Optimization loss',
+            'xaxis': {'title': 'Iteration'},
+            'title': 'Cross-validation tuning trace',
+            'width': 900,
+            'height': 800
+            }
+        )
+
 def eval_model(model, train, test, subsets):
     """
     Run models with one loss aggregation strategy
@@ -193,7 +215,7 @@ def eval_model(model, train, test, subsets):
 
     fit_plot = plot_fits(train, test[:, 0], subsets, predictions)
 
-    return [fit_plot, plot_cvs(fits)]
+    return [fit_plot, plot_cvs(fits), plot_hist(fits)]
 
 @case
 def heterogeneous_snr(_, case_name, report_path):
