@@ -228,7 +228,8 @@ def heterogeneous_snr(_, case_name, report_path):
         ('linear_shrinkage_cv', {'loss_name': 'RSS'}),
         ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
         ('lscv_precision_target', {}),
-        ('lscv_free_diagonal', {})
+        ('lscv_free_diagonal', {'scale': 1.}),
+        ('lscv_free_diagonal', {'scale': None})
         ]
 
     with open(report_path, 'w', encoding='utf8') as stream:

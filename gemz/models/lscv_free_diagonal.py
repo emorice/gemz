@@ -8,29 +8,47 @@ from gemz.jax_utils import minimize
 from gemz.jax_numpy import indirect_jax
 from gemz.models import cv, linear_shrinkage
 
-def fit(data):
+def fit(data, scale=1.):
     """
     CV opt of diagonal shrinkage target
     """
 
+    init = dict(
+        log_diagonal=np.zeros(data.shape[0]),
+        )
+    opt_data = dict(
+        data=data
+        )
+
+    if scale is None:
+        init['log_scale'] = np.zeros(data.shape[0])
+    else:
+        opt_data['log_scale'] = np.log(scale)
+
     opt = minimize(
         cv_loss,
-        init=dict(
-            log_diagonal=np.zeros(data.shape[0])
-            ),
-        data=dict(
-            data=data
-            )
+        init=init, data=opt_data
         )
 
-    return linear_shrinkage.fit(
+    final_log_scale = (
+        (opt['opt'] if scale is None else opt_data)
+        ['log_scale']
+        )
+
+    model = linear_shrinkage.fit(
         data,
         prior_var=1.,
-        target=np.exp(opt['opt']['log_diagonal'])
+        target=np.exp(opt['opt']['log_diagonal']),
+        scale=np.exp(final_log_scale)
         )
 
+    return {
+        'model': model,
+        'opt': opt
+        }
+
 @indirect_jax
-def cv_loss(log_diagonal, data):
+def cv_loss(log_diagonal, log_scale, data):
     """
     Cross-validated geometric loss
     """
@@ -40,6 +58,7 @@ def cv_loss(log_diagonal, data):
         data, linear_shrinkage,
         fold_count=10, loss_name="GEOM",
         target=np.exp(log_diagonal),
+        scale=np.exp(log_scale),
         prior_var=1.
         )
 
@@ -47,4 +66,4 @@ def predict_loo(model, new_data):
     """
     See linear_shrinkage
     """
-    return linear_shrinkage.predict_loo(model, new_data)
+    return linear_shrinkage.predict_loo(model['model'], new_data)
