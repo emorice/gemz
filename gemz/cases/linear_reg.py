@@ -75,6 +75,23 @@ def plot_cv_rss(cv_models, grid_name):
             }
         )
 
+def plot_convergence(fits):
+    """
+    Plot log_likelihood against iteration, if sensible, for each model
+    """
+    data = []
+
+    for name, model in fits:
+        if 'hist' in model:
+            hist = model['hist']
+            if 'iteration' in hist and 'log_likelihood' in hist:
+                data.append(go.Scatter(
+                    x=hist['iteration'],
+                    y=hist['log_likelihood'],
+                    name=name
+                    ))
+    return go.Figure(data=data)
+
 @case
 def linear_reg(_, case_name, report_path):
     """
@@ -109,6 +126,8 @@ def linear_reg(_, case_name, report_path):
         ('kmeans',  {'n_clusters': 4}),
         ('nonlinear_shrinkage',  {}),
         ('wishart',  {}),
+        ('cmk', {'n_groups': 1}),
+        ('cmk', {'n_groups': 20}),
         ]
 
     model_fits = [
@@ -217,5 +236,5 @@ def linear_reg(_, case_name, report_path):
         stream.write(case_name)
         write_fig(stream,
             fig_pcs, fig_test, fig_spectrum,
-            fig_cv
+            fig_cv, plot_convergence(model_fits)
             )

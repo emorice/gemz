@@ -9,7 +9,8 @@ from . import (
     linear_shrinkage_cv,
     lscv_precision_target,
     lscv_free_diagonal,
-    nonlinear_shrinkage
+    nonlinear_shrinkage,
+    cmk
     )
 
 def get(name):
