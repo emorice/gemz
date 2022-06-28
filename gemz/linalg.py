@@ -4,9 +4,6 @@ Linear algebra utils
 
 import numpy as np
 
-# The __array_* protocol methods actually define a public interface but pylint
-# does not know that
-# pylint: disable=too-few-public-methods
 class ImplicitMatrix:
     """
     Base class for integration of implicit matrices with regular numpy code.
@@ -183,7 +180,6 @@ class Diagonal(ImplicitMatrix):
         """
         return self._diagonal[:, None] * right
 
-
 class RWSS(ImplicitMatrix):
     """
     Regularized weighted symmetric square of a matrix, stored symbolically.
@@ -197,7 +193,7 @@ class RWSS(ImplicitMatrix):
 
     def __init__(self, base, factor, weight):
         """
-        Builds a symbolic represenation of the matrix
+        Builds a symbolic representation of the matrix
             base + factor @ weight @ factor.T
         """
         self.base = as_matrix(base)
@@ -243,6 +239,12 @@ class RWSS(ImplicitMatrix):
             factor=inv_base @ self.factor,
             weight=-np.linalg.inv(capacitance)
             )
+
+class BlockRWSS(ImplicitMatrix):
+    """
+    Like RWSS, but with a block structure such that inter-block entries are set
+    to zero.
+    """
 
 def as_matrix(obj):
     """

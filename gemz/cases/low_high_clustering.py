@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 
 import gemz.models
 from gemz.cases import case
-from gemz.reporting import write_fig
+from gemz.reporting import open_report, write_fig
 
 def plot_pc_clusters(data, n_clusters):
     """
@@ -96,7 +96,6 @@ def low_high_clustering(_, case_name, report_path):
     fig_high = plot_pc_clusters(high, n_clusters)
     fig_high.update_layout(title='Information spread across dimensions')
 
-    with open(report_path, 'w', encoding='utf8') as stream:
-        stream.write(case_name)
+    with open_report(report_path, case_name) as stream:
         write_fig(stream, fig_low)
         write_fig(stream, fig_high)

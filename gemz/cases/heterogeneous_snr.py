@@ -9,7 +9,7 @@ from plotly.subplots import make_subplots
 
 from gemz.cases import case
 from gemz.cases.linear_reg import gen_hyperv
-from gemz.reporting import write_header, write_footer, write_fig
+from gemz.reporting import open_report, write_fig
 
 from gemz import models
 
@@ -254,9 +254,7 @@ def heterogeneous_snr(_, case_name, report_path):
         ('lscv_free_diagonal', {'scale': None})
         ]
 
-    with open(report_path, 'w', encoding='utf8') as stream:
-        write_header(stream, case_name)
-
+    with open_report(report_path, case_name) as stream:
         write_fig(stream, initial_plot)
 
         for model_def in model_definitions:
@@ -264,5 +262,3 @@ def heterogeneous_snr(_, case_name, report_path):
             figs = eval_model(model_def, train, test, subsets)
             print("<h2>", name, ' ; ', *[f"{k}={v}" for k,v in args.items()], "</h2>", file=stream)
             write_fig(stream, *figs)
-
-        write_footer(stream)

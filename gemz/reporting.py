@@ -2,6 +2,8 @@
 Utils related to report generation
 """
 
+from contextlib import contextmanager
+
 import plotly.io as pio
 
 def write_fig(stream, *figs):
@@ -36,3 +38,13 @@ def write_footer(stream):
     Writes a basic html footer
     """
     print('</body></html>', file=stream)
+
+@contextmanager
+def open_report(report_path, case_name):
+    """
+    Open an html file and adds header and footer
+    """
+    with open(report_path, 'w', encoding='utf8') as stream:
+        write_header(stream, case_name)
+        yield stream
+        write_footer(stream)
