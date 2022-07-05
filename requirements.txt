@@ -2,8 +2,9 @@ pylint
 numpy
 plotly
 pandas
-sklearn
+scikit-learn
 jax
 jaxlib
+chex
 distrax
 rpy2

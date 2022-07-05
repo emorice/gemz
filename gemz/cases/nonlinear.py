@@ -141,7 +141,9 @@ def nonlinear(_, case_name, report_path):
         'kmeans': ('kmeans', {'n_clusters': 2}),
         'gmm_free': ('gmm', {
             'n_groups': 2,
-            'n_init': 10
+            'n_init': 10,
+            #'bayesian': True,
+            'init_params': 'random_from_data'
             }),
         'gmm_forced': ('gmm', {
             'n_groups': 2,
@@ -153,7 +155,7 @@ def nonlinear(_, case_name, report_path):
                 )),
             #'precisions_init': np.stack([np.eye(train.shape[-1])]*2),
             'n_init': 1
-            })
+            }),
     }
 
     model_fits = {
