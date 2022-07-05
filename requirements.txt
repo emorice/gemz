@@ -3,8 +3,8 @@ numpy
 plotly
 pandas
 scikit-learn
-jax
-jaxlib
+jax <= 0.3.7 # breaks distrax
+jaxlib <= 0.3.7 # matches jax
 chex
 distrax
 rpy2

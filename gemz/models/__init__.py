@@ -3,6 +3,7 @@ Module containing all statistical model fit and prediction code
 """
 import sys
 
+# TODO: this should have some discovery scheme
 from . import (
     kmeans, linear, wishart,
     linear_shrinkage,
@@ -11,7 +12,7 @@ from . import (
     lscv_free_diagonal,
     nonlinear_shrinkage,
     cmk,
-    gmm
+    gmm, igmm
     )
 
 def get(name):

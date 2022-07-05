@@ -156,6 +156,9 @@ def nonlinear(_, case_name, report_path):
             #'precisions_init': np.stack([np.eye(train.shape[-1])]*2),
             'n_init': 1
             }),
+        'igmm': ('igmm', {
+            'n_groups': 2
+            })
     }
 
     model_fits = {
