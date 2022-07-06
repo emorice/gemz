@@ -1,5 +1,8 @@
 """
 Collection of functions to integrate jax autodiff with scipy solvers.
+
+Convention for bijectors: `forward` maps anon parameters (unconstrained reals)
+to natural parameters.
 """
 
 import numpy as np
@@ -102,7 +105,7 @@ def vj_argnames(function, names):
         return value, jac, aux
     return _vg
 
-def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
+def minimize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult=1., jit=None):
     """
     High-level minimization function
 
@@ -118,8 +121,12 @@ def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
     init = { k: jnp.array(v) for k,v in init.items() }
     data = { k: jnp.array(v) for k,v in data.items() }
 
-    # For now we put defaults for compatibilty, later we will expose this
-    bijectors = { k: distrax.Lambda(lambda x: x) for k in init }
+    if bijectors is None:
+        bijectors = {}
+    # NOTE: this could be done in [un]apply bijs ?
+    for k in init:
+        if k not in bijectors:
+            bijectors[k] = distrax.Lambda(lambda x: x)
 
     init_anon, shapes, struct = pack(unapply_bijs(init, bijectors))
 
@@ -152,12 +159,35 @@ def minimize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
         'scipy_opt': opt
         }
 
-def maximize(native_obj, init, data, scipy_method=None, obj_mult=1., jit=None):
+def maximize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult=1., jit=None):
     """
     Counterpart to minimize
     """
     return minimize(
-        native_obj, init, data, scipy_method=scipy_method,
+        native_obj, init, data,
+        bijectors=bijectors, scipy_method=scipy_method,
         obj_mult=-obj_mult,
         jit=jit
         )
+
+class Softmax:
+    """
+    Softmax bijector mapping D logits to D+1 normalized weights in (0, 1).
+
+    Allows batching over the *last* dimensions.
+    """
+    def forward(self, logits):
+        """
+        Maps logits -> weights
+        """
+        full_logits = jnp.concatenate((jnp.zeros_like(logits[:1]), logits))
+        return jnp.exp(jax.nn.log_softmax(full_logits, axis=0))
+
+    def inverse(self, weights):
+        """
+        Maps weights -> logits
+        """
+        weight0 = weights[0]
+        weights = weights[1:]
+        odd_ratios = weights / weight0
+        return jnp.log(odd_ratios)

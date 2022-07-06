@@ -11,11 +11,13 @@ import jax
 import jax.numpy as jnp
 
 # We whitelist operators one by one as we need them
+# (because I'm not sure where to find a comprehensive list)
 _OP_NAMES = {
     # Unary
     '__neg__',
     # Binary, direct
     '__add__',
+    '__sub__',
     '__mul__',
     '__matmul__',
     '__truediv__',
@@ -70,6 +72,16 @@ class JaxObject:
         Transpose
         """
         return maybe_wrap(self.wrapped.T)
+
+    @property
+    def shape(self):
+        """
+        Shape of the wrapped object.
+
+        The returned shape is not itself wrapped, this is meant to be used for
+        debugging, not resued as an input for further computations.
+        """
+        return self.wrapped.shape
 
 def op_wrapper(name):
     """
@@ -127,7 +139,7 @@ def maybe_unwrap_many_kw(**objs):
         for k, obj in objs.items()
         }
 
-def indirect_jax(function):
+def jaxify(function):
     """
     Function decorator to wrap jax arguments in numpy-compatible objects, and
     unwrap the return value if needed.
@@ -141,3 +153,6 @@ def indirect_jax(function):
         return maybe_unwrap(wrapped_ret)
 
     return _wrap
+
+# Obsolete less descriptive name
+indirect_jax = jaxify

@@ -79,6 +79,29 @@ def gen_hypertwist(len1, len2_train, len2_test, small_dims, small_var=0.01, larg
 
     return train, test, (subset, source, dest)
 
+def gen_lowdim(len1, seed=0, **_):
+    """
+    Easy 2-D case
+    """
+    corrs = [
+        np.array([[1., +0.7], [+0.7, 1.]]),
+        np.array([[1., -0.5], [-0.5, 1.]])
+        ]
+    means = [
+        np.array([0, -2]),
+        np.array([1, 1])
+    ]
+
+    rng = np.random.default_rng(seed)
+    classes = rng.choice(2, size=len1)
+
+    data = rng.normal(size=(len1, 2))
+    for cls in [0, 1]:
+        sel = classes == cls
+        data[sel] = (data[sel][:, None, :] @ corrs[cls])[:, 0, :] + means[cls]
+
+    return data, data, (classes == 1, np.array([1, 0]), np.array([0, 1]))
+
 def plot_nonlinearity(ddata, nonlinearity):
     """
     Draw a projection making the curvature change visible
@@ -104,7 +127,7 @@ def plot_nonlinearity(ddata, nonlinearity):
             }
         )
 
-def plot_pcs(data, subset):
+def plot_pcs(data, subset, resps=None):
     pcs, _, _ = np.linalg.svd(data, full_matrices=False)
 
     return go.Figure(
@@ -112,6 +135,8 @@ def plot_pcs(data, subset):
             go.Scatter(
                 x=pcs[:, 0][sub],
                 y=pcs[:, 1][sub],
+                hovertext=None if resps is None
+                    else list(map(str, resps[:, sub].T)),
                 mode='markers',
                 )
             for sub in (subset, ~subset)
@@ -134,9 +159,13 @@ def nonlinear(_, case_name, report_path):
         small_dims=90
         )
 
+    # Dummy test case
+    #train, test, nonlinearity = gen_lowdim(len1=1000)
+
     train_c1 = train[nonlinearity[0]]
     train_c2 = train[~nonlinearity[0]]
 
+    eps = 1e-2
     model_defs = {
         'kmeans': ('kmeans', {'n_clusters': 2}),
         'gmm_free': ('gmm', {
@@ -157,9 +186,17 @@ def nonlinear(_, case_name, report_path):
             'n_init': 1
             }),
         'igmm': ('igmm', {
-            'n_groups': 2
+            'n_groups': 2,
+            'seed': 0,
+            'init_resps': np.stack((
+                0.5 + eps - 2 * eps * nonlinearity[0],
+                0.5 - eps + 2 * eps * nonlinearity[0],
+                ))
             })
     }
+
+    # Uncomment to try only a subset of models
+    model_defs = { k: d for k, d in model_defs.items() if k == 'igmm' }
 
     model_fits = {
         name: models.get(algo).fit(train, **options)
@@ -187,7 +224,7 @@ def nonlinear(_, case_name, report_path):
             )
 
         figs_nl_model.append(
-            plot_pcs(train, nl_model[0])
+            plot_pcs(train, nl_model[0], model_fits[model]['responsibilities'])
             .update_layout(
                 title=f'{model.capitalize()} PCs'
                 )
