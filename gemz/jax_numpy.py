@@ -83,6 +83,13 @@ class JaxObject:
         """
         return self.wrapped.shape
 
+    def __repr__(self):
+        return (
+            'JaxObject('
+            + repr(self.wrapped)
+            + ')'
+            )
+
 def op_wrapper(name):
     """
     Delegate call to an operator by name
@@ -139,17 +146,28 @@ def maybe_unwrap_many_kw(**objs):
         for k, obj in objs.items()
         }
 
-def jaxify(function):
+def jaxify(*function, has_aux=False):
     """
     Function decorator to wrap jax arguments in numpy-compatible objects, and
     unwrap the return value if needed.
 
     This essentially makes pure numpy function jax-traceable.
+
+    Args:
+        has_aux: for now limited to a single aux jax object
     """
+    if not function:
+        return lambda function: jaxify(function, has_aux=has_aux)
+
+    assert len(function) == 1
+    function = function[0]
+
     def _wrap(*args, **kwargs):
         args = [ maybe_wrap(a) for a in args ]
         kwargs = { k: maybe_wrap(a) for k, a in kwargs.items() }
         wrapped_ret = function(*args, **kwargs)
+        if has_aux:
+            return maybe_unwrap_many(*wrapped_ret)
         return maybe_unwrap(wrapped_ret)
 
     return _wrap

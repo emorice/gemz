@@ -50,29 +50,47 @@ def unapply_bijs(nat_tree, bijs):
     """
     return jax.tree_map(lambda leave, bij: bij.inverse(leave), nat_tree, bijs)
 
-def gen_obj(shapes, struct, bijs, native_obj):
+def gen_obj(shapes, struct, bijs, native_obj, obj_mult, has_aux=False):
     """
     Generates an objective funtion of a flat parameter vector from an
     keyword-based objective function
+
+    Args:
+        has_aux: whether native_obj returns a (obj, aux) tuple instead of obj.
     """
+    def _mult_native_obj(**kwargs):
+        value_aux = native_obj(**kwargs)
+        if has_aux:
+            value, aux = value_aux
+            return obj_mult * value, aux
+        return obj_mult * value_aux
+
     return lambda data, **obj_args : jax.value_and_grad(
-        lambda data: native_obj(
+        lambda data: _mult_native_obj(
             **apply_bijs(
                 unpack(data, shapes, struct),
                 bijs),
             **obj_args
-        )
+        ),
+        has_aux=has_aux
     )(data)
 
-def to_np64(obj):
+def to_np64(obj, has_aux=False):
     """
     Generates a differentiated objective accepting and returning double arrays
     from a differentiated objective accepting and returning float arrays
     """
     def _obj(np64_pos):
         j32_pos = jnp.array(np64_pos, dtype='float32')
-        j32_v, j32_g = obj(j32_pos)
-        return np.array(j32_v, dtype='float64'), np.array(j32_g, dtype='float64')
+        j32_va, j32_g = obj(j32_pos)
+        if has_aux:
+            # Unpack value-aux and convert only value
+            j32_v, j32_a = j32_va
+            np64_va = np.array(j32_v, dtype='float64'), j32_a
+        else:
+            # value-aux is just value, convert it
+            np64_va = np.array(j32_va, dtype='float64')
+        return np64_va, np.array(j32_g, dtype='float64')
     return _obj
 
 def vj_argnames(function, names):
@@ -105,7 +123,8 @@ def vj_argnames(function, names):
         return value, jac, aux
     return _vg
 
-def minimize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult=1., jit=None):
+def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
+    obj_mult=1., jit=None, has_aux=False):
     """
     High-level minimization function
 
@@ -130,9 +149,15 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult
 
     init_anon, shapes, struct = pack(unapply_bijs(init, bijectors))
 
-    anon_obj = gen_obj(shapes, struct, bijectors, lambda **kw: obj_mult * native_obj(**kw, **data))
+    anon_obj = gen_obj(
+        shapes, struct, bijectors,
+        lambda **kw: native_obj(**kw, **data),
+        obj_mult,
+        has_aux=has_aux)
 
-    _obj_scipy = to_np64(jax.jit(anon_obj) if jit else anon_obj)
+    _obj_scipy = to_np64(
+        jax.jit(anon_obj) if jit else anon_obj,
+        has_aux=has_aux)
 
     scipy_method = scipy_method or 'BFGS'
 
@@ -141,7 +166,11 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult
         Simple wrapper to record the objective values
         """
         value, grad = _obj_scipy(flat_params)
+        # Also append aux to hist if present
         hist.append(value)
+        # Then discard aux before yielding to scipy
+        if has_aux:
+            value, _ = value
         return value, grad
 
     opt = scipy.optimize.minimize(
@@ -159,7 +188,8 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult
         'scipy_opt': opt
         }
 
-def maximize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult=1., jit=None):
+def maximize(native_obj, init, data, bijectors=None, scipy_method=None,
+    obj_mult=1., jit=None, has_aux=False):
     """
     Counterpart to minimize
     """
@@ -167,7 +197,8 @@ def maximize(native_obj, init, data, bijectors=None, scipy_method=None, obj_mult
         native_obj, init, data,
         bijectors=bijectors, scipy_method=scipy_method,
         obj_mult=-obj_mult,
-        jit=jit
+        jit=jit,
+        has_aux=has_aux
         )
 
 class Softmax:

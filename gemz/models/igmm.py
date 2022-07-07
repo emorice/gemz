@@ -7,7 +7,7 @@ from gemz import jax_utils
 from gemz.jax_numpy import jaxify
 
 
-@jaxify
+@jaxify(has_aux=True)
 def igmm_obj(data, responsibilities, barrier_strength=0.1):
     """
     Information-based objective function for GMM
@@ -45,18 +45,19 @@ def igmm_obj(data, responsibilities, barrier_strength=0.1):
     # K, det over N x N
     _signs, log_det_covs = np.linalg.slogdet(covariances)
 
+    agg_misfits = np.tensordot(responsibilities, misfits)
     # scalar
     exp_log_lk = (
         - 0.5 * group_sizes @ log_det_covs
-        - 0.5 * np.tensordot(responsibilities, misfits)
+        - 0.5 * agg_misfits
         )
     # scalar
     entropy = - np.tensordot(responsibilities, np.log(responsibilities))
-    
+
     # scalar
     barrier = barrier_strength * np.sum(np.log(responsibilities))
 
-    return exp_log_lk + entropy + barrier
+    return exp_log_lk + entropy + barrier, agg_misfits
 
 def fit(data, n_groups, seed=0, init_resps=None):
     """
@@ -86,7 +87,8 @@ def fit(data, n_groups, seed=0, init_resps=None):
         bijectors={
             'responsibilities': jax_utils.Softmax()
             },
-        scipy_method='L-BFGS-B'
+        scipy_method='L-BFGS-B',
+        has_aux=True
         )
 
     print(max_results)
