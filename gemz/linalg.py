@@ -180,13 +180,17 @@ class Diagonal(ImplicitMatrix):
         """
         return self._diagonal[:, None] * right
 
-class RWSS(ImplicitMatrix):
+class SymmetricLowRankUpdate(ImplicitMatrix):
     """
-    Regularized weighted symmetric square of a matrix, stored symbolically.
+    Symmetric low-rank update of a matrix, stored symbolically.
 
-    This allow efficient storage and operations such as inversion and
-    determinant when the squared matrix is much taller than wide and thus
-    smaller than its dense square.
+    This allow efficient storage and operations such as inversion, determinant
+    or matrix-vector product when:
+        * the update has a noticeably smaller rank that the dimension of the
+          matrix, and
+        * storage and operations of the updatee can be done at a small marginal
+          cost, because it has a simple structure (e.g. a diagonal matrix) or is
+          broadcasted against many different updates.
 
     This representation is not identifiable and not meant to be.
     """
@@ -195,6 +199,12 @@ class RWSS(ImplicitMatrix):
         """
         Builds a symbolic representation of the matrix
             base + factor @ weight @ factor.T
+
+        All inputs can have (matching) leading batch dimensions.
+        If base or weight have less than two dimensions, there are assumed to be
+        diagonal matrices or scalar multiple of the identity matrix.
+
+        Note that you can use a negative weight to write a downdate.
         """
         self.base = as_matrix(base)
         self.factor = factor
@@ -240,11 +250,8 @@ class RWSS(ImplicitMatrix):
             weight=-np.linalg.inv(capacitance)
             )
 
-class BlockRWSS(ImplicitMatrix):
-    """
-    Like RWSS, but with a block structure such that inter-block entries are set
-    to zero.
-    """
+# "Regularized weighted symmetric square", obsolete name
+RWSS = SymmetricLowRankUpdate
 
 def as_matrix(obj):
     """
@@ -266,3 +273,50 @@ def as_matrix(obj):
         return obj
 
     raise NotImplementedError
+
+def loo_sum(array, axis=None):
+    """
+    Concrete leave-one-out sum over an array.
+
+    Note that for a sum the memory used by the result is the same as for the input.
+    """
+    return np.sum(array, axis=axis, keepdims=True) - array
+
+def loo_matmul(left, right):
+    """
+    Concrete leave-one-out matrix multiplication over an array.
+
+    The LOO axis is left in the middle, signature is (a, b), (b, c) -> (a, b, c)
+    for 2D inputs.
+
+    Assumes inputs are atleast 2D. Supports leading batch dimensions.
+
+    Note that in contrast with loo_sum, a concrete loo matmul may be much larger that
+    its inputs. Consider using implicit matrices.
+    """
+    joint = left[..., None] * right[..., None, :, :]
+    return loo_sum(joint, -2)
+
+def loo_square(array, weights):
+    """
+    Implicit leave-one-out transpose square of an array.
+
+    With weights along the contracted dimension. [Loo-]contracts over the last
+    dimension of `array`, like np.cov or np.corrcoef. Puts the LOO axis before the
+    duplicated axis. Supports leading batching dimensions.
+    Signature (..ij, ..j) -> (..jii)
+    """
+
+    # Non-loo square
+    base = (array * weights[..., None, :]) @ array.T
+
+    return SymmetricLowRankUpdate(
+        # Insert a broadcasting loo dimension just before the duplicated one
+        base=base[..., None, :, :],
+        # Put the trailing LOO axis at the end of the batching dimensions,
+        # then add a dummy contracting dimension at the end
+        factor=np.swapaxes(array, -2, -1)[..., None],
+        # Add two dummy contracting dimensions, and
+        # swap the sign since LOO is a *down*date
+        weight=-weights[..., None, None]
+        )

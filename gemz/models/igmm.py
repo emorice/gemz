@@ -4,15 +4,74 @@ Information-driven Gaussian mixture models
 
 import numpy as np
 from gemz import jax_utils
+from gemz import linalg
 from gemz.jax_numpy import jaxify
 
-
-@jaxify(has_aux=True)
+@jaxify
 def igmm_obj(data, responsibilities, barrier_strength=0.1):
     """
-    Information-based objective function for GMM
+    Information-GMM objective
 
-    In progress, for now classical ELBO only
+    Args:
+        data: N x P, P being the large dimension
+        responsibilities: K x P, K being the number of groups
+    """
+    # K x P, loo-sum over P
+    group_sizes = linalg.loo_sum(responsibilities, -1)
+
+    # K x P x N, loo-sum over P
+    means = linalg.loo_matmul(responsibilities, data.T) / group_sizes[..., None]
+
+    # K x P x N x N implicit matrix stack, noncentered covariances
+    grams = (
+        linalg.loo_square(data, responsibilities)
+        / group_sizes[..., None, None]
+        )
+
+    # K x P x N x N implicit matrix stack
+    covariances = linalg.SymmetricLowRankUpdate(
+        base=grams,
+        # Extra contracting dim (outer product)
+        factor=means[..., None],
+        weight=-1,
+        )
+
+    # K x P x N X N
+    precisions = np.linalg.inv(covariances)
+
+    # K x P x N
+    centered_data = data.T - means
+
+    # K x P, sum over N
+    misfits = np.sum(
+        (precisions @ centered_data[..., None])
+        * centered_data[..., None],
+        (-2, -1)
+        )
+
+    # K x P, det over N x N
+    _signs, log_det_covs = np.linalg.slogdet(covariances)
+
+    # scalar
+    agg_misfits = np.tensordot(responsibilities, misfits)
+
+    # scalar
+    exp_log_lk = (
+        - 0.5 * np.tensordot(responsibilities, log_det_covs)
+        - 0.5 * agg_misfits
+        )
+    # scalar
+    entropy = - np.tensordot(responsibilities, np.log(responsibilities))
+
+    # scalar
+    barrier = barrier_strength * np.sum(np.log(responsibilities))
+
+    return exp_log_lk + entropy + barrier
+
+@jaxify(has_aux=True)
+def gmm_obj(data, responsibilities, barrier_strength=0.1):
+    """
+    Classical GMM objective for reference.
 
     Args:
         data: N x P, P being the large dimension
