@@ -147,7 +147,7 @@ def fit(data, n_groups, seed=0, init_resps=None):
             'responsibilities': jax_utils.Softmax()
             },
         scipy_method='L-BFGS-B',
-        has_aux=True
+        #has_aux=True
         )
 
     print(max_results)

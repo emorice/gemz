@@ -49,6 +49,8 @@ class ImplicitMatrix:
         """
         raise NotImplementedError
 
+
+    # FIXME: isn't this useless ? Might as well implement __add__ on children
     def __add__(self, right):
         """
         Self + right
@@ -85,6 +87,14 @@ def _inv(obj, args):
     _ensure_unary(obj, args)
     return obj.inv()
 
+@ImplicitMatrix.implements(np.linalg.slogdet)
+def _inv(obj, args):
+    """
+    Implements np.linalg.sloget as a `slogdet` method call
+    """
+    _ensure_unary(obj, args)
+    return obj.slogdet()
+
 @ImplicitMatrix.implements(np.matmul)
 def _matmul(obj, *args):
     """
@@ -118,8 +128,9 @@ class ScaledIdentity(ImplicitMatrix):
     """
     Implicit scalar multiple of the identity matrix
     """
-    def __init__(self, scalar):
+    def __init__(self, scalar, inner_dim):
         self.scalar = scalar
+        self.inner_dim = inner_dim
 
     def matmul_right(self, right):
         """
@@ -144,7 +155,9 @@ class ScaledIdentity(ImplicitMatrix):
         """
         Inverse scalar times identity, raises if 0
         """
-        return ScaledIdentity(scalar=1.0 / self.scalar)
+        return ScaledIdentity(
+            scalar=1.0 / self.scalar,
+            inner_dim=self.inner_dim)
 
     def add(self, other):
         """
@@ -152,8 +165,63 @@ class ScaledIdentity(ImplicitMatrix):
         """
         # For now we only consider adding to a concrete array, in which case we
         # can concretize self
-        dim = np.shape(other)[0]
-        return other + self.scalar * np.eye(dim)
+        return other + self.scalar * np.eye(self.inner_dim)
+
+    def slogdet(self):
+        """
+        Sign and log det of self
+        """
+        return (
+            np.sign(self.scalar) ** self.inner_dim,
+            self.inner_dim * np.log(np.abs(self.scalar))
+            )
+
+class ScaledMatrix(ImplicitMatrix):
+    """
+    Implicit scalar multiple of an arbitrary matrix.
+
+    Note that the scalar and matrix may be batched, so "scalar" and "matrix"
+    means any tensors with D and D+2 dimensions really.
+
+    This is useful when the base matrix is broadcasted along an axis with
+    different scalars (effectively an outer product between a matrix and a
+    vector). This include cases where the base is itself an ImplicitMatrix that
+    wraps a broadcasted matrix, though the scalar could arguably be pushed down
+    in that case.
+    """
+    def __init__(self, base, multiplier):
+        self.base = base
+        self.multiplier = multiplier
+
+    def inv(self):
+        """
+        Possibly batched inverse.
+        """
+        return ScaledMatrix(
+            base=np.linalg.inv(self.base),
+            multiplier=1. / self.multiplier
+            )
+
+    def matmul_right(self, right):
+        """
+        Self @ right
+
+        By default we multiply with the base first then apply the multiplier, so
+        that with a broadcasted base and right we save the expansion for the
+        end.
+        """
+        return self.multiplier[..., None, None] * (self.base @ right)
+
+    def slogdet(self):
+        """
+        Sign and log det of self
+        """
+        s_base, l_base = np.linalg.slogdet(self.base)
+        dim = self.base.shape[-1]
+        return (
+            s_base * np.sign(self.multiplier) ** dim,
+            l_base + dim * np.log(np.abs(self.multiplier))
+            )
 
 class Diagonal(ImplicitMatrix):
     """
@@ -206,10 +274,38 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
 
         Note that you can use a negative weight to write a downdate.
         """
-        self.base = as_matrix(base)
+        self.base = as_matrix(base, factor.shape[-2])
         self.factor = factor
-        self.weight = as_matrix(weight)
+        self.weight = as_matrix(weight, factor.shape[-1])
 
+        self._inv_base = None
+        self._inv_weight = None
+        self._capacitance = None
+
+    class SLRUShape:
+        """
+        Shape proxy for SLRU matrix
+
+        The whole shape is not easily predicted but specific lengths may be
+        guessed easily.
+        """
+        def __init__(self, slru):
+            self.slru = slru
+
+        def __getitem__(self, index):
+            if index == -1:
+                return max(
+                    self.slru.base.shape[-1],
+                    self.slru.factor.shape[-2],
+                    )
+            raise NotImplementedError(index)
+
+    @property
+    def shape(self):
+        """
+        Shape accessor object
+        """
+        return self.SLRUShape(self)
 
     def matmul_right(self, right):
         """
@@ -222,7 +318,7 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
             self.base @ right
             + self.factor @ (
                 self.weight @ (
-                    self.factor.T @ right
+                    np.swapaxes(self.factor, -2, -1) @ right
                     )
                 )
             )
@@ -233,30 +329,90 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         """
         return (
             np.diagonal(self.base)
-            + np.sum((self.factor @ self.weight) * self.factor, 1)
+            + np.sum((self.factor @ self.weight) * self.factor, -1)
             )
+
+    @property
+    def inv_base(self):
+        """
+        Inverse of base matrix, cached
+        """
+        if self._inv_base is None:
+            self._inv_base = np.linalg.inv(self.base)
+        return self._inv_base
+
+    @property
+    def inv_weight(self):
+        """
+        Inverse of weight matrix, cached
+        """
+        if self._inv_weight is None:
+            self._inv_weight = np.linalg.inv(self.weight)
+        return self._inv_weight
+
+
+    @property
+    def capacitance(self):
+        """
+        Capacitance matrix, cached
+        """
+        if self._capacitance is None:
+            self._capacitance = (
+                self.inv_weight
+                + np.swapaxes(self.factor, -2, -1) @ (
+                    self.inv_base @ self.factor
+                    )
+                )
+        return self._capacitance
 
     def inv(self):
         """"
         Representation of inverse through Woodbury identity
         """
-        inv_base = np.linalg.inv(self.base)
-        inv_weight = np.linalg.inv(self.weight)
-        capacitance = inv_weight + self.factor.T @ (inv_base @ self.factor)
-
-        return RWSS(
-            base=inv_base,
-            factor=inv_base @ self.factor,
-            weight=-np.linalg.inv(capacitance)
+        return SymmetricLowRankUpdate(
+            base=self.inv_base,
+            factor=self.inv_base @ self.factor,
+            weight=-np.linalg.inv(self.capacitance)
             )
+
+    def slogdet(self):
+        """
+        Sign and log-determinant through matrix determninant lemma
+        """
+        s_base, l_base = np.linalg.slogdet(self.base)
+        s_weight, l_weight = np.linalg.slogdet(self.weight)
+        s_capa, l_capa = np.linalg.slogdet(self.capacitance)
+
+        return s_base * s_weight * s_capa, l_base + l_weight + l_capa
+
+    def __truediv__(self, divisor):
+        """
+        Self / divisor
+
+        Divisor must be a batched scalar, and must be manually broadcasted if
+        needed first.
+
+        Scalar is required Hadamard division of SLRU is not easily doable.
+
+        Automatic broadcasting of scalars or (constant) vectors is not
+        implemented as the main use case is batched scalars that require
+        pre-broadcasting anyway.
+        """
+        if divisor.shape[-2:] != (1, 1):
+            raise ValueError('Cannot divide a SLRU by something else than a '
+                'batched 1 x 1 array. Received divisor with shape ' +
+                str(divisor.shape))
+        return ScaledMatrix(self, 1. / divisor[..., 0, 0])
 
 # "Regularized weighted symmetric square", obsolete name
 RWSS = SymmetricLowRankUpdate
 
-def as_matrix(obj):
+def as_matrix(obj, bcast_inner_dim):
     """
     Performs conversion of scalars into implicit multiples of the identity matrix, and
     later 1-d arrays into implicit diagonal arrays.
+
+    The dimension of the potential identity matrix to use must be specified
     """
     # Implicit objects may not have a concrete shape, but they already matrices
     if isinstance(obj, ImplicitMatrix):
@@ -266,13 +422,10 @@ def as_matrix(obj):
     shape = np.shape(obj)
 
     if len(shape) == 0:
-        return ScaledIdentity(obj)
+        return ScaledIdentity(obj, inner_dim=bcast_inner_dim)
     if len(shape) == 1:
         return Diagonal(obj)
-    if len(shape) == 2:
-        return obj
-
-    raise NotImplementedError
+    return obj
 
 def loo_sum(array, axis=None):
     """
