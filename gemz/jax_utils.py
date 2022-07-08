@@ -211,7 +211,7 @@ class Softmax:
         """
         Maps logits -> weights
         """
-        full_logits = jnp.concatenate((jnp.zeros_like(logits[:1]), logits))
+        full_logits = jnp.insert(logits, 0, 0., axis=0)
         return jnp.exp(jax.nn.log_softmax(full_logits, axis=0))
 
     def inverse(self, weights):
