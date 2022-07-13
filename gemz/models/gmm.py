@@ -30,9 +30,12 @@ def fit(data, n_groups, bayesian=False, **skargs):
 
     # len1
     groups = sk_fit.predict(data)
+    probas = sk_fit.predict_proba(data)
 
     return {
         'groups': groups,
+        'responsibilities': (probas / probas.sum(-1, keepdims=True)).T
+
         }
 
 def predict_loo(model, new_data):

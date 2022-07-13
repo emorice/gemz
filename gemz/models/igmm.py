@@ -68,7 +68,7 @@ def igmm_obj(data, responsibilities, barrier_strength=0.1):
 
     return exp_log_lk + entropy + barrier
 
-@jaxify(has_aux=True)
+@jaxify
 def gmm_obj(data, responsibilities, barrier_strength=0.1):
     """
     Classical GMM objective for reference.
@@ -116,9 +116,9 @@ def gmm_obj(data, responsibilities, barrier_strength=0.1):
     # scalar
     barrier = barrier_strength * np.sum(np.log(responsibilities))
 
-    return exp_log_lk + entropy + barrier, agg_misfits
+    return exp_log_lk + entropy + barrier
 
-def fit(data, n_groups, seed=0, init_resps=None):
+def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
     """
     Learns a GMM with an information loss
 
@@ -141,7 +141,7 @@ def fit(data, n_groups, seed=0, init_resps=None):
             },
         data={
             'data': data.T,
-            'barrier_strength': 1e-2
+            'barrier_strength': barrier_strength,
             },
         bijectors={
             'responsibilities': jax_utils.Softmax()

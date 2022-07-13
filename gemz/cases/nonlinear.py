@@ -71,7 +71,7 @@ def gen_hypertwist(len1, len2_train, len2_test, small_dims, small_var=0.01, larg
         + (dsub @ source)[:, None] * (dest - source)
         - (dsub @ dest)[:, None] * (dest + source)
         )
-    #data[subset] *= 0.5
+    data[subset] *= 0.5
 
     # Split train/test
     train = data[:, :len2_train]
@@ -102,7 +102,7 @@ def gen_lowdim(len1, seed=0, **_):
 
     return data, data, (classes == 1, np.array([1, 0]), np.array([0, 1]))
 
-def plot_nonlinearity(ddata, nonlinearity):
+def plot_nonlinearity(ddata, nonlinearity, resps=None):
     """
     Draw a projection making the curvature change visible
     """
@@ -118,6 +118,8 @@ def plot_nonlinearity(ddata, nonlinearity):
             go.Scatter(
                 x=proj_source[sub],
                 y=proj_dest[sub],
+                hovertext=None if resps is None
+                    else list(map(str, resps[:, sub].T)),
                 mode='markers',
                 )
             for sub in (subset, ~subset)
@@ -165,14 +167,19 @@ def nonlinear(_, case_name, report_path):
     train_c1 = train[nonlinearity[0]]
     train_c2 = train[~nonlinearity[0]]
 
-    eps = 1e-2
+    eps = 0.45
     model_defs = {
         'kmeans': ('kmeans', {'n_clusters': 2}),
         'gmm_free': ('gmm', {
             'n_groups': 2,
             'n_init': 10,
             #'bayesian': True,
-            'init_params': 'random_from_data'
+            #'init_params': 'random_from_data'
+            }),
+        'gmm_bayes': ('gmm', {
+            'n_groups': 2,
+            'n_init': 10,
+            'bayesian': True,
             }),
         'gmm_forced': ('gmm', {
             'n_groups': 2,
@@ -188,15 +195,13 @@ def nonlinear(_, case_name, report_path):
         'igmm': ('igmm', {
             'n_groups': 2,
             'seed': 0,
-            'init_resps': np.stack((
-                0.5 + eps - 2 * eps * nonlinearity[0],
-                0.5 - eps + 2 * eps * nonlinearity[0],
-                ))
+            'barrier_strength': 0.1,
+            #'init_resps': np.stack(( 0.5 + eps - 2 * eps * nonlinearity[0], 0.5 - eps + 2 * eps * nonlinearity[0],))
             })
     }
 
     # Uncomment to try only a subset of models
-    model_defs = { k: d for k, d in model_defs.items() if k == 'igmm' }
+    # model_defs = { k: d for k, d in model_defs.items() if k == 'igmm' }
 
     model_fits = {
         name: models.get(algo).fit(train, **options)
@@ -216,15 +221,16 @@ def nonlinear(_, case_name, report_path):
             model_fits[model]['groups'] == 0,
             *nonlinearity[1:]
             )
+        resps = model_fits[model].get('responsibilities')
         figs_nl_model.append(
-            plot_nonlinearity(train, nl_model)
+            plot_nonlinearity(train, nl_model, resps)
             .update_layout(
                 title=f'{model.capitalize()} twist recovery'
                 )
             )
 
         figs_nl_model.append(
-            plot_pcs(train, nl_model[0], model_fits[model]['responsibilities'])
+            plot_pcs(train, nl_model[0], resps)
             .update_layout(
                 title=f'{model.capitalize()} PCs'
                 )
