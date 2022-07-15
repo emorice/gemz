@@ -169,7 +169,7 @@ def nonlinear(_, case_name, report_path):
 
     eps = 0.45
     model_defs = {
-        'kmeans': ('kmeans', {'n_clusters': 2}),
+        'kmeans': ('kmeans', {'n_groups': 2}),
         'gmm_free': ('gmm', {
             'n_groups': 2,
             'n_init': 10,
@@ -204,7 +204,7 @@ def nonlinear(_, case_name, report_path):
     # model_defs = { k: d for k, d in model_defs.items() if k == 'igmm' }
 
     model_fits = {
-        name: models.get(algo).fit(train, **options)
+        name: models.get(algo).fit(train.T, **options)
         for name, (algo, options) in model_defs.items()
     }
 
