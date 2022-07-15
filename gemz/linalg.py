@@ -43,9 +43,21 @@ class ImplicitMatrix:
         """
         return self.matmul_right(right)
 
+    def __rmatmul__(self, left):
+        """
+        Left @ self
+        """
+        return self.matmul_left(left)
+
     def matmul_right(self, right):
         """
         Self @ right
+        """
+        raise NotImplementedError
+
+    def matmul_left(self, left):
+        """
+        Left @ self
         """
         raise NotImplementedError
 
@@ -248,6 +260,12 @@ class Diagonal(ImplicitMatrix):
         """
         return self._diagonal[:, None] * right
 
+    def matmul_left(self, left):
+        """
+        Matmul of left @ self, i.e. multiplying elementwise each row
+        """
+        return left * self._diagonal
+
 class SymmetricLowRankUpdate(ImplicitMatrix):
     """
     Symmetric low-rank update of a matrix, stored symbolically.
@@ -321,6 +339,20 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
                     np.swapaxes(self.factor, -2, -1) @ right
                     )
                 )
+            )
+
+    def matmul_left(self, left):
+        """
+        Matmul of `left @ self`
+
+        Nothing special about the implementation except being careful with the
+        associativity
+        """
+        return (
+            left @ self.base
+            + (
+                (left @ self.factor) @ self.weight
+                ) @ np.swapaxes(self.factor, -2, -1)
             )
 
     def diagonal(self):

@@ -19,14 +19,14 @@ def fit(data, n_groups, n_iter=100):
     Fit the model with a fixed number of MK-updates iterations
 
     Args:
-        data: N1 x N2. Creates a model of N1-dimensional loo problem from N2
+        data: N1 x N2. Creates a model of N2-dimensional loo problem from N1
             replicates.
     """
 
     # Initialize the model. `data` contains the fixed parts, `state` the variable
     # parts.
     # The cmk_* functions follow the replicate-first convention
-    cmk_data, state = cmk_init(data.T, n_groups)
+    cmk_data, state = cmk_init(data, n_groups)
 
     # Duplicate to avoid accidentally modifying in-place
     hist = []
@@ -67,16 +67,16 @@ def predict_loo(model, new_data):
     Leave-one-out prediction on new data
 
     Args:
-        new_data: N1xN3, with N1 matching the data given to `fit`.
+        new_data: N3 x N2, with N2 matching the data given to `fit`.
     """
     final_inter, final_aux = cmk_many(**model['data'], **model['state'])
     # Once again, cmk_* functions follow replicate-first convention
     predictions = cmk_predict(
-        new_data=jnp.atleast_2d(new_data.T),
+        new_data=new_data,
         **model['data'], **model['state'],
         **final_inter, **final_aux)
 
-    return predictions.T
+    return predictions
 
 # CMK algorithm
 # =============

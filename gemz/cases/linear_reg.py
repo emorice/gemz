@@ -14,36 +14,40 @@ from gemz.cases.low_high_clustering import plot_pc_clusters
 
 def gen_hyperv(len1, len2, noise_sd=1., seed=0):
     """
-    Generates a high-dimensional "V" shape
+    Generates a high-dimensional "V" shape with len2 dimensions, and len1
+    replicates.
+
+    Args:
+        noise_sd: len2 noise scales for each dimension
     """
 
     rng = np.random.default_rng(seed)
 
     # The coordinate along the length of the V
-    hidden_factor = rng.normal(0., 1., size=len1)
+    hidden_factor = rng.normal(0., 1., size=len2)
 
     # Whether we are in the first or second arm of the V
     hidden_class = hidden_factor > 0.
 
     # The ends and middle of the V
-    support_points = rng.normal(0., 1., size=(3, 2, len2))
+    support_points = rng.normal(0., 1., size=(3, 2, len1))
 
     # 2 x  len1 x len2
-    signal = support_points[0][:, None, :] + np.where(
-        hidden_class[None, :, None],
-        + hidden_factor[None, :, None] * support_points[1][:, None, :],
-        - hidden_factor[None, :, None] * support_points[2][:, None, :]
+    signal = support_points[0][..., None] + np.where(
+        hidden_class,
+        + hidden_factor * support_points[1][..., None],
+        - hidden_factor * support_points[2][..., None]
         )
 
     # 2 x len1 x len2
     data = (
         signal
         + rng.normal(0., 1., size=(2, len1, len2))
-            * np.array(noise_sd)[..., None]
+            * np.array(noise_sd)
         )
 
     # Center each feature over all samples
-    data -= np.mean(data, 1)[:, None, :]
+    data -= np.mean(data, -1, keepdims=True)
 
     return data
 
@@ -110,7 +114,7 @@ def linear_reg(_, case_name, report_path):
     # 201, 200 is really weird ??
     # 201, 196
 
-    train, test = gen_hyperv(201, 100, noise_sd=.5)
+    train, test = gen_hyperv(100, 201, noise_sd=.5)
 
     # Fits
     # ====
@@ -123,7 +127,7 @@ def linear_reg(_, case_name, report_path):
 
         ('linear_shrinkage_cv',  {}),
         ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
-        ('kmeans',  {'n_clusters': 4}),
+        ('kmeans',  {'n_groups': 4}),
         ('nonlinear_shrinkage',  {}),
         ('wishart',  {}),
         ('cmk', {'n_groups': 1}),
@@ -136,13 +140,13 @@ def linear_reg(_, case_name, report_path):
         ]
 
     test_idx = 2
-    target = test[:, test_idx]
+    target = test[test_idx]
 
     # For a new feature, we can make a basic prediction by predicting the mean
     # of all (other) samples of the group
 
     preds = [
-        (k, getattr(models, k).predict_loo(fit, target))
+        (k, models.get(k).predict_loo(fit, target[None, :])[0])
         for k, fit in model_fits
         ]
 
@@ -150,7 +154,7 @@ def linear_reg(_, case_name, report_path):
     # =====
 
     # Plot against first PC
-    covariate = np.linalg.svd(train, full_matrices=False)[0][:, 0]
+    covariate = np.linalg.svd(train, full_matrices=False)[-1][0]
 
     order = np.argsort(covariate)
 
@@ -158,7 +162,7 @@ def linear_reg(_, case_name, report_path):
         data=[
             go.Scatter(
                 x=covariate[order],
-                y=test[:, test_idx][order],
+                y=test[test_idx][order],
                 mode='markers',
                 name='New feature'
                 )
@@ -179,8 +183,8 @@ def linear_reg(_, case_name, report_path):
         )
 
     fig_pcs = plot_pc_clusters(
-        train,
-        n_clusters=next(args['n_clusters'] for name, args in model_args
+        train.T,
+        n_clusters=next(args['n_groups'] for name, args in model_args
             if name == 'kmeans')
         )
 

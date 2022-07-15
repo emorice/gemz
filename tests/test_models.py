@@ -16,7 +16,10 @@ def data():
     """
     Uncorrelated data with no signal whatsoever
     """
-    return np.random.default_rng(0).normal(size=(2, 10, 20))
+    # 10 obs 20 vars train, 15 obs 20 vars test
+    return np.split(
+        np.random.default_rng(0).normal(size=(25, 20)),
+        [10])
 
 model_specs = [
     {
@@ -24,13 +27,14 @@ model_specs = [
         },
     {
         'model': 'kmeans',
-        'n_clusters': 2
+        'n_groups': 2
         },
     {
         'model': 'wishart'
         },
     {
-        'model': 'linear_shrinkage'
+        'model': 'linear_shrinkage',
+        'prior_var': 1.
         },
     {
         'model': 'linear_shrinkage_cv'
@@ -45,13 +49,16 @@ model_specs = [
         'model': 'nonlinear_shrinkage'
         },
     {
-        'model': 'cmk'
+        'model': 'cmk',
+        'n_groups': 2
         },
     {
-        'model': 'gmm'
+        'model': 'gmm',
+        'n_groups': 2
         },
     {
-        'model': 'igmm'
+        'model': 'igmm',
+        'n_groups': 2
         },
     ]
 

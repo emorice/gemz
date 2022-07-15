@@ -9,7 +9,7 @@ def fit(data, n_groups, bayesian=False, **skargs):
     """
     Compute clusters, cluster means and dispersion on given data
     """
-    # data: len1 x len2, len1 is the one to split
+    # data: len1 x len2, len2 is the one to split
 
     if bayesian:
         Mixture = sklearn.mixture.BayesianGaussianMixture
@@ -24,13 +24,13 @@ def fit(data, n_groups, bayesian=False, **skargs):
         **skargs,
         )
 
-    sk_fit = sk_model.fit(data)
+    sk_fit = sk_model.fit(data.T)
 
     print('GMM converged: ', sk_fit.converged_)
 
-    # len1
-    groups = sk_fit.predict(data)
-    probas = sk_fit.predict_proba(data)
+    # len2
+    groups = sk_fit.predict(data.T)
+    probas = sk_fit.predict_proba(data.T)
 
     return {
         'groups': groups,

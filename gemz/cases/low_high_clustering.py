@@ -16,7 +16,10 @@ def plot_pc_clusters(data, n_clusters):
     components
     """
 
-    clustering = gemz.models.kmeans.fit(data, n_clusters=n_clusters)
+    clustering = gemz.models.fit(
+        dict(model='kmeans', n_groups=n_clusters),
+        data.T
+        )
 
     _, _, left_t = np.linalg.svd(data, full_matrices=False)
 
@@ -60,8 +63,9 @@ def plot_pc_clusters(data, n_clusters):
                 'scaleanchor': 'x', 'scaleratio': 1.},
             xaxis={
                 'title': 'PC1'
-                }
-            )
+                },
+            height=900
+            ),
         )
 
     return fig

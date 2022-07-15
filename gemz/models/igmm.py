@@ -123,13 +123,13 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
     Learns a GMM with an information loss
 
     Args:
-        data: len1 x len2, where the len1 rows will be clustered.
+        data: len1 x len2, where the len2 cols will be clustered.
     """
 
     if init_resps is None:
         # Random uniform initialization
         rng = np.random.default_rng(seed)
-        resp0 = rng.uniform(size=(n_groups, data.shape[0]))
+        resp0 = rng.uniform(size=(n_groups, data.shape[-1]))
         resp0 /= resp0.sum(axis=0)
     else:
         resp0 = init_resps
@@ -140,14 +140,13 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
             'responsibilities': resp0
             },
         data={
-            'data': data.T,
+            'data': data,
             'barrier_strength': barrier_strength,
             },
         bijectors={
             'responsibilities': jax_utils.Softmax()
             },
         scipy_method='L-BFGS-B',
-        #has_aux=True
         )
 
     print(max_results)

@@ -60,14 +60,14 @@ def fit_cv(data, method, fold_count=10, seed=1234, loss_name=None, **method_kwar
     Fit and eval the given method on folds of data
 
     Args:
-        data: N1 x N2. Models are fixed-dimension N1 x N1, and cross-validation
-            is performed along N2.
+        data: N1 x N2. Models are fixed-dimension N2 x N2, and cross-validation
+            is performed along N1.
     """
 
-    _, len2 = data.shape
+    len1, _ = data.shape
 
     rng = np.random.default_rng(seed)
-    random_rank = rng.choice(len2, len2)
+    random_rank = rng.choice(len1, len1, replace=False)
 
     total_loss = 0.
 
@@ -77,8 +77,8 @@ def fit_cv(data, method, fold_count=10, seed=1234, loss_name=None, **method_kwar
     for fold_index in range(fold_count):
         in_fold = random_rank % fold_count != fold_index
 
-        fold_model = method.fit(data[..., in_fold], **method_kwargs)
+        fold_model = method.fit(data[in_fold, ...], **method_kwargs)
 
-        total_loss += loss_fn(method, fold_model, data[..., ~in_fold])
+        total_loss += loss_fn(method, fold_model, data[~in_fold, ...])
 
     return total_loss

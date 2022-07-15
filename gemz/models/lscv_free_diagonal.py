@@ -5,23 +5,27 @@ Diagonal-target linear shrinkage with the whole diagonal used as a CV parameter
 import numpy as np
 
 from gemz.jax_utils import minimize
-from gemz.jax_numpy import indirect_jax
+from gemz.jax_numpy import jaxify
 from gemz.models import cv, linear_shrinkage
 
 def fit(data, scale=1.):
     """
     CV opt of diagonal shrinkage target
+
+    Args:
+        data: N1 x N2. A N2 x N2 implicit covariance is sought with a variable
+            N2-long diagonal regularization.
     """
 
     init = dict(
-        log_diagonal=np.zeros(data.shape[0]),
+        log_diagonal=np.zeros(data.shape[1]),
         )
     opt_data = dict(
         data=data
         )
 
     if scale is None:
-        init['log_scale'] = np.zeros(data.shape[0])
+        init['log_scale'] = np.zeros(data.shape[1])
     else:
         opt_data['log_scale'] = np.log(scale)
 
@@ -48,7 +52,7 @@ def fit(data, scale=1.):
         'opt': opt
         }
 
-@indirect_jax
+@jaxify
 def cv_loss(log_diagonal, log_scale, data):
     """
     Cross-validated geometric loss

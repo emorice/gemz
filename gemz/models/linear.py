@@ -12,15 +12,15 @@ def fit(data):
     data.
 
     Args:
-        data: N1 x N2, assuming N1 > N2
+        data: N1 x N2, assuming N1 < N2
     Returns:
-        precision: representation of a N1 x N1 precision matrix
+        precision: representation of a N2 x N2 precision matrix
     """
 
-    # N2 x N2, the other axis precision
-    dual_precision = np.linalg.inv(data.T @ data)
+    # N1 x N1, the other axis precision
+    dual_precision = np.linalg.inv(data @ data.T)
 
-    precision = linalg.RWSS(1., data, - dual_precision)
+    precision = linalg.SymmetricLowRankUpdate(1., data.T, - dual_precision)
 
     return {
         'precision': precision
@@ -31,19 +31,17 @@ def predict_loo(model, new_data):
     Predicts each entry in new data from the others assuming the given model
 
     Args:
-        model: the representation of a N1 x N1 precision matrix
-        new_data: N1 x N'2, where N1 matches the training data
+        model: the representation of a N2 x N2 precision matrix
+        new_data: N1' x N2, where N2 matches the training data
     Returns:
-        predictions: N1 x N'2
+        predictions: N1' x N2
     """
-    new_data = np.atleast_2d(new_data.T).T
-
     precision = model['precision']
 
-    # N1 x N'2, linear predictions but not scaled and with the diagonal
-    unscaled_residuals = precision @ new_data
+    # N1' x N2, linear predictions but not scaled and with the diagonal
+    unscaled_residuals = new_data @ precision
 
-    residuals = unscaled_residuals / np.diagonal(precision)[:, None]
+    residuals = unscaled_residuals / np.diagonal(precision)
 
     predictions = new_data - residuals
 
@@ -54,7 +52,7 @@ def spectrum(data):
     Estimated spectrum used implicitely by the linear interpolation
 
     Args:
-        data: N1 x N2, assuming N1 > N2
+        data: N1 x N2, assuming N1 < N2
     Returns:
         spectrum of the N1 covariance, of length N1, in descending order,
         including zeros at the end
@@ -62,8 +60,8 @@ def spectrum(data):
     len1, len2 = data.shape
     singular_values = np.linalg.svd(data, compute_uv=False)
     return np.hstack((
-        singular_values ** 2 / len1,
-        np.zeros(len1 - len2)
+        singular_values ** 2 / len2,
+        np.zeros(len2 - len1)
         ))
 
 # Older reference implementations

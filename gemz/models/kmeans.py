@@ -5,32 +5,35 @@ Simple clustering-based predictions.
 import numpy as np
 import sklearn.cluster
 
-def fit(data, n_clusters):
+def fit(data, n_groups):
     """
     Compute clusters, cluster means and dispersion on given data
+
+    Args:
+        data: N1 x N2, with N2 being the large dimension to split into clusters
     """
-    # data: N x D
 
-    sk_model = sklearn.cluster.KMeans(n_clusters=n_clusters)
+    sk_model = sklearn.cluster.KMeans(n_clusters=n_groups)
 
-    sk_fit = sk_model.fit(data)
+    sk_fit = sk_model.fit(data.T)
 
-    # N
+    # N2
     groups = sk_fit.labels_
 
-    # G x N
-    one_hot = groups == np.arange(n_clusters)[:, None]
+    # G x N2
+    one_hot = groups == np.arange(n_groups)[:, None]
     # G
     sizes = one_hot.sum(-1)
 
-    # G x D
-    means =  one_hot @ data / sizes[:, None]
+    # G x N1
+    means =  one_hot @ data.T / sizes[:, None]
 
-    centered_data = data - one_hot.T @ means
+    centered_data = data - means.T @ one_hot
 
-    variances = one_hot @ (centered_data**2).sum(-1) / sizes
+    variances = one_hot @ (centered_data**2).sum(0) / sizes
 
     return {
+        'n_groups': n_groups,
         'groups': groups,
         'means': means,
         'variances': variances
@@ -39,18 +42,26 @@ def fit(data, n_clusters):
 def predict_loo(model, new_data):
     """
     Leave-one out prediction from existing clusters on new observations
-    """
-    groups = model['groups']
-    group_sizes = np.bincount(groups)
 
-    # Means of new observations on all samples
+    Args:
+        new_data: N1' x N2
+    """
+    # N2
+    groups = model['groups']
+    # G
+    group_sizes = np.bincount(groups)
+    # G x N2
+    one_hot = groups == np.arange(model['n_groups'])[:, None]
+
+    # N1' x G, Means of new observations on all samples
     base_means = (
-        np.bincount(groups, weights=new_data)
+        new_data @ one_hot.T
         / (group_sizes - 1)
         )
-    # LOO correction
+
+    # N1' x N2, LOO correction
     preds = (
-        base_means[groups]
+        base_means[:, groups]
         - new_data / (group_sizes[groups] - 1)
         )
 
