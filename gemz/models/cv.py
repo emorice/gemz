@@ -27,11 +27,13 @@ def rss_loss(method, model, test):
 @loss('iRSS')
 def irss_loss(method, model, test):
     """
-    Classical RSS loss but unaggregated.
+    Classical RSS loss except not aggregated over the working dimensions
+
+    (so only summed over the replicates in the fold)
     """
 
     predictions = method.predict_loo(model, test)
-    return np.sum((test - predictions)**2, -1)
+    return np.sum((test - predictions)**2, 0)
 
 @loss('NAIC')
 def naic_loss(method, model, test):

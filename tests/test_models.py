@@ -16,10 +16,10 @@ def data():
     """
     Uncorrelated data with no signal whatsoever
     """
-    # 10 obs 20 vars train, 15 obs 20 vars test
+    # 11 obs 20 vars train, 15 obs 20 vars test
     return np.split(
-        np.random.default_rng(0).normal(size=(25, 20)),
-        [10])
+        np.random.default_rng(0).normal(size=(26, 20)),
+        [11])
 
 model_specs = [
     {
@@ -43,7 +43,12 @@ model_specs = [
         'model': 'lscv_precision_target'
         },
     {
-        'model': 'lscv_free_diagonal'
+        'model': 'lscv_free_diagonal',
+        'scale': None
+        },
+    {
+        'model': 'lscv_free_diagonal',
+        'scale': 1.
         },
     {
         'model': 'nonlinear_shrinkage'

@@ -18,7 +18,7 @@ def plot_data(data, noise_class):
     Initial exploratory plot
     """
 
-    pc1, pc2 = np.linalg.svd(data, full_matrices=False)[0][:, :2].T
+    pc1, pc2 = np.linalg.svd(data, full_matrices=False)[-1][:2]
 
     return go.Figure(
         data=[
@@ -46,7 +46,7 @@ def plot_fits(data, target, subsets, predictions):
     Plot various fits
     """
 
-    covariate = np.linalg.svd(data, full_matrices=False)[0][:, 0]
+    covariate = np.linalg.svd(data, full_matrices=False)[-1][0]
 
     order = np.argsort(covariate)
     rev_order = np.argsort(order)
@@ -175,7 +175,7 @@ def eval_model(model, train, test, subsets):
     module = models.get(name)
 
     fits = {
-        k: module.fit(train[subset], **args)
+        k: module.fit(train[:, subset], **args)
         for k, subset in subsets.items()
         }
 
@@ -184,7 +184,7 @@ def eval_model(model, train, test, subsets):
         refits = {
             k_fit: {
                 k_refit: models.linear_shrinkage.fit(
-                    train[subset],
+                    train[:, subset],
                     prior_var=fit['cv_best'])
                 for k_refit, subset in subsets.items()
                 }
@@ -206,14 +206,14 @@ def eval_model(model, train, test, subsets):
         k_fit: {
             k_refit: pred_module.predict_loo(
                 refit,
-                test[subsets[k_refit], 0]
-                )
+                test[:1, subsets[k_refit]]
+                )[0]
             for k_refit, refit in _refits.items()
             }
         for k_fit, _refits in refits.items()
     }
 
-    fit_plot = plot_fits(train, test[:, 0], subsets, predictions)
+    fit_plot = plot_fits(train, test[0], subsets, predictions)
 
     return [fit_plot, plot_cvs(fits), plot_hist(fits)]
 
@@ -223,12 +223,12 @@ def heterogeneous_snr(_, case_name, report_path):
     Regularized high-dimensional models with variation in SNR between variables
     """
 
-    # Len1 is working dimension, len2 number of replicas
-    len1, len2 = 200, 100
+    # Len2 is working dimension, len1 number of replicas
+    len1, len2 = 100, 200
 
     rng = np.random.default_rng(4589)
 
-    noise_class = rng.choice(2, size=len1).astype(np.bool)
+    noise_class = rng.choice(2, size=len2).astype(np.bool)
 
     noise_sd = np.where(noise_class, 1.0, 0.1)
 
