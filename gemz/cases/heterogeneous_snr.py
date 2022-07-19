@@ -128,7 +128,7 @@ def plot_cvs(fits):
         data=[
             go.Scatter(
                 x=model['cv_grid'],
-                y=model['cv_rss'],
+                y=model['cv_loss'],
                 mode='lines+markers',
                 name=name
                 )
@@ -183,14 +183,14 @@ def eval_model(model, train, test, subsets):
     if name == 'linear_shrinkage_cv':
         refits = {
             k_fit: {
-                k_refit: models.linear_shrinkage.fit(
+                k_refit: models.get('linear_shrinkage').fit(
                     train[:, subset],
                     prior_var=fit['cv_best'])
                 for k_refit, subset in subsets.items()
                 }
            for k_fit, fit in fits.items()
         }
-        pred_module = models.linear_shrinkage
+        pred_module = models.get('linear_shrinkage')
     else:
         # For diagonal target chimera models are not defined so just skip
         # re-fits

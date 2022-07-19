@@ -59,7 +59,7 @@ def plot_cv_rss(cv_models, grid_name):
         data=[
             go.Scatter(
                 x=cv_model['cv_grid'],
-                y=cv_model['cv_rss'],
+                y=cv_model['cv_loss'],
                 yaxis=f'y{i+1 if i else ""}',
                 mode='lines+markers',
                 )
@@ -94,7 +94,14 @@ def plot_convergence(fits):
                     y=hist['log_likelihood'],
                     name=name
                     ))
-    return go.Figure(data=data)
+    return go.Figure(
+        data=data,
+        layout={
+            'title': 'Convergence behavior',
+            'xaxis_title': 'Iteration',
+            'yaxis_title': 'Log-likelihood'
+            }
+        )
 
 @case
 def linear_reg(_, case_name, report_path):
@@ -132,10 +139,12 @@ def linear_reg(_, case_name, report_path):
         ('wishart',  {}),
         ('cmk', {'n_groups': 1}),
         ('cmk', {'n_groups': 20}),
+        ('gmm', {'n_groups': 2}),
+        ('igmm', {'n_groups': 2}),
         ]
 
     model_fits = [
-        (k, getattr(models, k).fit(train, **kwargs))
+        (k, models.get(k).fit(train, **kwargs))
         for k, kwargs in model_args
         ]
 
@@ -189,9 +198,9 @@ def linear_reg(_, case_name, report_path):
         )
 
 
-    spectrum = models.linear.spectrum(train)
+    spectrum = models.get('linear').spectrum(train)
 
-    adj_spectrum = models.linear_shrinkage.spectrum(
+    adj_spectrum = models.get('linear_shrinkage').spectrum(
         train,
         next(model['cv_best'] for name, model in model_fits
             if name == 'linear_shrinkage_cv')
@@ -200,8 +209,7 @@ def linear_reg(_, case_name, report_path):
     opt_spectrum = next(model['spectrum'] for name, model in model_fits
         if name == 'nonlinear_shrinkage')
 
-    wh_fit = models.wishart.fit(train)
-    print(wh_fit)
+    wh_fit = models.get('wishart').fit(train)
     wh_spectrum = (
         spectrum
         + np.exp(wh_fit['opt']['prior_var_ln']) / train.shape[-1]

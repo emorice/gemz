@@ -3,28 +3,31 @@ Linear shrinkage through cross-validation towards a diagonal precision-adjusted
 target
 """
 
-from gemz.models import linear, linear_shrinkage_cv, cv
+from gemz import models
+from gemz.models import cv
+from .linear import Linear
+from .linear_shrinkage_cv import LSCV
 
-def fit(data):
+@models.add('lscv_precision_target')
+class LSCVPrecisionTarget(LSCV):
     """
-    Fit a diagonally shrunk linear model in two steps.
-
-    First, fit an unshrunk model to get a first estimate of precisions.
-    Then, build a shrinkage target from it and fit a second shrinkage model
+    Linear shrinkage where target is derived from per-dimension precision
+    estimates
     """
 
-    indiv_rss = cv.fit_cv(data, linear, loss_name='iRSS')
+    @classmethod
+    def fit(cls, data):
+        """
+        Fit a diagonally shrunk linear model in two steps.
 
-    model = linear_shrinkage_cv.fit(
-        data,
-        loss_name='GEOM',
-        target=indiv_rss / data.shape[-1]
-        )
+        First, fit an unshrunk model to get a first estimate of precisions.
+        Then, build a shrinkage target from it and fit a second shrinkage model
+        """
 
-    return model
+        indiv_rss = cv.fit_cv(data, Linear, loss_name='iRSS')
 
-def predict_loo(model, new_data):
-    """
-    See linear_shrinkage_cv
-    """
-    return linear_shrinkage_cv.predict_loo(model, new_data)
+        return super().fit(
+            data,
+            loss_name='GEOM',
+            target=indiv_rss / data.shape[-1]
+            )

@@ -3,8 +3,8 @@ Information-driven Gaussian mixture models
 """
 
 import numpy as np
-from gemz import jax_utils
-from gemz import linalg
+from gemz import jax_utils, models, linalg
+from gemz.models.gmm import GMM
 from gemz.jax_numpy import jaxify
 
 @jaxify
@@ -118,46 +118,50 @@ def gmm_obj(data, responsibilities, barrier_strength=0.1):
 
     return exp_log_lk + entropy + barrier
 
-def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
+@models.add('igmm')
+class IGMM(GMM):
     """
-    Learns a GMM with an information loss
-
-    Args:
-        data: len1 x len2, where the len2 cols will be clustered.
+    Gaussian mixture models with empirical AIC objective
     """
+    @staticmethod
+    def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
+        """
+        Learns a GMM with an information loss
 
-    if init_resps is None:
-        # Random uniform initialization
-        rng = np.random.default_rng(seed)
-        resp0 = rng.uniform(size=(n_groups, data.shape[-1]))
-        resp0 /= resp0.sum(axis=0)
-    else:
-        resp0 = init_resps
+        Args:
+            data: len1 x len2, where the len2 cols will be clustered.
+        """
 
-    max_results = jax_utils.maximize(
-        igmm_obj,
-        init={
-            'responsibilities': resp0
-            },
-        data={
-            'data': data,
-            'barrier_strength': barrier_strength,
-            },
-        bijectors={
-            'responsibilities': jax_utils.Softmax()
-            },
-        scipy_method='L-BFGS-B',
-        )
+        if init_resps is None:
+            # Random uniform initialization
+            rng = np.random.default_rng(seed)
+            resp0 = rng.uniform(size=(n_groups, data.shape[-1]))
+            resp0 /= resp0.sum(axis=0)
+        else:
+            resp0 = init_resps
 
-    print(max_results)
+        max_results = jax_utils.maximize(
+            igmm_obj,
+            init={
+                'responsibilities': resp0
+                },
+            data={
+                'data': data,
+                'barrier_strength': barrier_strength,
+                },
+            bijectors={
+                'responsibilities': jax_utils.Softmax()
+                },
+            scipy_method='L-BFGS-B',
+            )
 
-    resps = max_results['opt']['responsibilities']
-    groups = np.argmax(
-        resps,
-        axis=0
-        )
+        resps = max_results['opt']['responsibilities']
+        groups = np.argmax(
+            resps,
+            axis=0
+            )
 
-    return {
-        'groups': groups,
-        'responsibilities': resps
-        }
+        return {
+            'groups': groups,
+            'responsibilities': resps
+            }

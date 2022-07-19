@@ -4,65 +4,73 @@ Simple linear predictions.
 
 import numpy as np
 
-from gemz import linalg
+from gemz import linalg, models
 
-def fit(data):
+@models.add('linear')
+class Linear:
     """
-    Computes a representation of the precision matrix of the first axis of the
-    data.
-
-    Args:
-        data: N1 x N2, assuming N1 < N2
-    Returns:
-        precision: representation of a N2 x N2 precision matrix
+    Linear interpolation
     """
+    @staticmethod
+    def fit(data):
+        """
+        Computes a representation of the precision matrix of the first axis of the
+        data.
 
-    # N1 x N1, the other axis precision
-    dual_precision = np.linalg.inv(data @ data.T)
+        Args:
+            data: N1 x N2, assuming N1 < N2
+        Returns:
+            precision: representation of a N2 x N2 precision matrix
+        """
 
-    precision = linalg.SymmetricLowRankUpdate(1., data.T, - dual_precision)
+        # N1 x N1, the other axis precision
+        dual_precision = np.linalg.inv(data @ data.T)
 
-    return {
-        'precision': precision
-        }
+        precision = linalg.SymmetricLowRankUpdate(1., data.T, - dual_precision)
 
-def predict_loo(model, new_data):
-    """
-    Predicts each entry in new data from the others assuming the given model
+        return {
+            'precision': precision
+            }
 
-    Args:
-        model: the representation of a N2 x N2 precision matrix
-        new_data: N1' x N2, where N2 matches the training data
-    Returns:
-        predictions: N1' x N2
-    """
-    precision = model['precision']
+    @staticmethod
+    def predict_loo(model, new_data):
+        """
+        Predicts each entry in new data from the others assuming the given model
 
-    # N1' x N2, linear predictions but not scaled and with the diagonal
-    unscaled_residuals = new_data @ precision
+        Args:
+            model: the representation of a N2 x N2 precision matrix
+            new_data: N1' x N2, where N2 matches the training data
+        Returns:
+            predictions: N1' x N2
+        """
+        precision = model['precision']
 
-    residuals = unscaled_residuals / np.diagonal(precision)
+        # N1' x N2, linear predictions but not scaled and with the diagonal
+        unscaled_residuals = new_data @ precision
 
-    predictions = new_data - residuals
+        residuals = unscaled_residuals / np.diagonal(precision)
 
-    return predictions
+        predictions = new_data - residuals
 
-def spectrum(data):
-    """
-    Estimated spectrum used implicitely by the linear interpolation
+        return predictions
 
-    Args:
-        data: N1 x N2, assuming N1 < N2
-    Returns:
-        spectrum of the N1 covariance, of length N1, in descending order,
-        including zeros at the end
-    """
-    len1, len2 = data.shape
-    singular_values = np.linalg.svd(data, compute_uv=False)
-    return np.hstack((
-        singular_values ** 2 / len2,
-        np.zeros(len2 - len1)
-        ))
+    @staticmethod
+    def spectrum(data):
+        """
+        Estimated spectrum used implicitely by the linear interpolation
+
+        Args:
+            data: N1 x N2, assuming N1 < N2
+        Returns:
+            spectrum of the N1 covariance, of length N1, in descending order,
+            including zeros at the end
+        """
+        len1, len2 = data.shape
+        singular_values = np.linalg.svd(data, compute_uv=False)
+        return np.hstack((
+            singular_values ** 2 / len2,
+            np.zeros(len2 - len1)
+            ))
 
 # Older reference implementations
 # ===============================

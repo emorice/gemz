@@ -3,23 +3,22 @@ Module containing all statistical model fit and prediction code
 """
 import sys
 
-# TODO: this should have some discovery scheme
-from . import (
-    kmeans, linear, wishart,
-    linear_shrinkage,
-    linear_shrinkage_cv,
-    lscv_precision_target,
-    lscv_free_diagonal,
-    nonlinear_shrinkage,
-    cmk,
-    gmm, igmm
-    )
+METHODS = {}
 
 def get(name):
     """
     Returns a model by name
     """
-    return getattr(sys.modules[__name__], name)
+    return METHODS[name]
+
+def add(name):
+    """
+    Register a model class by name
+    """
+    def _set(cls):
+        METHODS[name] = cls
+        return cls
+    return _set
 
 def fit(model_spec, train_data):
     """
@@ -43,3 +42,15 @@ def predict_loo(model_spec, model_fit, test_data):
     Like `fit` for the `predict_loo` method
     """
     return get(model_spec['model']).predict_loo(model_fit, test_data)
+
+# TODO: this should have some discovery scheme
+from . import (
+    kmeans, linear, wishart,
+    linear_shrinkage,
+    linear_shrinkage_cv,
+    lscv_precision_target,
+    lscv_free_diagonal,
+    nonlinear_shrinkage,
+    cmk,
+    gmm, igmm
+    )
