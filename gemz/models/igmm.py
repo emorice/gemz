@@ -77,19 +77,11 @@ def gmm_obj(data, responsibilities, barrier_strength=0.1):
         data: N x P, P being the large dimension
         responsibilities: K x P, K being the number of groups
     """
-    # K, sum over P
-    group_sizes = np.sum(responsibilities, -1)
+    precomp = GMM.precompute(dict(data=data, responsibilites=responsibilities))
 
-    # K x N, sum over P
-    means = responsibilities @ data.T / group_sizes[:, None]
-    # K x N x N. O(KNP) intermediate, may be improved
-    covariances = (
-        (data * responsibilities[:, None, :]) @ data.T
-            / group_sizes[:, None, None]
-        - means[:, :, None] * means[:, None, :]
-        ) #+ np.diag(np.ones_like(means[0])) * .5
-    # K x N X N
-    precisions = np.linalg.inv(covariances)
+    group_sizes = precomp['group_sizes'] # k
+    means = precomp['means'] # kn
+    precisions = precomp['precisions'] # knn
 
     # This requires O(KNP) storage, should we do better ?
     # K x N x P
@@ -102,12 +94,12 @@ def gmm_obj(data, responsibilities, barrier_strength=0.1):
         )
 
     # K, det over N x N
-    _signs, log_det_covs = np.linalg.slogdet(covariances)
+    _signs, log_det_precs = np.linalg.slogdet(precisions)
 
     agg_misfits = np.tensordot(responsibilities, misfits)
     # scalar
     exp_log_lk = (
-        - 0.5 * group_sizes @ log_det_covs
+        + 0.5 * group_sizes @ log_det_precs
         - 0.5 * agg_misfits
         )
     # scalar
@@ -161,7 +153,8 @@ class IGMM(GMM):
             axis=0
             )
 
-        return {
+        return GMM.precompute({
+            'data': data,
             'groups': groups,
             'responsibilities': resps
-            }
+            })

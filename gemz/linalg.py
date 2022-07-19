@@ -61,8 +61,6 @@ class ImplicitMatrix:
         """
         raise NotImplementedError
 
-
-    # FIXME: isn't this useless ? Might as well implement __add__ on children
     def __add__(self, right):
         """
         Self + right
@@ -224,6 +222,16 @@ class ScaledMatrix(ImplicitMatrix):
         """
         return self.multiplier[..., None, None] * (self.base @ right)
 
+    def matmul_left(self, left):
+        """
+        Left @ self
+
+        By default we multiply with the base first then apply the multiplier, so
+        that with a broadcasted base and left we save the expansion for the
+        end.
+        """
+        return self.multiplier[..., None, None] * (left @ self.base)
+
     def slogdet(self):
         """
         Sign and log det of self
@@ -266,12 +274,12 @@ class Diagonal(ImplicitMatrix):
         """
         return left * self._diagonal
 
-class SymmetricLowRankUpdate(ImplicitMatrix):
+class LowRankUpdate(ImplicitMatrix):
     """
     Symmetric low-rank update of a matrix, stored symbolically.
 
     This allow efficient storage and operations such as inversion, determinant
-    or matrix-vector product when:
+    or matrix-vector product (if applicable) when:
         * the update has a noticeably smaller rank that the dimension of the
           matrix, and
         * storage and operations of the updatee can be done at a small marginal
@@ -280,41 +288,49 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
 
     This representation is not identifiable and not meant to be.
     """
-
-    def __init__(self, base, factor, weight):
+    def __init__(self, base, factor_left, weight, factor_right=None):
         """
         Builds a symbolic representation of the matrix
-            base + factor @ weight @ factor.T
+            base + factor_left @ weight @ factor_right
 
         All inputs can have (matching) leading batch dimensions.
         If base or weight have less than two dimensions, there are assumed to be
         diagonal matrices or scalar multiple of the identity matrix.
 
         Note that you can use a negative weight to write a downdate.
+
+        Args:
+            factor_right: if not given, defaults to the batched transpose of
+                factor_left, yielding a symmetric low rank update.
         """
-        self.base = as_matrix(base, factor.shape[-2])
-        self.factor = factor
-        self.weight = as_matrix(weight, factor.shape[-1])
+        self.base = as_matrix(base, factor_left.shape[-2])
+        self.factor_left = factor_left
+        self.weight = as_matrix(weight, factor_left.shape[-1])
+
+        if factor_right is None:
+            self.factor_right = np.swapaxes(factor_left, -2, -1)
+        else:
+            self.factor_right = factor_right
 
         self._inv_base = None
         self._inv_weight = None
         self._capacitance = None
 
-    class SLRUShape:
+    class LRUShape:
         """
-        Shape proxy for SLRU matrix
+        Shape proxy for LRU matrix
 
         The whole shape is not easily predicted but specific lengths may be
         guessed easily.
         """
-        def __init__(self, slru):
-            self.slru = slru
+        def __init__(self, lru):
+            self.lru = lru
 
         def __getitem__(self, index):
             if index == -1:
                 return max(
-                    self.slru.base.shape[-1],
-                    self.slru.factor.shape[-2],
+                    self.lru.base.shape[-1],
+                    self.lru.factor_right.shape[-2],
                     )
             raise NotImplementedError(index)
 
@@ -323,7 +339,7 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         """
         Shape accessor object
         """
-        return self.SLRUShape(self)
+        return self.LRUShape(self)
 
     def matmul_right(self, right):
         """
@@ -334,9 +350,9 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         """
         return (
             self.base @ right
-            + self.factor @ (
+            + self.factor_left @ (
                 self.weight @ (
-                    np.swapaxes(self.factor, -2, -1) @ right
+                    self.factor_right  @ right
                     )
                 )
             )
@@ -351,8 +367,8 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         return (
             left @ self.base
             + (
-                (left @ self.factor) @ self.weight
-                ) @ np.swapaxes(self.factor, -2, -1)
+                (left @ self.factor_left) @ self.weight
+                ) @ self.factor_right
             )
 
     def diagonal(self):
@@ -361,7 +377,10 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         """
         return (
             np.diagonal(self.base)
-            + np.sum((self.factor @ self.weight) * self.factor, -1)
+            + np.sum(
+                (self.factor_left @ self.weight) # Bni @ Bij -> Bnj
+                * np.swapaxes(self.factor_right, -2, -1), # Bjm -> Bmj, m = n
+                -1) # Bni -> Bn
             )
 
     @property
@@ -372,6 +391,7 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         if self._inv_base is None:
             self._inv_base = np.linalg.inv(self.base)
         return self._inv_base
+
 
     @property
     def inv_weight(self):
@@ -391,8 +411,8 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         if self._capacitance is None:
             self._capacitance = (
                 self.inv_weight
-                + np.swapaxes(self.factor, -2, -1) @ (
-                    self.inv_base @ self.factor
+                + self.factor_right @ (
+                    self.inv_base @ self.factor_left
                     )
                 )
         return self._capacitance
@@ -401,10 +421,11 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         """"
         Representation of inverse through Woodbury identity
         """
-        return SymmetricLowRankUpdate(
+        return LowRankUpdate(
             base=self.inv_base,
-            factor=self.inv_base @ self.factor,
-            weight=-np.linalg.inv(self.capacitance)
+            factor_left=self.inv_base @ self.factor_left,
+            weight=-np.linalg.inv(self.capacitance),
+            factor_right=self.factor_right @ self.inv_base,
             )
 
     def slogdet(self):
@@ -424,20 +445,65 @@ class SymmetricLowRankUpdate(ImplicitMatrix):
         Divisor must be a batched scalar, and must be manually broadcasted if
         needed first.
 
-        Scalar is required Hadamard division of SLRU is not easily doable.
+        Scalar is required as Hadamard division of LRU is not easily doable.
 
         Automatic broadcasting of scalars or (constant) vectors is not
         implemented as the main use case is batched scalars that require
         pre-broadcasting anyway.
         """
         if divisor.shape[-2:] != (1, 1):
-            raise ValueError('Cannot divide a SLRU by something else than a '
-                'batched 1 x 1 array. Received divisor with shape ' +
+            raise ValueError('Cannot divide a LowRankUpdate by something else '
+                'than a batched 1 x 1 array. Received divisor with shape ' +
                 str(divisor.shape))
         return ScaledMatrix(self, 1. / divisor[..., 0, 0])
 
-# "Regularized weighted symmetric square", obsolete name
-RWSS = SymmetricLowRankUpdate
+    def add(self, other):
+        """
+        Addition with other.
+
+        Only very specific cases could be supported, so not implemented for now.
+        """
+        raise NotImplementedError
+
+class SymmetricLowRankUpdate(LowRankUpdate):
+    """
+    Symmetric low-rank update of a matrix, stored symbolically.
+
+    Special case of LowRankUpdate,
+    """
+    def __init__(self, base, factor, weight):
+        """
+        Builds a symbolic representation of the matrix
+            base + factor @ weight @ factor.T
+
+        All inputs can have (matching) leading batch dimensions.
+        If base or weight have less than two dimensions, there are assumed to be
+        diagonal matrices or scalar multiple of the identity matrix.
+
+        Note that you can use a negative weight to write a downdate.
+        """
+        super().__init__(base, factor, weight)
+
+    def inv(self):
+        """"
+        Representation of inverse through Woodbury identity
+
+        Preserve the symmetry, hence avoiding duplicating the factor as
+        LowRankUpdate would do.
+        """
+        return SymmetricLowRankUpdate(
+            base=self.inv_base,
+            factor=self.inv_base @ self.factor_left,
+            weight=-np.linalg.inv(self.capacitance)
+            )
+
+    def add(self, other):
+        """
+        Addition with other.
+
+        Only very specific cases could be supported, so not implemented for now.
+        """
+        raise NotImplementedError
 
 def as_matrix(obj, bcast_inner_dim):
     """
@@ -492,16 +558,46 @@ def loo_square(array, weights):
     Signature (..ij, ..j) -> (..jii)
     """
 
+    # Batched transpose
+    array_t = np.swapaxes(array, -2, -1)
     # Non-loo square
-    base = (array * weights[..., None, :]) @ array.T
+    base = (array * weights[..., None, :]) @ array_t
 
     return SymmetricLowRankUpdate(
         # Insert a broadcasting loo dimension just before the duplicated one
         base=base[..., None, :, :],
         # Put the trailing LOO axis at the end of the batching dimensions,
         # then add a dummy contracting dimension at the end
-        factor=np.swapaxes(array, -2, -1)[..., None],
+        factor=array_t[..., None],
         # Add two dummy contracting dimensions, and
         # swap the sign since LOO is a *down*date
         weight=-weights[..., None, None]
+        )
+
+def loo_cross_square(left_bnp, weights_bp, right_bmp):
+    """
+    Like `loo_square` with possibly different left and right factors. So
+    essentially a contraction like matmul, but with indexing conventions
+    matching loo_square, not loo_matmul
+
+    Signature (..ij, ..j, ..kj) -> (..jik)
+    """
+
+    right_bpm = np.swapaxes(right_bmp, -2, -1)
+    left_bpn = np.swapaxes(left_bnp, -2, -1)
+
+    # Non-loo cross square
+    base_bnm = (left_bnp * weights_bp[..., None, :]) @ right_bpm
+
+    return LowRankUpdate(
+        # Insert a broadcasting loo dimension just before the outer'ed ones
+        base=base_bnm[..., None, :, :],
+        # Put the trailing LOO axis at the end of the batching dimensions,
+        # then add a dummy contracting dimension at the end (bpn1)
+        factor_left=left_bpn[..., None],
+        # Add two dummy contracting dimensions, and
+        # swap the sign since LOO is a *down*date
+        weight=-weights_bp[..., None, None],
+        # Add dummy contraction dim as second to last (bp1m)
+        factor_right=right_bpm[..., None, :]
         )
