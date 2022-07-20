@@ -392,7 +392,6 @@ class LowRankUpdate(ImplicitMatrix):
             self._inv_base = np.linalg.inv(self.base)
         return self._inv_base
 
-
     @property
     def inv_weight(self):
         """
@@ -401,7 +400,6 @@ class LowRankUpdate(ImplicitMatrix):
         if self._inv_weight is None:
             self._inv_weight = np.linalg.inv(self.weight)
         return self._inv_weight
-
 
     @property
     def capacitance(self):
@@ -548,7 +546,7 @@ def loo_matmul(left, right):
     joint = left[..., None] * right[..., None, :, :]
     return loo_sum(joint, -2)
 
-def loo_square(array, weights):
+def loo_square(array, weights, reg=0.):
     """
     Implicit leave-one-out transpose square of an array.
 
@@ -563,6 +561,8 @@ def loo_square(array, weights):
     # Non-loo square
     base = (array * weights[..., None, :]) @ array_t
 
+    base += reg * np.eye(array.shape[-2])
+
     return SymmetricLowRankUpdate(
         # Insert a broadcasting loo dimension just before the duplicated one
         base=base[..., None, :, :],
@@ -571,7 +571,7 @@ def loo_square(array, weights):
         factor=array_t[..., None],
         # Add two dummy contracting dimensions, and
         # swap the sign since LOO is a *down*date
-        weight=-weights[..., None, None]
+        weight=-(weights[..., None, None] + 1e-15)
         )
 
 def loo_cross_square(left_bnp, weights_bp, right_bmp):

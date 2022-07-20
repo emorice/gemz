@@ -153,7 +153,7 @@ class IGMM(GMM):
             axis=0
             )
 
-        return GMM.precompute({
+        return GMM.precompute_loo({
             'data': data,
             'groups': groups,
             'responsibilities': resps

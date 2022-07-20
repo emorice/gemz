@@ -121,7 +121,7 @@ def linear_reg(_, case_name, report_path):
     # 201, 200 is really weird ??
     # 201, 196
 
-    train, test = gen_hyperv(100, 201, noise_sd=.5)
+    train, test = gen_hyperv(100, 251, noise_sd=.5)
 
     # Fits
     # ====
