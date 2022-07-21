@@ -124,7 +124,7 @@ def vj_argnames(function, names):
     return _vg
 
 def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
-    obj_mult=1., jit=None, has_aux=False):
+    obj_mult=1., jit=True, has_aux=False):
     """
     High-level minimization function
 
@@ -189,7 +189,7 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
         }
 
 def maximize(native_obj, init, data, bijectors=None, scipy_method=None,
-    obj_mult=1., jit=None, has_aux=False):
+    obj_mult=1., jit=True, has_aux=False):
     """
     Counterpart to minimize
     """
