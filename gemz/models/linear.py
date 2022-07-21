@@ -6,39 +6,30 @@ import numpy as np
 
 from gemz import linalg, models
 
-class Linear:
+def linear_predict_loo(model, new_data):
     """
-    Base class for models that can be reduced to a large-dimensional precision
-    matrix.
+    Predicts each entry in new data from the others assuming the given model
 
-    Predictions can then be done independently of the choice of a precision.
+    Args:
+        model: the representation of a N2 x N2 precision matrix
+        new_data: N1' x N2, where N2 matches the training data
+    Returns:
+        predictions: N1' x N2
     """
+    precision = model['precision']
 
-    @staticmethod
-    def predict_loo(model, new_data):
-        """
-        Predicts each entry in new data from the others assuming the given model
+    # N1' x N2, linear predictions but not scaled and with the diagonal
+    unscaled_residuals = new_data @ precision
 
-        Args:
-            model: the representation of a N2 x N2 precision matrix
-            new_data: N1' x N2, where N2 matches the training data
-        Returns:
-            predictions: N1' x N2
-        """
-        precision = model['precision']
+    residuals = unscaled_residuals / np.diagonal(precision)
 
-        # N1' x N2, linear predictions but not scaled and with the diagonal
-        unscaled_residuals = new_data @ precision
+    predictions = new_data - residuals
 
-        residuals = unscaled_residuals / np.diagonal(precision)
-
-        predictions = new_data - residuals
-
-        return predictions
+    return predictions
 
 
 @models.add('linear')
-class DualLinear(Linear):
+class Linear:
     """
     Linear model matching the low-dimensional linear model.
     """
@@ -62,6 +53,8 @@ class DualLinear(Linear):
         return {
             'precision': precision
             }
+
+    predict_loo = staticmethod(linear_predict_loo)
 
     @staticmethod
     def spectrum(data):
