@@ -113,6 +113,7 @@ class GMM:
             **model,
             'group_sizes': group_sizes_kp,
             'means': means_kpn,
+            'covariances': covariances_kpnn,
             'precisions': precisions_kpnn
             }
 

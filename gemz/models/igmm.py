@@ -16,28 +16,18 @@ def igmm_obj(data, responsibilities, barrier_strength=0.1):
         data: N x P, P being the large dimension
         responsibilities: K x P, K being the number of groups
     """
-    # K x P, loo-sum over P
-    group_sizes = linalg.loo_sum(responsibilities, -1)
+
+    precomp = GMM.precompute_loo(dict(
+        data=data,
+        responsibilities=responsibilities
+        ))
 
     # K x P x N, loo-sum over P
-    means = linalg.loo_matmul(responsibilities, data.T) / group_sizes[..., None]
-
-    # K x P x N x N implicit matrix stack, noncentered covariances
-    grams = (
-        linalg.loo_square(data, responsibilities)
-        / group_sizes[..., None, None]
-        )
-
-    # K x P x N x N implicit matrix stack
-    covariances = linalg.SymmetricLowRankUpdate(
-        base=grams,
-        # Extra contracting dim (outer product)
-        factor=means[..., None],
-        weight=-1,
-        )
+    means = precomp['means']
 
     # K x P x N X N
-    precisions = np.linalg.inv(covariances)
+    covariances = precomp['covariances']
+    precisions = precomp['precisions']
 
     # K x P x N
     centered_data = data.T - means
