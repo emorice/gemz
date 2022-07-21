@@ -5,7 +5,7 @@ Linear model with a linear shrinkage
 import numpy as np
 
 from gemz import linalg, models
-from .linear import Linear
+from .linear import Linear, DualLinear
 
 @models.add('linear_shrinkage')
 class LinearShrinkage(Linear):
@@ -44,11 +44,11 @@ class LinearShrinkage(Linear):
             'prior_var': prior_var
             }
 
-    @classmethod
-    def spectrum(cls, data, prior_var):
+    @staticmethod
+    def spectrum(data, prior_var):
         """
         Spectrum implicitely used by the regularized model when target and scale are None
         """
-        orig_spectrum = super().spectrum(data)
+        orig_spectrum = DualLinear.spectrum(data)
         adjusted_spectrum = orig_spectrum + prior_var
         return adjusted_spectrum

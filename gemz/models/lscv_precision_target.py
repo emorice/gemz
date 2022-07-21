@@ -5,7 +5,7 @@ target
 
 from gemz import models
 from gemz.models import cv
-from .linear import Linear
+from .linear import DualLinear
 from .linear_shrinkage_cv import LSCV
 
 @models.add('lscv_precision_target')
@@ -24,7 +24,7 @@ class LSCVPrecisionTarget(LSCV):
         Then, build a shrinkage target from it and fit a second shrinkage model
         """
 
-        indiv_rss = cv.fit_cv(data, Linear, loss_name='iRSS')
+        indiv_rss = cv.fit_cv(data, DualLinear, loss_name='iRSS')
 
         return super().fit(
             data,

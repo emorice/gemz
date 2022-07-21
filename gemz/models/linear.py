@@ -6,31 +6,13 @@ import numpy as np
 
 from gemz import linalg, models
 
-@models.add('linear')
 class Linear:
     """
-    Linear interpolation
+    Base class for models that can be reduced to a large-dimensional precision
+    matrix.
+
+    Predictions can then be done independently of the choice of a precision.
     """
-    @staticmethod
-    def fit(data):
-        """
-        Computes a representation of the precision matrix of the first axis of the
-        data.
-
-        Args:
-            data: N1 x N2, assuming N1 < N2
-        Returns:
-            precision: representation of a N2 x N2 precision matrix
-        """
-
-        # N1 x N1, the other axis precision
-        dual_precision = np.linalg.inv(data @ data.T)
-
-        precision = linalg.SymmetricLowRankUpdate(1., data.T, - dual_precision)
-
-        return {
-            'precision': precision
-            }
 
     @staticmethod
     def predict_loo(model, new_data):
@@ -54,6 +36,33 @@ class Linear:
 
         return predictions
 
+
+@models.add('linear')
+class DualLinear(Linear):
+    """
+    Linear model matching the low-dimensional linear model.
+    """
+    @staticmethod
+    def fit(data):
+        """
+        Computes a representation of the precision matrix of the first axis of the
+        data.
+
+        Args:
+            data: N1 x N2, assuming N1 < N2
+        Returns:
+            precision: representation of a N2 x N2 precision matrix
+        """
+
+        # N1 x N1, the other axis precision
+        dual_precision = np.linalg.inv(data @ data.T)
+
+        precision = linalg.SymmetricLowRankUpdate(1., data.T, - dual_precision)
+
+        return {
+            'precision': precision
+            }
+
     @staticmethod
     def spectrum(data):
         """
@@ -62,8 +71,8 @@ class Linear:
         Args:
             data: N1 x N2, assuming N1 < N2
         Returns:
-            spectrum of the N1 covariance, of length N1, in descending order,
-            including zeros at the end
+            spectrum of the N2 covariance, of length N2, in descending order,
+            including the N2 - N1 zeros at the end
         """
         len1, len2 = data.shape
         singular_values = np.linalg.svd(data, compute_uv=False)

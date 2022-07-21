@@ -25,6 +25,9 @@ class NonlinearShrinkage(Linear):
             N2-long estimated spectrum
         """
 
+        # pylint: disable=import-outside-toplevel
+        # Deliberate, rpy2 starts a R session in the background,
+        # which we want to skip if this model is never used
         from rpy2.robjects.packages import importr
         from rpy2.robjects import numpy2ri, default_converter
         from rpy2.robjects.conversion import localconverter
