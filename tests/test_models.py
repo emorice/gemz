@@ -67,7 +67,7 @@ model_specs = [
         },
     ]
 
-@pytest.mark.parametrize('model_spec', model_specs)
+@pytest.mark.parametrize('model_spec', model_specs, ids=lambda s: s['model'])
 def test_fit_predict_null(data, model_spec):
     """
     Fit and predict from the fitted model

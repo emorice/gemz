@@ -142,6 +142,8 @@ class ScaledIdentity(ImplicitMatrix):
         self.scalar = scalar
         self.inner_dim = inner_dim
 
+        self.shape = np.shape(self.scalar) + (inner_dim, inner_dim)
+
     def matmul_right(self, right):
         """
         Matmul of self @ right
@@ -393,25 +395,20 @@ class LowRankUpdate(ImplicitMatrix):
         return self._inv_base
 
     @property
-    def inv_weight(self):
-        """
-        Inverse of weight matrix, cached
-        """
-        if self._inv_weight is None:
-            self._inv_weight = np.linalg.inv(self.weight)
-        return self._inv_weight
-
-    @property
     def capacitance(self):
         """
         Capacitance matrix, cached
         """
         if self._capacitance is None:
+            inner_dim = max(
+                self.factor_right.shape[-2],
+                self.weight.shape[-1]
+                )
             self._capacitance = (
-                self.inv_weight
-                + self.factor_right @ (
-                    self.inv_base @ self.factor_left
-                    )
+                np.eye(inner_dim)
+                + (self.factor_right @
+                    (self.inv_base @ self.factor_left)
+                  ) @ self.weight
                 )
         return self._capacitance
 
@@ -422,7 +419,7 @@ class LowRankUpdate(ImplicitMatrix):
         return LowRankUpdate(
             base=self.inv_base,
             factor_left=self.inv_base @ self.factor_left,
-            weight=-np.linalg.inv(self.capacitance),
+            weight=-(self.weight @ np.linalg.inv(self.capacitance)),
             factor_right=self.factor_right @ self.inv_base,
             )
 
@@ -431,10 +428,9 @@ class LowRankUpdate(ImplicitMatrix):
         Sign and log-determinant through matrix determninant lemma
         """
         s_base, l_base = np.linalg.slogdet(self.base)
-        s_weight, l_weight = np.linalg.slogdet(self.weight)
         s_capa, l_capa = np.linalg.slogdet(self.capacitance)
 
-        return s_base * s_weight * s_capa, l_base + l_weight + l_capa
+        return s_base * s_capa, l_base + l_capa
 
     def __truediv__(self, divisor):
         """
@@ -492,7 +488,7 @@ class SymmetricLowRankUpdate(LowRankUpdate):
         return SymmetricLowRankUpdate(
             base=self.inv_base,
             factor=self.inv_base @ self.factor_left,
-            weight=-np.linalg.inv(self.capacitance)
+            weight=-(self.weight @ np.linalg.inv(self.capacitance))
             )
 
     def add(self, other):
@@ -571,7 +567,7 @@ def loo_square(array, weights, reg=0.):
         factor=array_t[..., None],
         # Add two dummy contracting dimensions, and
         # swap the sign since LOO is a *down*date
-        weight=-(weights[..., None, None] + 1e-15)
+        weight=-(weights[..., None, None])
         )
 
 def loo_cross_square(left_bnp, weights_bp, right_bmp):
