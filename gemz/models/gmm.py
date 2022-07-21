@@ -91,12 +91,12 @@ class GMM:
         reg_covar = model['reg_covar'] if 'reg_covar' in model else 0.
 
         group_sizes_kp = linalg.loo_sum(resps_kp, -1)
+        group_sizes_k = np.sum(resps_kp, -1)
 
         means_kpn = linalg.loo_matmul(resps_kp, data_np.T) / group_sizes_kp[..., None]
 
-        # FIXME: reg_covar is applied to the square not the covar
         grams_kpnn = (
-            linalg.loo_square(data_np, resps_kp, reg=reg_covar * data_np.shape[-1])
+            linalg.loo_square(data_np, resps_kp, reg_b=reg_covar * group_sizes_k)
             / group_sizes_kp[..., None, None]
             )
 

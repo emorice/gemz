@@ -22,10 +22,10 @@ class ImplicitMatrix:
             return func_imp
         return _wrapper
 
-    def __array_ufunc__(self, ufunc, method, *args):
+    def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         if ufunc in self._implementations and method == '__call__':
             imp = self._implementations[ufunc]
-            return imp(self, *args)
+            return imp(self, *args, **kwargs)
         return NotImplemented
 
     def __array_function__(self, func, _, args, kwargs):
@@ -64,10 +64,20 @@ class ImplicitMatrix:
     def __add__(self, right):
         """
         Self + right
+
+        Note: both __add__ and __radd__ map to the same op, as we assume addition on
+        ImplicitMatrices commutes. The distinction is mostly useful for
+        types where '+' means concatenation (non commutative) I believe.
         """
         return self.add(right)
 
-    def add(self, other):
+    def __radd__(self, left):
+        """
+        Left + self
+        """
+        return self.add(left)
+
+    def add(self, other, out=None):
         """
         Self + other
         """
@@ -124,14 +134,14 @@ def _matmul(obj, *args):
     return NotImplemented
 
 @ImplicitMatrix.implements(np.add)
-def _add(obj, *args):
+def _add(obj, *args, out=None):
     if len(args) != 2:
         return NotImplemented
     left, right = args
     if left is obj:
-        return obj.add(right)
+        return obj.add(right, out=out)
     if right is obj:
-        return obj.add(left)
+        return obj.add(left, out=out)
     return NotImplemented
 
 class ScaledIdentity(ImplicitMatrix):
@@ -171,13 +181,16 @@ class ScaledIdentity(ImplicitMatrix):
             scalar=1.0 / self.scalar,
             inner_dim=self.inner_dim)
 
-    def add(self, other):
+    def add(self, other, out=None):
         """
         Concrete addition
         """
         # For now we only consider adding to a concrete array, in which case we
         # can concretize self
-        return other + self.scalar * np.eye(self.inner_dim)
+        return np.add(
+            other,
+            self.scalar[..., None, None] * np.eye(self.inner_dim),
+            out=out)
 
     def slogdet(self):
         """
@@ -542,7 +555,7 @@ def loo_matmul(left, right):
     joint = left[..., None] * right[..., None, :, :]
     return loo_sum(joint, -2)
 
-def loo_square(array, weights, reg=0.):
+def loo_square(array_bnp, weights_bp, reg_b=np.array(0.)):
     """
     Implicit leave-one-out transpose square of an array.
 
@@ -553,21 +566,20 @@ def loo_square(array, weights, reg=0.):
     """
 
     # Batched transpose
-    array_t = np.swapaxes(array, -2, -1)
+    array_bpn = np.swapaxes(array_bnp, -2, -1)
     # Non-loo square
-    base = (array * weights[..., None, :]) @ array_t
+    base_bnn = (array_bnp * weights_bp[..., None, :]) @ array_bpn
 
-    base += reg * np.eye(array.shape[-2])
+    base_bnn += ScaledIdentity(reg_b, array_bnp.shape[-2])
 
     return SymmetricLowRankUpdate(
         # Insert a broadcasting loo dimension just before the duplicated one
-        base=base[..., None, :, :],
-        # Put the trailing LOO axis at the end of the batching dimensions,
-        # then add a dummy contracting dimension at the end
-        factor=array_t[..., None],
+        base=base_bnn[..., None, :, :],
+        # Add a dummy contracting dimension at the end
+        factor=array_bpn[..., None],
         # Add two dummy contracting dimensions, and
         # swap the sign since LOO is a *down*date
-        weight=-(weights[..., None, None])
+        weight=-(weights_bp[..., None, None])
         )
 
 def loo_cross_square(left_bnp, weights_bp, right_bmp):

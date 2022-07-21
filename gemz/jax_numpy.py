@@ -37,7 +37,6 @@ class JaxObject:
     def __init__(self, wrapped):
         self.wrapped = wrapped
 
-    # pylint: disable=no-self-use # numpy interface definition
     def __array_ufunc__(self, ufunc, method, *args):
         if method != "__call__":
             raise NotImplementedError
@@ -171,6 +170,3 @@ def jaxify(*function, has_aux=False):
         return maybe_unwrap(wrapped_ret)
 
     return _wrap
-
-# Obsolete less descriptive name
-indirect_jax = jaxify
