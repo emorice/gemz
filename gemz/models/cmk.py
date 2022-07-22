@@ -11,12 +11,12 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
-from gemz import models
+from . import methods
 
 # High-level interface
 # ====================
 
-@models.add('cmk')
+@methods.add('cmk')
 class CMK:
     """
     Clustered MacKay algorithm
@@ -156,6 +156,11 @@ def cmk_many(
     # State
     compact_covariance, data_vars,
     **_):
+    """
+    Computes the essential statistics to derive updates
+
+    (Effective parameters and model sizes mostly)
+    """
 
     arange_k =  jnp.cumsum(jnp.ones_like(compact_covariance[0])) - 1.
 
@@ -252,6 +257,9 @@ def cmk_update(
     # Aux
     group_covariances, groups_onehot,
     **_):
+    """
+    Derives the updates from the intermediates from `cmk_many`
+    """
 
     tiny = jnp.finfo(model_sizes.dtype).tiny
 
@@ -316,6 +324,9 @@ def cmk_predict(
     # Aux
     own_group_covariance,
     **_):
+    """
+    Makes leave-one-out imputation on new data
+    """
 
     # K x N' x N
     group_xgrams = jax.vmap(lambda k: (new_data * (groups == k) @ data.T))(jnp.arange(n_groups))

@@ -130,6 +130,9 @@ def plot_nonlinearity(ddata, nonlinearity, resps=None):
         )
 
 def plot_pcs(data, subset, resps=None):
+    """
+    Plots the first components colored by group
+    """
     pcs, _, _ = np.linalg.svd(data, full_matrices=False)
 
     return go.Figure(
@@ -154,7 +157,7 @@ def nonlinear(_, case_name, report_path):
     High-dimensional dataset with two distinct sets of linear invariants
     """
 
-    train, test, nonlinearity = gen_hypertwist(
+    train, _, nonlinearity = gen_hypertwist(
         len1=1000,
         len2_train=100,
         len2_test=1,
@@ -167,7 +170,7 @@ def nonlinear(_, case_name, report_path):
     train_c1 = train[nonlinearity[0]]
     train_c2 = train[~nonlinearity[0]]
 
-    eps = 0.45
+    #eps = 0.45
     model_defs = {
         'kmeans': ('kmeans', {'n_groups': 2}),
         'gmm_free': ('gmm', {
@@ -195,8 +198,10 @@ def nonlinear(_, case_name, report_path):
         'igmm': ('igmm', {
             'n_groups': 2,
             'seed': 0,
-            'barrier_strength': 0.1,
-            #'init_resps': np.stack(( 0.5 + eps - 2 * eps * nonlinearity[0], 0.5 - eps + 2 * eps * nonlinearity[0],))
+            'barrier_strength': 0.2,
+            #'init_resps': np.stack((
+            #    0.5 + eps - 2 * eps * nonlinearity[0],
+            #    0.5 - eps + 2 * eps * nonlinearity[0],))
             })
     }
 

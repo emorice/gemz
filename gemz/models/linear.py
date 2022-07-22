@@ -4,31 +4,10 @@ Simple linear predictions.
 
 import numpy as np
 
-from gemz import linalg, models
+from gemz import linalg
+from . import methods
 
-def linear_predict_loo(model, new_data):
-    """
-    Predicts each entry in new data from the others assuming the given model
-
-    Args:
-        model: the representation of a N2 x N2 precision matrix
-        new_data: N1' x N2, where N2 matches the training data
-    Returns:
-        predictions: N1' x N2
-    """
-    precision = model['precision']
-
-    # N1' x N2, linear predictions but not scaled and with the diagonal
-    unscaled_residuals = new_data @ precision
-
-    residuals = unscaled_residuals / np.diagonal(precision)
-
-    predictions = new_data - residuals
-
-    return predictions
-
-
-@models.add('linear')
+@methods.add('linear')
 class Linear:
     """
     Linear model matching the low-dimensional linear model.
@@ -54,7 +33,27 @@ class Linear:
             'precision': precision
             }
 
-    predict_loo = staticmethod(linear_predict_loo)
+    @staticmethod
+    def predict_loo(model, new_data):
+        """
+        Predicts each entry in new data from the others assuming the given model
+
+        Args:
+            model: the representation of a N2 x N2 precision matrix
+            new_data: N1' x N2, where N2 matches the training data
+        Returns:
+            predictions: N1' x N2
+        """
+        precision = model['precision']
+
+        # N1' x N2, linear predictions but not scaled and with the diagonal
+        unscaled_residuals = new_data @ precision
+
+        residuals = unscaled_residuals / np.diagonal(precision)
+
+        predictions = new_data - residuals
+
+        return predictions
 
     @staticmethod
     def spectrum(data):

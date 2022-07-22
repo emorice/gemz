@@ -6,9 +6,10 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from gemz import jax_utils, models
+from gemz import jax_utils
+from . import methods
 
-@models.add('wishart')
+@methods.add('wishart')
 class Wishart:
     """
     Wishart evidence based linear shrinkage

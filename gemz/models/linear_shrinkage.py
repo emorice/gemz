@@ -4,10 +4,11 @@ Linear model with a linear shrinkage
 
 import numpy as np
 
-from gemz import linalg, models
-from .linear import Linear, linear_predict_loo
+from gemz import linalg
+from . import methods
+from .linear import Linear
 
-@models.add('linear_shrinkage')
+@methods.add('linear_shrinkage')
 class LinearShrinkage:
     """
     Linear shrinkage
@@ -44,7 +45,7 @@ class LinearShrinkage:
             'prior_var': prior_var
             }
 
-    predict_loo = staticmethod(linear_predict_loo)
+    predict_loo = Linear.predict_loo
 
     @staticmethod
     def spectrum(data, prior_var):

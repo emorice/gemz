@@ -5,9 +5,9 @@ Simple clustering-based predictions.
 import numpy as np
 import sklearn.cluster
 
-from gemz import models
+from . import methods
 
-@models.add('kmeans')
+@methods.add('kmeans')
 class KMeans:
     """
     K-means clustering and predictions

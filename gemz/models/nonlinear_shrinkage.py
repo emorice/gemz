@@ -4,10 +4,11 @@ Shrinkage models based on Ledoit--Wolf spectral deconvolution
 
 import numpy as np
 
-from gemz import linalg, models
+from gemz import linalg
+from . import methods
 from .linear import Linear
 
-@models.add('nonlinear_shrinkage')
+@methods.add('nonlinear_shrinkage')
 class NonlinearShrinkage(Linear):
     """
     Optimal shrinkage based on Quest inversion

@@ -5,10 +5,10 @@ Gaussian mixtrue based predictions.
 import numpy as np
 import sklearn.mixture
 
-from gemz import models
 from gemz import linalg
+from . import methods
 
-@models.add('gmm')
+@methods.add('gmm')
 class GMM:
     """
     Gaussian mixture model, classical EM and variants thereof

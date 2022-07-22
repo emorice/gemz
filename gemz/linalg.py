@@ -464,7 +464,7 @@ class LowRankUpdate(ImplicitMatrix):
                 str(divisor.shape))
         return ScaledMatrix(self, 1. / divisor[..., 0, 0])
 
-    def add(self, other):
+    def add(self, other, out=None):
         """
         Addition with other.
 
@@ -504,7 +504,7 @@ class SymmetricLowRankUpdate(LowRankUpdate):
             weight=-(self.weight @ np.linalg.inv(self.capacitance))
             )
 
-    def add(self, other):
+    def add(self, other, out=None):
         """
         Addition with other.
 
