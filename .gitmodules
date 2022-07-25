@@ -1,0 +1,3 @@
+[submodule "gemz-galp"]
+	path = gemz-galp
+	url = git@github.com:emorice/gemz-galp.git
