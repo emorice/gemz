@@ -14,4 +14,8 @@ from . import (
     gmm, igmm
     )
 
-from .methods import get, fit, predict_loo
+from .methods import (
+        get,
+        fit, predict_loo, eval_loss,
+        fit_eval
+        )
