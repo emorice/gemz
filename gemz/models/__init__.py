@@ -14,8 +14,17 @@ from . import (
     gmm, igmm
     )
 
+from . import methods
 from .methods import (
         get,
         fit, predict_loo, eval_loss,
-        fit_eval
         )
+
+
+def fit_eval(model_spec, train_data, test_data, loss_name, ops=methods):
+    """
+    Compound fit and eval_loss call
+    """
+    fitted = ops.fit(model_spec, train_data)
+    loss = ops.eval_loss(model_spec, fitted, test_data, loss_name)
+    return fitted, loss

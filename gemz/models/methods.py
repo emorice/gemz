@@ -63,11 +63,3 @@ def eval_loss(model_spec, model_fit, test_data, loss_name):
     model = get(model_spec['model'])
 
     return loss_fn(model, model_fit, test_data)
-
-def fit_eval(model_spec, train_data, test_data, loss_name):
-    """
-    Compound fit and eval_loss call
-    """
-    fitted = fit(model_spec, train_data)
-    loss = eval_loss(model_spec, fitted, test_data, loss_name)
-    return fitted, loss
