@@ -4,6 +4,8 @@ Unified model interface
 
 import sys
 
+import numpy as np
+
 from . import cv
 
 _METHODS = {}
@@ -63,3 +65,22 @@ def eval_loss(model_spec, model_fit, test_data, loss_name):
     model = get(model_spec['model'])
 
     return loss_fn(model, model_fit, test_data)
+
+def fold(data, fold_index, fold_count, seed=0):
+    """
+    Generate a split of the data along its first axis
+    """
+    len1, *_ = data.shape
+
+    rng = np.random.default_rng(seed)
+    random_rank = rng.choice(len1, len1, replace=False)
+
+    in_fold = random_rank % fold_count != fold_index
+
+    return data[in_fold, ...], data[~in_fold, ...]
+
+def aggregate_losses(losses):
+    """
+    Trivial total loss computation
+    """
+    return sum(losses)
