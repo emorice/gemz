@@ -21,22 +21,41 @@ from .methods import (
         fold, aggregate_losses
         )
 
-def fit_eval(model_spec, train_data, test_data, loss_name, ops=methods):
+def fit_eval(model_spec, data_fold, loss_name, ops=methods):
     """
     Compound fit and eval_loss call
+
+    Returns:
+        dict with keys:
+            'fit': the model fit, type depending on model
+            'loss': the loss value on the given data split
     """
-    fitted = ops.fit(model_spec, train_data)
-    loss = ops.eval_loss(model_spec, fitted, test_data, loss_name)
-    return fitted, loss
+
+    fitted = ops.fit(model_spec, data_fold['train'])
+    loss = ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
+    return { 'fit': fitted, 'loss': loss }
 
 def cv_fit_eval(model_spec, data, fold_count, loss_name, ops=methods):
     """
     Fits and eval a model on each fold of the data and return the total loss
-    """
-    folds = [ ops.fold(data, i, fold_count) for i in range(fold_count) ]
-    fit_evals = [
-        fit_eval(model_spec, *_fold, loss_name, ops=ops)
-        for _fold in folds
-        ]
 
-    return ops.aggregate_losses([loss for _fitted, loss in fit_evals])
+    Returns:
+        a dict with keys:
+            'folds': list of per-fold results, each a dict with keys:
+                'data': the train and test data in a two-keys dict
+                'fitted', 'loss': the fitted model and loss value
+            'loss': the total loss
+    """
+    folds = [
+            { 'data': {'train': train, 'test': test}}
+            for train, test in [
+                ops.fold(data, i, fold_count)
+                for i in range(fold_count) ]
+            ]
+    for _fold in folds:
+        _fold.update(
+            fit_eval(model_spec, _fold['data'], loss_name, ops=ops)
+            )
+    total_loss = ops.aggregate_losses([_fold['loss'] for _fold in folds])
+
+    return {'folds': folds, 'loss': total_loss}

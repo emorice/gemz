@@ -10,7 +10,7 @@ from gemz import models
 
 # pylint: disable=redefined-outer-name
 
-def test_fit_eval(data):
+def test_fit_and_eval(data):
     """
     Fit a model, then call a loss function on a test set
     """
