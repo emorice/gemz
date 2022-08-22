@@ -5,7 +5,6 @@ Reformatted from experimantal notebooks, hence the subpar coding style.
 """
 
 import numpy as np
-import pandas as pd
 import sklearn.cluster
 import jax
 import jax.numpy as jnp
@@ -65,7 +64,7 @@ class CMK:
         return {
             'data': cmk_data,
             'state': state,
-            'hist': pd.DataFrame(hist),
+            'hist': hist,
             'aborted': abort,
             'errors': abort_msgs
         }

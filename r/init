@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 # Creates a R environment based on a DESCRIPTION file and helper scripts to use
 # it
@@ -8,11 +8,11 @@ cd "$(dirname "$0")"
 
 # Create the envionment
 # This creates a .Rprofile referencing the created renv
-R -e "renv::init(bare=TRUE)"
+R -q -e "renv::init(bare=TRUE)"
 
 # Install packages
 # This uses the local .Rprofile to operate in the correct renv
-R -e "renv::install()"
+R -q -e "renv::install()"
 
 # Creates a R script to activate by absolute path
 # This does not resolves links, which is usually the intended behavior
