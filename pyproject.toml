@@ -2,12 +2,13 @@
 name = "gemz"
 version = "0.0.1"
 dependencies = [
-  "rpy2",
   "numpy",
+  "scipy",
   "scikit-learn",
   "jax <= 0.3.7", # breaks distrax
   "jaxlib <= 0.3.7", # matches jax
-  "distrax"
+  "distrax",
+  "rpy2",
 ]
 
 [build-system]
