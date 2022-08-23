@@ -69,3 +69,17 @@ def quantile_normalize(values, masks, axis=-1, pseudocounts=0.5):
             )
         for mask, rank in zip(masks, ranks)
         ]
+
+def cv_masks(fold_count, sample_count, seed=0):
+    """
+    Generate random masks.
+    """
+    rng = np.random.default_rng(seed)
+
+    random_rank = rng.choice(sample_count, sample_count, replace=False)
+
+    fold_indexes = np.arange(fold_count)
+
+    masks = random_rank % fold_count != fold_indexes[:, None]
+
+    return masks

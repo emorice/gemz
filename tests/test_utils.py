@@ -95,3 +95,15 @@ def test_quantile_normalize():
     assert -10 < qns[0] < -0.1
     assert np.isclose(qns[1], 0.)
     assert 10 > qns[2] > 0.1
+
+def test_masks():
+    """
+    CV masks
+    """
+
+    masks = gemz.utils.cv_masks(5, 10) # 5-fold, 10 samples
+
+    assert masks.shape == (5, 10)
+    assert np.all(np.sum(masks, 0) == 4) # Each sample present in all folds but one
+    # Each fold contains four-fifths of the data
+    assert np.all(np.sum(masks, 1) == 8)
