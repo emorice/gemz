@@ -51,31 +51,27 @@ def gen_hyperv(len1, len2, noise_sd=1., seed=0):
 
     return data
 
-def plot_cv_rss(cv_models, grid_name):
+def plot_cv_rss(model):
     """
-    Generate a scatter plot of the validated rss along the cv search grid
+    Generate CV summary figure
     """
+
+    grid = model['grid']
+    losses = [ results['loss']
+            for specs, results in grid
+            ]
+
     return go.Figure(
         data=[
             go.Scatter(
-                x=cv_model['cv_grid'],
-                y=cv_model['cv_loss'],
-                yaxis=f'y{i+1 if i else ""}',
+                y=losses,
                 mode='lines+markers',
                 )
-            for i, cv_model in enumerate(cv_models)
             ],
         layout={
-            'title': 'Cross-validated RSS',
-            'xaxis': { 'title': grid_name, 'type': 'log'},
-            'yaxis_visible': False,
-            **{
-                f'yaxis{i+1}': {
-                    'overlaying': 'y',
-                    'visible': False
-                    }
-                for i in range(1, len(cv_models))
-                }
+            'title': f'Cross-validated {model["loss_name"]}',
+            'xaxis': { 'title': 'trial index'},
+            'yaxis': { 'title': model['loss_name']},
             }
         )
 
@@ -86,20 +82,18 @@ def plot_convergence(fits):
     data = []
 
     for name, model in fits:
-        if 'hist' in model:
-            hist = model['hist']
-            if 'iteration' in hist and 'log_likelihood' in hist:
-                data.append(go.Scatter(
-                    x=hist['iteration'],
-                    y=hist['log_likelihood'],
-                    name=name
-                    ))
+        if 'opt' in model:
+            hist = model['opt']['hist']
+            data.append(go.Scatter(
+                y=np.array(hist),
+                name=name
+                ))
     return go.Figure(
         data=data,
         layout={
             'title': 'Convergence behavior',
             'xaxis_title': 'Iteration',
-            'yaxis_title': 'Log-likelihood'
+            'yaxis_title': 'Loss function'
             }
         )
 
@@ -128,12 +122,8 @@ def linear_reg(_, case_name, report_path):
 
     model_args = [
         ('linear',  {}),
-
-        # Superseded by the cv version
-        # ('linear_shrinkage': {'prior_var',  100}),
-
-        ('linear_shrinkage_cv',  {}),
-        ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
+        ('cv', {'inner': {'model': 'linear_shrinkage'}}),
+        ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
         ('kmeans',  {'n_groups': 4}),
         ('nonlinear_shrinkage',  {}),
         ('wishart',  {}),
@@ -142,6 +132,7 @@ def linear_reg(_, case_name, report_path):
         ('gmm', {'n_groups': 2}),
         ('igmm', {'n_groups': 2}),
         ('svd', {'n_factors': 4}),
+        ('cv', {'inner': {'model': 'svd'}}),
         ]
 
     model_fits = [
@@ -203,8 +194,11 @@ def linear_reg(_, case_name, report_path):
 
     adj_spectrum = models.get('linear_shrinkage').spectrum(
         train,
-        next(model['cv_best'] for name, model in model_fits
-            if name == 'linear_shrinkage_cv')
+        next(model['selected']['prior_var']
+            for name, model in model_fits
+            if name == 'cv'
+            if model['inner']['model'] == 'linear_shrinkage'
+            )
         )
 
     opt_spectrum = next(model['spectrum'] for name, model in model_fits
@@ -213,7 +207,7 @@ def linear_reg(_, case_name, report_path):
     wh_fit = models.get('wishart').fit(train)
     wh_spectrum = (
         spectrum
-        + np.exp(wh_fit['opt']['prior_var_ln']) / train.shape[-1]
+        + np.exp(wh_fit['opt']['opt']['prior_var_ln']) / train.shape[-1]
         )
 
     log1p = False
@@ -240,14 +234,15 @@ def linear_reg(_, case_name, report_path):
             }
         )
 
-    fig_cv = plot_cv_rss([
-                model for name, model in model_fits
-                if name == 'linear_shrinkage_cv'
-            ], 'Prior variance')
+    figs_cv = [
+            plot_cv_rss(model_fit)
+                for name, model_fit in model_fits
+                if name == 'cv'
+            ]
 
     with open(report_path, 'w', encoding='utf8') as stream:
         stream.write(case_name)
         write_fig(stream,
             fig_pcs, fig_test, fig_spectrum,
-            fig_cv, plot_convergence(model_fits)
+            *figs_cv, plot_convergence(model_fits)
             )

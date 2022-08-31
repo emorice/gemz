@@ -4,6 +4,10 @@ Cross-validation utils
 
 import numpy as np
 
+from . import methods, ops
+
+methods.add_module('cv', __name__)
+
 LOSSES = {}
 
 def loss(name):
@@ -57,7 +61,7 @@ def geom_loss(method, model, test):
 
     return np.sum(np.log(dim_squares))
 
-def fit_cv(data, method, fold_count=10, seed=1234, loss_name=None, **method_kwargs):
+def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", _ops=ops):
     """
     Fit and eval the given method on folds of data
 
@@ -66,21 +70,25 @@ def fit_cv(data, method, fold_count=10, seed=1234, loss_name=None, **method_kwar
             is performed along N1.
     """
 
-    len1, _ = data.shape
+    grid = _ops.build_eval_grid(
+                inner, data, fold_count, loss_name, seed,
+                _ops=_ops
+            )
 
-    rng = np.random.default_rng(seed)
-    random_rank = rng.choice(len1, len1, replace=False)
+    best_model = _ops.select_best(grid)
 
-    total_loss = 0.
+    return {
+        'inner': inner,
+        'loss_name': loss_name,
+        'selected': best_model,
+        'fit': _ops.fit(best_model, data),
+        'grid': grid,
+        }
 
-    loss_name = loss_name or "RSS"
-    loss_fn = LOSSES[loss_name]
-
-    for fold_index in range(fold_count):
-        in_fold = random_rank % fold_count != fold_index
-
-        fold_model = method.fit(data[in_fold, ...], **method_kwargs)
-
-        total_loss += loss_fn(method, fold_model, data[~in_fold, ...])
-
-    return total_loss
+def predict_loo(model_fit, new_data):
+    """
+    Linear shrinkage loo prediction for the best model found during cv.
+    """
+    inner_model = methods.get(model_fit['inner']['model'])
+    inner_fit = model_fit['fit']
+    return inner_model.predict_loo(inner_fit, new_data)

@@ -3,6 +3,7 @@ Regularized linear model obtained by keeping only some factors of a singular
 value decompistion
 """
 
+import logging
 import numpy as np
 
 from gemz import linalg
@@ -34,3 +35,31 @@ def fit(data, n_factors):
         }
 
 predict_loo = linear.predict_loo
+
+def make_grid(partial_spec, data, grid_size=None):
+    """
+    Simple 1-2-5 grid, size depends only on data shape.
+    """
+
+    if grid_size is not None:
+        logging.warning('Ignored argument grid_size')
+
+    max_size = min(data.shape)
+
+    sizes = []
+    base = 1
+    while True:
+        for fact in (1, 2, 5):
+            size = base * fact
+            if size >= max_size:
+                break
+            sizes.append(size)
+        if size >= max_size:
+            break
+        base *= 10
+
+    return [
+        dict(partial_spec,
+            n_factors=size)
+        for size in sizes
+        ]

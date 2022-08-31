@@ -49,3 +49,19 @@ def spectrum(data, prior_var):
     orig_spectrum = linear.spectrum(data)
     adjusted_spectrum = orig_spectrum + prior_var
     return adjusted_spectrum
+
+def make_grid(partial_spec, data, grid_size=20):
+    """
+    A standard grid of prior vars to screen
+
+    Logarithmic from 0.01 to 100, which should be reasonable if the dataset is
+    standardized.
+    """
+    # We could extract a scale from the data here
+    _ = data
+
+    return [
+        dict(partial_spec,
+            prior_var=var)
+        for var in 10**np.linspace(-2, 2, grid_size)
+        ]

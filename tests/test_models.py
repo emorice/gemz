@@ -11,6 +11,8 @@ import numpy as np
 
 import gemz
 
+# pylint: disable=redefined-outer-name
+
 @pytest.fixture
 def data():
     """
@@ -22,56 +24,31 @@ def data():
         [11])
 
 model_specs = [
-    {
-        'model': 'linear'
-        },
-    {
-        'model': 'kmeans',
-        'n_groups': 2
-        },
-    {
-        'model': 'wishart'
-        },
-    {
-        'model': 'linear_shrinkage',
-        'prior_var': 1.
-        },
-    {
-        'model': 'linear_shrinkage_cv'
-        },
-    {
-        'model': 'lscv_precision_target'
-        },
-    {
-        'model': 'lscv_free_diagonal',
-        'scale': None
-        },
-    {
-        'model': 'lscv_free_diagonal',
-        'scale': 1.
-        },
-    {
-        'model': 'nonlinear_shrinkage'
-        },
-    {
-        'model': 'cmk',
-        'n_groups': 2
-        },
-    {
-        'model': 'gmm',
-        'n_groups': 2
-        },
-    {
-        'model': 'igmm',
-        'n_groups': 2
-        },
-    {
-        'model': 'svd',
-        'n_factors': 2
-        }
+    { 'model': 'linear' },
+    { 'model': 'kmeans', 'n_groups': 2 },
+    { 'model': 'wishart' },
+    { 'model': 'linear_shrinkage', 'prior_var': 1. },
+    { 'model': 'cv', 'inner': {'model': 'linear_shrinkage' } },
+    { 'model': 'lscv_precision_target' },
+    { 'model': 'lscv_free_diagonal', 'scale': None },
+    { 'model': 'lscv_free_diagonal', 'scale': 1. },
+    { 'model': 'nonlinear_shrinkage' },
+    { 'model': 'cmk', 'n_groups': 2 },
+    { 'model': 'gmm', 'n_groups': 2 },
+    { 'model': 'igmm', 'n_groups': 2 },
+    { 'model': 'svd', 'n_factors': 2 },
+    { 'model': 'cv', 'inner': {'model': 'svd'} }
     ]
 
-@pytest.mark.parametrize('model_spec', model_specs, ids=lambda s: s['model'])
+def model_id(model):
+    """
+    Printable model name for tests
+    """
+    if 'inner' in model:
+        return f"{model['model']}/{model['inner']['model']}"
+    return model['model']
+
+@pytest.mark.parametrize('model_spec', model_specs, ids=model_id)
 def test_fit_predict_null(data, model_spec):
     """
     Fit and predict from the fitted model

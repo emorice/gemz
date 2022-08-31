@@ -43,7 +43,7 @@ class Wishart:
                 )
             )
 
-        return {**opt, 'train': data}
+        return {'opt': opt, 'train': data}
 
     @staticmethod
     def predict_loo(model, new_data):
@@ -53,7 +53,6 @@ class Wishart:
         Args:
             new_data: N1' x N2
         """
-
         # This was written for one test observation only, and a pain to batch so
         # wrapped in a loop for now.
         preds = []
@@ -65,7 +64,7 @@ class Wishart:
             joint = np.vstack((new[None, :], train))
 
             # 1+N1 x 1+N1
-            reg_cov = joint @ joint.T + np.exp(model['opt']['prior_var_ln'])
+            reg_cov = joint @ joint.T + np.exp(model['opt']['opt']['prior_var_ln'])
 
             # 1+N1 x 1+N1
             base_prec = np.linalg.inv(reg_cov)
