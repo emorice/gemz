@@ -65,3 +65,13 @@ def make_grid(partial_spec, data, grid_size=20):
             prior_var=var)
         for var in 10**np.linspace(-2, 2, grid_size)
         ]
+
+def get_grid_axis(specs):
+    """
+    Compact summary of the variable parameter of a list of models
+    """
+    return {
+        'name': 'prior variance',
+        'log': True,
+        'values': [ s['prior_var'] for s in specs ]
+        }

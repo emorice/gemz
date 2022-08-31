@@ -92,3 +92,9 @@ def predict_loo(model_fit, new_data):
     inner_model = methods.get(model_fit['inner']['model'])
     inner_fit = model_fit['fit']
     return inner_model.predict_loo(inner_fit, new_data)
+
+def get_name(spec):
+    """
+    Readable description
+    """
+    return f"{spec['model']}/{spec['inner']['model']}"

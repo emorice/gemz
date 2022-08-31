@@ -51,49 +51,59 @@ def gen_hyperv(len1, len2, noise_sd=1., seed=0):
 
     return data
 
-def plot_cv_rss(model):
+def plot_cv_rss(spec, fit):
     """
     Generate CV summary figure
     """
 
-    grid = model['grid']
-    losses = [ results['loss']
-            for specs, results in grid
-            ]
+    grid = fit['grid']
+    losses, specs = zip(*(
+            (result['loss'], spec)
+            for spec, result in grid
+            ))
+
+    grid_axis = models.get(spec['inner']['model']).get_grid_axis(specs)
 
     return go.Figure(
         data=[
             go.Scatter(
+                x=grid_axis['values'],
                 y=losses,
                 mode='lines+markers',
                 )
             ],
         layout={
-            'title': f'Cross-validated {model["loss_name"]}',
-            'xaxis': { 'title': 'trial index'},
-            'yaxis': { 'title': model['loss_name']},
+            'title': f'Cross-validated loss for {models.get_name(spec)}',
+            'xaxis': {
+                'title': grid_axis['name'].capitalize(),
+                'type': 'log' if grid_axis['log'] else 'linear'
+                },
+            'yaxis': { 'title': fit['loss_name']},
             }
         )
 
-def plot_convergence(fits):
+def plot_convergence(spec, fit):
     """
-    Plot log_likelihood against iteration, if sensible, for each model
+    Plot loss against iteration
     """
-    data = []
-
-    for name, model in fits:
-        if 'opt' in model:
-            hist = model['opt']['hist']
-            data.append(go.Scatter(
-                y=np.array(hist),
-                name=name
-                ))
+    hist = np.array(fit['opt']['hist'])
     return go.Figure(
-        data=data,
+        data=[
+            go.Scatter(
+                y=np.minimum.accumulate(hist),
+                mode='lines',
+                name='Current minimum'
+                ),
+            go.Scatter(
+                y=hist,
+                mode='markers',
+                name='All values',
+                ),
+            ],
         layout={
-            'title': 'Convergence behavior',
+            'title': f'Convergence behavior for {models.get_name(spec)}',
             'xaxis_title': 'Iteration',
-            'yaxis_title': 'Loss function'
+            'yaxis_title': 'Loss'
             }
         )
 
@@ -135,6 +145,14 @@ def linear_reg(_, case_name, report_path):
         ('cv', {'inner': {'model': 'svd'}}),
         ]
 
+    model_specs = [
+            {
+                'model': name,
+                **args
+                }
+            for name, args in model_args
+            ]
+
     model_fits = [
         (k, models.get(k).fit(train, **kwargs))
         for k, kwargs in model_args
@@ -172,9 +190,9 @@ def linear_reg(_, case_name, report_path):
                 x=covariate[order],
                 y=pred[order].flatten(),
                 mode='lines',
-                name=f'{k.capitalize()} prediction'
+                name=f'{models.get_name(spec)}'
                 )
-            for k, pred in preds
+            for (k, pred), spec in zip(preds, model_specs)
             ],
         layout={
             'title': 'Predictions of a new dimension',
@@ -235,14 +253,20 @@ def linear_reg(_, case_name, report_path):
         )
 
     figs_cv = [
-            plot_cv_rss(model_fit)
-                for name, model_fit in model_fits
+            plot_cv_rss(spec, model_fit)
+                for spec, (name, model_fit) in zip(model_specs, model_fits)
                 if name == 'cv'
+            ]
+
+    figs_cg = [
+            plot_convergence(spec, model_fit)
+                for spec, (name, model_fit) in zip(model_specs, model_fits)
+                if 'opt' in model_fit
             ]
 
     with open(report_path, 'w', encoding='utf8') as stream:
         stream.write(case_name)
         write_fig(stream,
             fig_pcs, fig_test, fig_spectrum,
-            *figs_cv, plot_convergence(model_fits)
+            *figs_cv, *figs_cg
             )

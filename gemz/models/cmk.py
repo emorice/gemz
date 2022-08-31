@@ -15,76 +15,77 @@ from . import methods
 # High-level interface
 # ====================
 
-@methods.add('cmk')
-class CMK:
+methods.add_module('cmk', __name__)
+
+def fit(data, n_groups, n_iter=100):
     """
-    Clustered MacKay algorithm
+    Fit the model with a fixed number of MK-updates iterations
+
+    Args:
+        data: N1 x N2. Creates a model of N2-dimensional loo problem from N1
+            replicates.
     """
-    @staticmethod
-    def fit(data, n_groups, n_iter=100):
-        """
-        Fit the model with a fixed number of MK-updates iterations
 
-        Args:
-            data: N1 x N2. Creates a model of N2-dimensional loo problem from N1
-                replicates.
-        """
+    # Initialize the model. `data` contains the fixed parts, `state` the variable
+    # parts.
+    # The cmk_* functions follow the replicate-first convention
+    cmk_data, state = cmk_init(data, n_groups)
 
-        # Initialize the model. `data` contains the fixed parts, `state` the variable
-        # parts.
-        # The cmk_* functions follow the replicate-first convention
-        cmk_data, state = cmk_init(data, n_groups)
-
-        # Duplicate to avoid accidentally modifying in-place
-        hist = []
-        abort = False
-        abort_msgs = []
-        for i in range(n_iter):
-            inter, aux = cmk_many(**cmk_data, **state)
-            updates = cmk_update(**cmk_data, **state, **inter, **aux)
-            hist.append({
-                'iteration': i,
-                'log_likelihood': inter['log_evidence'].sum(),
-                'cc_zeros': updates['vanished_compact_covariance']
-            })
-            if updates['inf_data_vars']:
-                abort_msgs.append('Diverging data vars, aborting')
+    # Duplicate to avoid accidentally modifying in-place
+    hist = []
+    abort = False
+    abort_msgs = []
+    for i in range(n_iter):
+        inter, aux = cmk_many(**cmk_data, **state)
+        updates = cmk_update(**cmk_data, **state, **inter, **aux)
+        hist.append({
+            'iteration': i,
+            'log_likelihood': inter['log_evidence'].sum(),
+            'cc_zeros': updates['vanished_compact_covariance']
+        })
+        if updates['inf_data_vars']:
+            abort_msgs.append('Diverging data vars, aborting')
+            abort = True
+        if updates['inf_compact_covariance']:
+            abort_msgs.append('Diverging compact covariance, aborting')
+            abort = True
+        for k in ['data_vars', 'compact_covariance']:
+            if jnp.any(jnp.isnan(updates[f'new_{k}'])):
+                abort_msgs.append(f'{k}: Nan, aborting')
                 abort = True
-            if updates['inf_compact_covariance']:
-                abort_msgs.append('Diverging compact covariance, aborting')
-                abort = True
-            for k in ['data_vars', 'compact_covariance']:
-                if jnp.any(jnp.isnan(updates[f'new_{k}'])):
-                    abort_msgs.append(f'{k}: Nan, aborting')
-                    abort = True
-            if abort:
-                break
-            for k in ['data_vars', 'compact_covariance']:
-                state[k] = updates[f'new_{k}']
-        return {
-            'data': cmk_data,
-            'state': state,
-            'hist': hist,
-            'aborted': abort,
-            'errors': abort_msgs
-        }
+        if abort:
+            break
+        for k in ['data_vars', 'compact_covariance']:
+            state[k] = updates[f'new_{k}']
+    return {
+        'data': cmk_data,
+        'state': state,
+        'hist': hist,
+        'aborted': abort,
+        'errors': abort_msgs
+    }
 
-    @staticmethod
-    def predict_loo(model, new_data):
-        """
-        Leave-one-out prediction on new data
+def predict_loo(model, new_data):
+    """
+    Leave-one-out prediction on new data
 
-        Args:
-            new_data: N3 x N2, with N2 matching the data given to `fit`.
-        """
-        final_inter, final_aux = cmk_many(**model['data'], **model['state'])
-        # Once again, cmk_* functions follow replicate-first convention
-        predictions = cmk_predict(
-            new_data=new_data,
-            **model['data'], **model['state'],
-            **final_inter, **final_aux)
+    Args:
+        new_data: N3 x N2, with N2 matching the data given to `fit`.
+    """
+    final_inter, final_aux = cmk_many(**model['data'], **model['state'])
+    # Once again, cmk_* functions follow replicate-first convention
+    predictions = cmk_predict(
+        new_data=new_data,
+        **model['data'], **model['state'],
+        **final_inter, **final_aux)
 
-        return predictions
+    return predictions
+
+def get_name(spec):
+    """
+    Readable name
+    """
+    return f"{spec['model']}/{spec['n_groups']}"
 
 # CMK algorithm
 # =============

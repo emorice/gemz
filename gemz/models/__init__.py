@@ -20,7 +20,7 @@ from . import (
     cv,
     )
 
-from .methods import get
+from .methods import get, get_name
 
 from .ops import (
         fit,

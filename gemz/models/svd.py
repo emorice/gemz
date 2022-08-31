@@ -36,6 +36,12 @@ def fit(data, n_factors):
 
 predict_loo = linear.predict_loo
 
+def get_name(spec):
+    """
+    Descriptive name
+    """
+    return f"{spec['model']}/{spec['n_factors']}"
+
 def make_grid(partial_spec, data, grid_size=None):
     """
     Simple 1-2-5 grid, size depends only on data shape.
@@ -63,3 +69,13 @@ def make_grid(partial_spec, data, grid_size=None):
             n_factors=size)
         for size in sizes
         ]
+
+def get_grid_axis(specs):
+    """
+    Compact summary of the variable parameter of a list of models
+    """
+    return {
+        'name': 'factors',
+        'log': True,
+        'values': [ s['n_factors'] for s in specs ]
+        }

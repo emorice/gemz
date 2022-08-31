@@ -51,6 +51,7 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
         )
 
     return GMM.precompute_loo({
+        'opt': max_results,
         'data': data,
         'groups': groups,
         'responsibilities': resps
