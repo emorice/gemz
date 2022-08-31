@@ -2,6 +2,8 @@
 Module containing all statistical model fit and prediction code
 """
 import sys
+import pkgutil
+
 
 from . import (
     kmeans, linear, wishart,
@@ -11,7 +13,8 @@ from . import (
     lscv_free_diagonal,
     nonlinear_shrinkage,
     cmk,
-    gmm, igmm
+    gmm, igmm,
+    svd
     )
 
 from . import methods

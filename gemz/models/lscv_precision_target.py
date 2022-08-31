@@ -4,9 +4,7 @@ target
 """
 
 from gemz.models import cv
-from . import methods
-from .linear import Linear
-from .linear_shrinkage_cv import LSCV
+from . import methods, linear, linear_shrinkage_cv
 
 methods.add_module('lscv_precision_target', __name__)
 
@@ -18,12 +16,12 @@ def fit(data):
     Then, build a shrinkage target from it and fit a second shrinkage model
     """
 
-    indiv_rss = cv.fit_cv(data, Linear, loss_name='iRSS')
+    indiv_rss = cv.fit_cv(data, linear, loss_name='iRSS')
 
-    return LSCV.fit(
+    return linear_shrinkage_cv.fit(
         data,
         loss_name='GEOM',
         target=indiv_rss / data.shape[-1]
         )
 
-predict_loo = LSCV.predict_loo
+predict_loo = linear_shrinkage_cv.predict_loo

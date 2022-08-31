@@ -1,3 +1,5 @@
 # Development and test requirements
+pandas
+plotly
 pytest
 pytest-asyncio

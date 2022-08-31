@@ -5,64 +5,59 @@ Shrinkage models based on Ledoit--Wolf spectral deconvolution
 import numpy as np
 
 from gemz import linalg
-from . import methods
-from .linear import Linear
+from . import methods, linear
 
-@methods.add('nonlinear_shrinkage')
-class NonlinearShrinkage(Linear):
+methods.add_module('nonlinear_shrinkage', __name__)
+
+def spectrum(data):
     """
-    Optimal shrinkage based on Quest inversion
+    Spectrum obtained by numerically inverting the discretized spectral
+    dispersion equations.
+
+    Args:
+        data: N1 x N2
+    Returns:
+        N2-long estimated spectrum
     """
 
-    @staticmethod
-    def spectrum(data):
-        """
-        Spectrum obtained by numerically inverting the discretized spectral
-        dispersion equations.
+    # pylint: disable=import-outside-toplevel
+    # Deliberate, rpy2 starts a R session in the background,
+    # which we want to skip if this model is never used
+    from rpy2.robjects.packages import importr
+    from rpy2.robjects import numpy2ri, default_converter
+    from rpy2.robjects.conversion import localconverter
 
-        Args:
-            data: N1 x N2
-        Returns:
-            N2-long estimated spectrum
-        """
+    nlshrink = importr("nlshrink")
 
-        # pylint: disable=import-outside-toplevel
-        # Deliberate, rpy2 starts a R session in the background,
-        # which we want to skip if this model is never used
-        from rpy2.robjects.packages import importr
-        from rpy2.robjects import numpy2ri, default_converter
-        from rpy2.robjects.conversion import localconverter
+    with localconverter(default_converter + numpy2ri.converter):
+        # Working dimension last
+        return np.array(nlshrink.tau_estimate(data))[::-1]
 
-        nlshrink = importr("nlshrink")
+def fit(data):
+    """
+    Estimates spectrum and builds a representation of the corresponding
+    precision matrix
 
-        with localconverter(default_converter + numpy2ri.converter):
-            # Working dimension last
-            return np.array(nlshrink.tau_estimate(data))[::-1]
+    Args:
+        data: N1 x N2, N1 < N2
+    """
+    len1, len2 = np.shape(data)
+    _, _, right = np.linalg.svd(data, full_matrices=False)
 
-    @staticmethod
-    def fit(data):
-        """
-        Estimates spectrum and builds a representation of the corresponding
-        precision matrix
+    cov_spectrum = spectrum(data)
+    inv_spectrum = 1.0 / cov_spectrum
 
-        Args:
-            data: N1 x N2, N1 < N2
-        """
-        len1, len2 = np.shape(data)
-        _, _, right = np.linalg.svd(data, full_matrices=False)
+    null_precision = inv_spectrum[-1]
 
-        cov_spectrum = NonlinearShrinkage.spectrum(data)
-        inv_spectrum = 1.0 / cov_spectrum
+    assert np.allclose(inv_spectrum[len1:len2], null_precision)
 
-        null_precision = inv_spectrum[-1]
+    return {
+        'precision': linalg.SymmetricLowRankUpdate(
+            null_precision,
+            right.T,
+            np.diag(inv_spectrum[:len1] - null_precision)
+            ),
+        'spectrum': cov_spectrum
+        }
 
-        assert np.allclose(inv_spectrum[len1:len2], null_precision)
-
-        return {
-            'precision': linalg.SymmetricLowRankUpdate(
-                null_precision,
-                right.T,
-                np.diag(inv_spectrum[:len1] - null_precision)
-                ),
-            'spectrum': cov_spectrum
-            }
+predict_loo = linear.predict_loo

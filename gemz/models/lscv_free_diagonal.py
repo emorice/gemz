@@ -7,8 +7,7 @@ import numpy as np
 from gemz.jax_utils import minimize
 from gemz.jax_numpy import jaxify
 
-from . import methods, cv
-from .linear_shrinkage import LinearShrinkage
+from . import methods, cv, linear_shrinkage
 
 methods.add_module('lscv_free_diagonal', __name__)
 
@@ -47,7 +46,7 @@ def fit(data, scale=1.):
         ['log_scale']
         )
 
-    model = LinearShrinkage.fit(
+    model = linear_shrinkage.fit(
         data,
         prior_var=1.,
         target=np.exp(opt['opt']['log_diagonal']),
@@ -59,7 +58,7 @@ def fit(data, scale=1.):
 
     return model
 
-predict_loo = LinearShrinkage.predict_loo
+predict_loo = linear_shrinkage.predict_loo
 
 # Objective function
 # ==================
@@ -72,7 +71,7 @@ def _cv_loss(log_diagonal, log_scale, data):
     # Note that prior_var is set to 1 since we already have all the freedom
     # we need in the diagonal itself
     return cv.fit_cv(
-        data, LinearShrinkage,
+        data, linear_shrinkage,
         fold_count=10, loss_name="GEOM",
         target=np.exp(log_diagonal),
         scale=np.exp(log_scale),

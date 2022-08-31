@@ -141,6 +141,7 @@ def linear_reg(_, case_name, report_path):
         ('cmk', {'n_groups': 20}),
         ('gmm', {'n_groups': 2}),
         ('igmm', {'n_groups': 2}),
+        ('svd', {'n_factors': 4}),
         ]
 
     model_fits = [

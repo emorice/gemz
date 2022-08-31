@@ -261,9 +261,14 @@ class ScaledMatrix(ImplicitMatrix):
 class Diagonal(ImplicitMatrix):
     """
     Implicit diagonal matrix
+
+    The diagonal can be a batch of diagonal vectors, in which case this class
+    behaves like a batch of of diagonal matrices
     """
     def __init__(self, diagonal):
         self._diagonal = diagonal
+        # Duplicated last dim
+        self.shape = *diagonal.shape, diagonal.shape[-1]
 
     def diagonal(self):
         """
@@ -281,13 +286,13 @@ class Diagonal(ImplicitMatrix):
         """
         Matmul of self @ right, i.e. multiplying elementwise each column
         """
-        return self._diagonal[:, None] * right
+        return self._diagonal[..., :, None] * right
 
     def matmul_left(self, left):
         """
         Matmul of left @ self, i.e. multiplying elementwise each row
         """
-        return left * self._diagonal
+        return left * self._diagonal[..., None, :]
 
 class LowRankUpdate(ImplicitMatrix):
     """

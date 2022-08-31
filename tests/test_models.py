@@ -65,6 +65,10 @@ model_specs = [
         'model': 'igmm',
         'n_groups': 2
         },
+    {
+        'model': 'svd',
+        'n_factors': 2
+        }
     ]
 
 @pytest.mark.parametrize('model_spec', model_specs, ids=lambda s: s['model'])
