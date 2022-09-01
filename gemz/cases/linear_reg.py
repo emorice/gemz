@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from gemz import models
 from gemz.cases import case
 from gemz.reporting import write_fig
+from gemz.plots import plot_cv
 
 from gemz.cases.low_high_clustering import plot_pc_clusters
 
@@ -50,37 +51,6 @@ def gen_hyperv(len1, len2, noise_sd=1., seed=0):
     data -= np.mean(data, -1, keepdims=True)
 
     return data
-
-def plot_cv(spec, fit):
-    """
-    Generate CV summary figure
-    """
-
-    grid = fit['grid']
-    losses, specs = zip(*(
-            (result['loss'], spec)
-            for spec, result in grid
-            ))
-
-    grid_axis = models.get(spec['inner']['model']).get_grid_axis(specs)
-
-    return go.Figure(
-        data=[
-            go.Scatter(
-                x=grid_axis['values'],
-                y=losses,
-                mode='lines+markers',
-                )
-            ],
-        layout={
-            'title': f'Cross-validated loss for {models.get_name(spec)}',
-            'xaxis': {
-                'title': grid_axis['name'].capitalize(),
-                'type': 'log' if grid_axis['log'] else 'linear'
-                },
-            'yaxis': { 'title': fit['loss_name']},
-            }
-        )
 
 def plot_convergence(spec, fit):
     """
