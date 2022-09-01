@@ -51,7 +51,7 @@ def gen_hyperv(len1, len2, noise_sd=1., seed=0):
 
     return data
 
-def plot_cv_rss(spec, fit):
+def plot_cv(spec, fit):
     """
     Generate CV summary figure
     """
@@ -253,7 +253,7 @@ def linear_reg(_, case_name, report_path):
         )
 
     figs_cv = [
-            plot_cv_rss(spec, model_fit)
+            plot_cv(spec, model_fit)
                 for spec, (name, model_fit) in zip(model_specs, model_fits)
                 if name == 'cv'
             ]

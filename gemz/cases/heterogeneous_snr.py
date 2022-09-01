@@ -122,28 +122,6 @@ def plot_fits(data, target, subsets, predictions):
 
     return fig
 
-def plot_cvs(fits):
-    """Summarizes the CV procedure"""
-    return go.Figure(
-        data=[
-            go.Scatter(
-                x=model['cv_grid'],
-                y=model['cv_loss'],
-                mode='lines+markers',
-                name=name
-                )
-            for name, model in fits.items()
-            if 'cv_grid' in model
-            ],
-        layout={
-            'yaxis_title': 'Loss',
-            'xaxis': {'title': 'Hyperparameter', 'type': 'log'},
-            'title': 'Cross-validation tuning',
-            'width': 900,
-            'height': 800
-            }
-        )
-
 def plot_hist(fits):
     """Summarizes the optimization trace"""
     return go.Figure(
@@ -215,7 +193,7 @@ def eval_model(model, train, test, subsets):
 
     fit_plot = plot_fits(train, test[0], subsets, predictions)
 
-    return [fit_plot, plot_cvs(fits), plot_hist(fits)]
+    return [fit_plot, plot_hist(fits)]
 
 @case
 def heterogeneous_snr(_, case_name, report_path):
@@ -247,18 +225,25 @@ def heterogeneous_snr(_, case_name, report_path):
     initial_plot = plot_data(train, noise_class)
 
     model_definitions = [
-        ('linear_shrinkage_cv', {'loss_name': 'RSS'}),
-        ('linear_shrinkage_cv', {'loss_name': 'GEOM'}),
+        ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'RSS'}),
+        ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
         ('lscv_precision_target', {}),
         ('lscv_free_diagonal', {'scale': 1.}),
         ('lscv_free_diagonal', {'scale': None})
         ]
 
+    model_specs = [
+            { 'model': name, **args }
+            for name, args in model_definitions
+            ]
+
     with open_report(report_path, case_name) as stream:
         write_fig(stream, initial_plot)
 
-        for model_def in model_definitions:
-            name, args = model_def
+        for spec, model_def in zip(model_specs, model_definitions):
+            _, args = model_def
             figs = eval_model(model_def, train, test, subsets)
-            print("<h2>", name, ' ; ', *[f"{k}={v}" for k,v in args.items()], "</h2>", file=stream)
+            print("<h2>",
+                    models.get_name(spec), ' ; ', *[f"{k}={v}" for k,v in args.items()],
+                    "</h2>", file=stream)
             write_fig(stream, *figs)
