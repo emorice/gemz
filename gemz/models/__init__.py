@@ -28,4 +28,5 @@ from .ops import (
         eval_loss,
         fold,
         aggregate_losses,
+        cv_residualize,
         )

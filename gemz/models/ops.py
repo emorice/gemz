@@ -49,6 +49,9 @@ def eval_loss(model_spec, model_fit, test_data, loss_name):
 def fold(data, fold_index, fold_count, seed=0):
     """
     Generate a split of the data along its first axis
+
+    Returns:
+        train, test, train_mask
     """
     len1, *_ = data.shape
 
@@ -57,7 +60,7 @@ def fold(data, fold_index, fold_count, seed=0):
 
     in_fold = random_rank % fold_count != fold_index
 
-    return data[in_fold, ...], data[~in_fold, ...]
+    return data[in_fold, ...], data[~in_fold, ...], in_fold
 
 def aggregate_losses(losses):
     """
@@ -83,6 +86,20 @@ def select_best(grid):
 # ===========
 
 _self = sys.modules[__name__]
+
+def cv_residualize(model_spec, data, fold_count=10, seed=0, _ops=_self):
+    """
+    Train and predict on the whole data in folds, returning residuals
+    """
+    res = np.array(data, copy=True)
+    for i in range(fold_count):
+        train, test, is_train = _ops.fold(data, i, fold_count, seed=seed)
+        fitted = _ops.fit(model_spec, train)
+        predictions = _ops.predict_loo(model_spec, fitted, test)
+        res[~is_train, ...] -= predictions
+
+    return res
+
 
 def build_eval_grid(inner, data, fold_count, loss_name, seed, _ops=_self):
     """
@@ -132,7 +149,7 @@ def cv_fit_eval(model_spec, data, fold_count=10, loss_name='RSS', seed=0, _ops=_
     """
     folds = [
             { 'data': {'train': train, 'test': test}}
-            for train, test in [
+            for train, test, _ in [
                 _ops.fold(data, i, fold_count, seed=seed)
                 for i in range(fold_count) ]
             ]

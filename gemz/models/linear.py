@@ -21,7 +21,7 @@ def fit(data):
     """
 
     # N1 x N1, the other axis precision
-    dual_precision = np.linalg.inv(data @ data.T)
+    dual_precision = np.linalg.pinv(data @ data.T, hermitian=True)
 
     precision = linalg.SymmetricLowRankUpdate(1., data.T, - dual_precision)
 
