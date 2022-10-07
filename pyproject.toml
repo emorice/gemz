@@ -11,6 +11,11 @@ dependencies = [
   "rpy2",
 ]
 
+[project.optional-dependencies]
+peer = [
+  "pmbio-peer @ git+ssh://git@github.com/emorice/peer.git"
+]
+
 [build-system]
 requires = [
   "setuptools >= 40.8.0",
