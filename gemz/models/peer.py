@@ -3,12 +3,17 @@ Regularized linear model obtained by keeping only some factors of a singular
 value decompistion
 """
 
-import logging
 import numpy as np
 
 from gemz import linalg
 from .methods import add_module
-from . import linear, svd
+from . import svd
+
+try:
+    import pmbio_peer
+    HAS_PEER = True
+except ModuleNotFoundError:
+    HAS_PEER = False
 
 add_module('peer', __name__)
 
@@ -18,16 +23,37 @@ def fit(data, n_factors):
     inferred PEER factors
     """
 
-    len1, _len2 = data.shape
+    if not HAS_PEER:
+        raise RuntimeError('The module pmbio_peer could not be loaded')
 
-    _left, spectrum, right_t = np.linalg.svd(data, full_matrices=False)
 
-    residual_variance = np.sum(spectrum[n_factors:]**2) / data.size
+    # Define model
+    model = pmbio_peer.PEER()
 
+    # "The data matrix is assumed to have N rows and G columns, where N is the
+    # number of samples, and G is the number of genes."
+    model.setNk(n_factors)
+    model.setPhenoMean(data)
+
+    model.setPriorAlpha(0.001, 0.01)
+    model.setPriorEps(0.1, 10.)
+    model.setNmax_iterations(1000)
+
+    # Run it
+    model.update()
+
+    # Extract relevant parameters
+    cofactors_gk = model.getW()
+    factors_nk = model.getX()
+    precisions_g = np.squeeze(model.getEps())
+
+    print(model.getAlpha())
+
+    # Build covariance
     cov = linalg.SymmetricLowRankUpdate(
-            residual_variance,
-            right_t[:n_factors].T,
-            spectrum[:n_factors]**2 / len1
+            1. / precisions_g,
+            cofactors_gk @ factors_nk.T / np.sqrt(data.shape[0]),
+            1.
             )
 
     return {

@@ -112,6 +112,7 @@ def linear_reg(_, case_name, report_path):
         ('gmm', {'n_groups': 2}),
         ('igmm', {'n_groups': 2}),
         ('svd', {'n_factors': 4}),
+        ('peer', {'n_factors': 4}),
         ('cv', {'inner': {'model': 'svd'}}),
         ]
 

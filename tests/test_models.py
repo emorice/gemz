@@ -37,6 +37,7 @@ model_specs = [
     { 'model': 'gmm', 'n_groups': 2 },
     { 'model': 'igmm', 'n_groups': 2 },
     { 'model': 'svd', 'n_factors': 2 },
+    { 'model': 'peer', 'n_factors': 2 },
     { 'model': 'cv', 'inner': {'model': 'svd'} }
     ]
 

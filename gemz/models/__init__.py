@@ -18,6 +18,7 @@ from . import (
     igmm,
     svd,
     cv,
+    peer,
     )
 
 from .methods import get, get_name
