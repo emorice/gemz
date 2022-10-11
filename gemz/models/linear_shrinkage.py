@@ -50,7 +50,7 @@ def spectrum(data, prior_var):
     adjusted_spectrum = orig_spectrum + prior_var
     return adjusted_spectrum
 
-def make_grid(partial_spec, data, grid_size=20):
+def make_grid(partial_spec, data, grid_size):
     """
     A standard grid of prior vars to screen
 
@@ -60,10 +60,16 @@ def make_grid(partial_spec, data, grid_size=20):
     # We could extract a scale from the data here
     _ = data
 
+    return 10**np.linspace(-2, 2, grid_size)
+
+def make_grid_specs(partial_spec, grid):
+    """
+    Generate grid specs
+    """
     return [
         dict(partial_spec,
             prior_var=var)
-        for var in 10**np.linspace(-2, 2, grid_size)
+        for var in grid
         ]
 
 def get_grid_axis(specs):

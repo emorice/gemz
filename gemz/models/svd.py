@@ -3,7 +3,6 @@ Regularized linear model obtained by keeping only some factors of a singular
 value decompistion
 """
 
-import logging
 import numpy as np
 
 from gemz import linalg
@@ -42,32 +41,33 @@ def get_name(spec):
     """
     return f"{spec['model']}/{spec['n_factors']}"
 
-def make_grid(partial_spec, data, grid_size=None):
+def make_grid(partial_spec, data, grid_size):
     """
-    Simple 1-2-5 grid, size depends only on data shape.
-    """
+    Simple logarithmic scale of not more than grid_size entry.
 
-    if grid_size is not None:
-        logging.warning('Ignored argument grid_size')
+    Grid can be smaller than requested.
+    """
 
     max_size = min(data.shape)
 
-    sizes = []
-    base = 1
-    while True:
-        for fact in (1, 2, 5):
-            size = base * fact
-            if size >= max_size:
-                break
-            sizes.append(size)
-        if size >= max_size:
-            break
-        base *= 10
+    sizes = np.unique(
+            np.int32(np.floor(
+                np.exp(
+                    np.linspace(0., np.log(max_size), grid_size)
+                    )
+                ))
+            )
 
+    return sizes
+
+def make_grid_specs(partial_spec, grid):
+    """
+    Generate model specs from grid values
+    """
     return [
         dict(partial_spec,
-            n_factors=size)
-        for size in sizes
+            n_factors=int(size))
+        for size in grid
         ]
 
 def get_grid_axis(specs):

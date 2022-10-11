@@ -61,28 +61,32 @@ def geom_loss(method, model, test):
 
     return np.sum(np.log(dim_squares))
 
-def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", _ops=ops):
+def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
+        grid=None, _ops=ops):
     """
     Fit and eval the given method on folds of data
 
     Args:
         data: N1 x N2. Models are fixed-dimension N2 x N2, and cross-validation
             is performed along N1.
+        grid: if given, use this explicitely defined grid instead of generating
+        one.
     """
 
-    grid = _ops.build_eval_grid(
-                inner, data, fold_count, loss_name, seed,
-                _ops=_ops
+    specs = _ops.build_eval_grid(
+                inner, data, fold_count, loss_name,
+                grid_size, grid,
+                seed, _ops=_ops
             )
 
-    best_model = _ops.select_best(grid)
+    best_model = _ops.select_best(specs)
 
     return {
         'inner': inner,
         'loss_name': loss_name,
         'selected': best_model,
         'fit': _ops.fit(best_model, data),
-        'grid': grid,
+        'grid': specs,
         }
 
 def predict_loo(model_fit, new_data):

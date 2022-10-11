@@ -114,6 +114,7 @@ def linear_reg(_, case_name, report_path):
         ('svd', {'n_factors': 4}),
         ('peer', {'n_factors': 4}),
         ('cv', {'inner': {'model': 'svd'}}),
+        ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
         ]
 
     model_specs = [

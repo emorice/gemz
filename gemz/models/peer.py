@@ -11,6 +11,7 @@ from . import svd
 
 try:
     import pmbio_peer
+    pmbio_peer.peer.setVerbose(0)
     HAS_PEER = True
 except ModuleNotFoundError:
     HAS_PEER = False
@@ -47,8 +48,6 @@ def fit(data, n_factors):
     factors_nk = model.getX()
     precisions_g = np.squeeze(model.getEps())
 
-    print(model.getAlpha())
-
     # Build covariance
     cov = linalg.SymmetricLowRankUpdate(
             1. / precisions_g,
@@ -64,4 +63,5 @@ def fit(data, n_factors):
 predict_loo = svd.predict_loo
 get_name = svd.get_name
 make_grid = svd.make_grid
+make_grid_specs = svd.make_grid_specs
 get_grid_axis = svd.get_grid_axis

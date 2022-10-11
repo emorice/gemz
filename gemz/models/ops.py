@@ -101,13 +101,16 @@ def cv_residualize(model_spec, data, fold_count=10, seed=0, _ops=_self):
     return res
 
 
-def build_eval_grid(inner, data, fold_count, loss_name, seed, _ops=_self):
+def build_eval_grid(inner, data, fold_count, loss_name, grid_size, grid, seed, _ops=_self):
     """
     Generate a grid of models, then eval them through CV
     """
     inner_model = methods.get(inner['model'])
 
-    specs = inner_model.make_grid(inner, data)
+    if grid is None:
+        grid = inner_model.make_grid(inner, data, grid_size=grid_size)
+
+    specs = inner_model.make_grid_specs(inner, grid)
 
     results = [
         _ops.cv_fit_eval(spec, data, fold_count, loss_name, seed, _ops=_ops)
