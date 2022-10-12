@@ -38,6 +38,7 @@ model_specs = [
     { 'model': 'igmm', 'n_groups': 2 },
     { 'model': 'svd', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2 },
+    { 'model': 'peer', 'n_factors': 2, 'reestimate_precision': True },
     { 'model': 'cv', 'inner': {'model': 'svd'} }
     ]
 
@@ -45,9 +46,7 @@ def model_id(model):
     """
     Printable model name for tests
     """
-    if 'inner' in model:
-        return f"{model['model']}/{model['inner']['model']}"
-    return model['model']
+    return gemz.models.get_name(model)
 
 @pytest.mark.parametrize('model_spec', model_specs, ids=model_id)
 def test_fit_predict_null(data, model_spec):

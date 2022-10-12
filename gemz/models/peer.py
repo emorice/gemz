@@ -18,10 +18,16 @@ except ModuleNotFoundError:
 
 add_module('peer', __name__)
 
-def fit(data, n_factors):
+def fit(data, n_factors, reestimate_precision=False):
     """
     Builds a representation of the precision matrix by using `n_factors`
-    inferred PEER factors
+    inferred PEER factors.
+
+    Args:
+        data: N1 x N2 matrix to factor, expecting N1 < N2
+        n_factors: number of peer factors to learn.
+        restimate_precision: whether to use the per-gene precision parameters
+            learned by PEER for inference, or recalculate a simple estimate.
     """
 
     if not HAS_PEER:
@@ -46,11 +52,15 @@ def fit(data, n_factors):
     # Extract relevant parameters
     cofactors_gk = model.getW()
     factors_nk = model.getX()
-    precisions_g = np.squeeze(model.getEps())
+
+    if reestimate_precision:
+        variances_g = np.var(model.getResiduals(), axis=0)
+    else:
+        variances_g = 1. / np.squeeze(model.getEps())
 
     # Build covariance
     cov = linalg.SymmetricLowRankUpdate(
-            1. / precisions_g,
+            variances_g,
             cofactors_gk @ factors_nk.T / np.sqrt(data.shape[0]),
             1.
             )
@@ -61,7 +71,14 @@ def fit(data, n_factors):
 
 # All other methods are inherited from the SVD case
 predict_loo = svd.predict_loo
-get_name = svd.get_name
+def get_name(spec):
+    """
+    Printable short name
+    """
+    return svd.get_name(spec) + (
+            'r' if spec.get('reestimate_precision')
+            else ''
+            )
 make_grid = svd.make_grid
 make_grid_specs = svd.make_grid_specs
 get_grid_axis = svd.get_grid_axis

@@ -113,8 +113,10 @@ def linear_reg(_, case_name, report_path):
         ('igmm', {'n_groups': 2}),
         ('svd', {'n_factors': 4}),
         ('peer', {'n_factors': 4}),
+        ('peer', {'n_factors': 4, 'reestimate_precision': True}),
         ('cv', {'inner': {'model': 'svd'}}),
-        ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
+        # Slow
+        # ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
         ]
 
     model_specs = [
