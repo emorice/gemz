@@ -11,23 +11,6 @@ from . import methods, cv
 # Basic ops
 # =========
 
-def fit(model_spec, train_data):
-    """
-    Fit a model from a model specification.
-
-    Args:
-        model_spec: a dictionnary containing the name of the model in 'model',
-            and keyword arguments to pass along to the fit function of
-            said model
-        train_data: data to pass to fit
-    """
-
-    model = methods.get(model_spec['model'])
-    kwargs = dict(model_spec)
-    del kwargs['model']
-
-    return model.fit(train_data, **kwargs)
-
 def predict_loo(model_spec, model_fit, test_data):
     """
     Like `fit` for the `predict_loo` method
@@ -86,6 +69,26 @@ def select_best(grid):
 # ===========
 
 _self = sys.modules[__name__]
+
+def fit(model_spec, train_data, _ops=_self):
+    """
+    Fit a model from a model specification.
+
+    Args:
+        model_spec: a dictionnary containing the name of the model in 'model',
+            and keyword arguments to pass along to the fit function of
+            said model
+        train_data: data to pass to fit
+    """
+
+    model = methods.get(model_spec['model'])
+    kwargs = dict(model_spec)
+    del kwargs['model']
+
+    if hasattr(model, 'OPS_AWARE') and model.OPS_AWARE:
+        kwargs['_ops'] = _ops
+
+    return model.fit(train_data, **kwargs)
 
 def cv_residualize(model_spec, data, fold_count=10, seed=0, _ops=_self):
     """

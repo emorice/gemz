@@ -7,6 +7,7 @@ import numpy as np
 from . import methods, ops
 
 methods.add_module('cv', __name__)
+OPS_AWARE = True
 
 LOSSES = {}
 
@@ -70,7 +71,7 @@ def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
         data: N1 x N2. Models are fixed-dimension N2 x N2, and cross-validation
             is performed along N1.
         grid: if given, use this explicitely defined grid instead of generating
-        one.
+            one.
     """
 
     specs = _ops.build_eval_grid(
