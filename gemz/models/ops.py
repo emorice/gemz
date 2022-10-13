@@ -65,6 +65,21 @@ def select_best(grid):
 
     return best_model
 
+def aggregate_residuals(data, predictions):
+    """
+    Aggregates partial predictions on subsets of a dataset
+
+    Args:
+        predictions: list of tuple (mask, array) with the array containing
+            predictions, and the mask being a one dimensional boolean mask
+            saying which rows of a virtual larger arrays this partial array maps
+            to, with true entries marking rows to skip.
+    """
+    res = np.array(data, copy=True)
+    for mask, prediction in predictions:
+        res[~mask, ...] -= prediction
+    return res
+
 # Meta-op ops
 # ===========
 
@@ -94,14 +109,15 @@ def cv_residualize(model_spec, data, fold_count=10, seed=0, _ops=_self):
     """
     Train and predict on the whole data in folds, returning residuals
     """
-    res = np.array(data, copy=True)
+    predictions = []
     for i in range(fold_count):
         train, test, is_train = _ops.fold(data, i, fold_count, seed=seed)
         fitted = _ops.fit(model_spec, train)
-        predictions = _ops.predict_loo(model_spec, fitted, test)
-        res[~is_train, ...] -= predictions
+        predictions.append((
+            is_train, _ops.predict_loo(model_spec, fitted, test)
+            ))
 
-    return res
+    return _ops.aggregate_residuals(data, predictions)
 
 
 def build_eval_grid(inner, data, fold_count, loss_name, grid_size, grid, seed, _ops=_self):
