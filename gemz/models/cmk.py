@@ -87,6 +87,46 @@ def get_name(spec):
     """
     return f"{spec['model']}/{spec['n_groups']}"
 
+def make_grid(partial_spec, data, grid_size):
+    """
+    Simple logarithmic scale of not more than grid_size entries.
+
+    Grid can be smaller than requested.
+    """
+
+    max_size = min(data.shape)
+
+    sizes = np.unique(
+            np.int32(np.floor(
+                np.exp(
+                    np.linspace(0., np.log(max_size), grid_size)
+                    )
+                ))
+            )
+
+    return sizes
+
+
+def make_grid_specs(partial_spec, grid):
+    """
+    Generate model specs from grid values
+    """
+    return [
+        dict(partial_spec,
+            n_groups=int(size))
+        for size in grid
+        ]
+
+def get_grid_axis(specs):
+    """
+    Compact summary of the variable parameter of a list of models
+    """
+    return {
+        'name': 'groups',
+        'log': True,
+        'values': [ s['n_groups'] for s in specs ]
+        }
+
 # CMK algorithm
 # =============
 

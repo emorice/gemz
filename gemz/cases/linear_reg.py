@@ -117,6 +117,7 @@ def linear_reg(_, case_name, report_path):
         ('cv', {'inner': {'model': 'svd'}}),
         # Slow
         # ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
+        # ('cv', {'inner': {'model': 'cmk'}}),
         ]
 
     model_specs = [

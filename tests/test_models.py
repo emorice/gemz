@@ -16,11 +16,13 @@ import gemz
 @pytest.fixture
 def data():
     """
-    Uncorrelated data with no signal whatsoever
+    Rank one matrix with some added noise
     """
     # 11 obs 20 vars train, 15 obs 20 vars test
+    shape = (11 + 15, 20)
     return np.split(
-        np.random.default_rng(0).normal(size=(26, 20)),
+        np.ones(shape) +
+        np.random.default_rng(0).normal(size=shape),
         [11])
 
 model_specs = [
@@ -39,7 +41,8 @@ model_specs = [
     { 'model': 'svd', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2, 'reestimate_precision': True },
-    { 'model': 'cv', 'inner': {'model': 'svd'} }
+    { 'model': 'cv', 'inner': {'model': 'svd'} },
+    { 'model': 'cv', 'inner': {'model': 'cmk'}, 'fold_count': 3, 'grid_size': 3},
     ]
 
 def model_id(model):

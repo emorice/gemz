@@ -43,7 +43,7 @@ def get_name(spec):
 
 def make_grid(partial_spec, data, grid_size):
     """
-    Simple logarithmic scale of not more than grid_size entry.
+    Simple logarithmic scale of not more than grid_size entries.
 
     Grid can be smaller than requested.
     """
