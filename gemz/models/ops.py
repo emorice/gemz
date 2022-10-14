@@ -127,9 +127,9 @@ def build_eval_grid(inner, data, fold_count, loss_name, grid_size, grid, seed, _
     inner_model = methods.get(inner['model'])
 
     if grid is None:
-        grid = inner_model.make_grid(inner, data, grid_size=grid_size)
+        grid = inner_model.cv.make_grid(data, grid_size=grid_size)
 
-    specs = inner_model.make_grid_specs(inner, grid)
+    specs = inner_model.cv.make_grid_specs(inner, grid)
 
     results = [
         _ops.cv_fit_eval(spec, data, fold_count, loss_name, seed, _ops=_ops)

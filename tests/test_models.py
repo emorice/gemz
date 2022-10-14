@@ -30,7 +30,6 @@ model_specs = [
     { 'model': 'kmeans', 'n_groups': 2 },
     { 'model': 'wishart' },
     { 'model': 'linear_shrinkage', 'prior_var': 1. },
-    { 'model': 'cv', 'inner': {'model': 'linear_shrinkage' } },
     { 'model': 'lscv_precision_target' },
     { 'model': 'lscv_free_diagonal', 'scale': None },
     { 'model': 'lscv_free_diagonal', 'scale': 1. },
@@ -41,7 +40,9 @@ model_specs = [
     { 'model': 'svd', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2, 'reestimate_precision': True },
+    { 'model': 'cv', 'inner': {'model': 'linear_shrinkage' } },
     { 'model': 'cv', 'inner': {'model': 'svd'} },
+    { 'model': 'cv', 'inner': {'model': 'peer'}, 'fold_count': 3, 'grid_size': 3},
     { 'model': 'cv', 'inner': {'model': 'cmk'}, 'fold_count': 3, 'grid_size': 3},
     ]
 

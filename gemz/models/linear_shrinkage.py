@@ -5,7 +5,7 @@ Linear model with a linear shrinkage
 import numpy as np
 
 from gemz import linalg
-from . import methods, linear
+from . import methods, linear, cv
 
 methods.add_module('linear_shrinkage', __name__)
 
@@ -50,34 +50,4 @@ def spectrum(data, prior_var):
     adjusted_spectrum = orig_spectrum + prior_var
     return adjusted_spectrum
 
-def make_grid(partial_spec, data, grid_size):
-    """
-    A standard grid of prior vars to screen
-
-    Logarithmic from 0.01 to 100, which should be reasonable if the dataset is
-    standardized.
-    """
-    # We could extract a scale from the data here
-    _ = data
-
-    return 10**np.linspace(-2, 2, grid_size)
-
-def make_grid_specs(partial_spec, grid):
-    """
-    Generate grid specs
-    """
-    return [
-        dict(partial_spec,
-            prior_var=var)
-        for var in grid
-        ]
-
-def get_grid_axis(specs):
-    """
-    Compact summary of the variable parameter of a list of models
-    """
-    return {
-        'name': 'prior variance',
-        'log': True,
-        'values': [ s['prior_var'] for s in specs ]
-        }
+cv = cv.Real1dCV('prior_var', 'prior variance')

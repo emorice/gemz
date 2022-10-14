@@ -17,7 +17,7 @@ def plot_cv(spec, fit):
             for spec, result in grid
             ))
 
-    grid_axis = models.get(spec['inner']['model']).get_grid_axis(specs)
+    grid_axis = models.get(spec['inner']['model']).cv.get_grid_axis(specs)
 
     return go.Figure(
         data=[

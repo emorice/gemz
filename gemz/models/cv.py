@@ -103,3 +103,72 @@ def get_name(spec):
     Readable description
     """
     return f"{spec['model']}/{spec['inner']['model']}"
+
+class OneDimCV:
+    """
+    Args:
+        spec_name: name of the corresponding key in the spec dictionnaries for
+            this model.
+        display_name: name to use in plot.
+        log: whether to plot on a log-scale
+    """
+    def __init__(self, spec_name, display_name, log=True):
+        self.spec_name = spec_name
+        self.display_name = display_name
+        self.log = log
+
+    def make_grid_specs(self, partial_spec, grid):
+        """
+        Generate model specs from grid values
+        """
+        return [{
+            **partial_spec,
+            self.spec_name: size
+            }
+            for size in grid
+            ]
+
+    def get_grid_axis(self, specs):
+        """
+        Compact summary of the variable parameter of a list of models
+        """
+        return {
+            'name': self.display_name,
+            'log': self.log,
+            'values': [ s[self.spec_name] for s in specs ]
+            }
+
+class Int1dCV(OneDimCV):
+    """
+    One-dim cv with integer log scale bounded by data dimensions
+    """
+    def make_grid(self, data, grid_size):
+        """
+        Simple logarithmic scale of not more than grid_size entries.
+
+        Grid can be smaller than requested.
+        """
+
+        return [ int(size) for size in np.unique(
+                np.int32(np.floor(
+                    np.exp(
+                        np.linspace(0., np.log(min(data.shape)), grid_size)
+                        )
+                    ))
+                )]
+
+class Real1dCV(OneDimCV):
+    """
+    One-dim cv with positive real log scale
+    """
+    def make_grid(self, data, grid_size):
+        """
+        A standard grid of prior vars to screen
+
+        Logarithmic from 0.01 to 100, which should be reasonable if the dataset is
+        standardized.
+        """
+        # We could extract a scale from the data here
+        _ = data
+
+        return 10**np.linspace(-2, 2, grid_size)

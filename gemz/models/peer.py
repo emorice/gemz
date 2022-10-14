@@ -71,6 +71,7 @@ def fit(data, n_factors, reestimate_precision=False):
 
 # All other methods are inherited from the SVD case
 predict_loo = svd.predict_loo
+
 def get_name(spec):
     """
     Printable short name
@@ -79,6 +80,5 @@ def get_name(spec):
             'r' if spec.get('reestimate_precision')
             else ''
             )
-make_grid = svd.make_grid
-make_grid_specs = svd.make_grid_specs
-get_grid_axis = svd.get_grid_axis
+
+cv = svd.cv
