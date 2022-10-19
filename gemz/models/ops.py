@@ -4,9 +4,11 @@ Meta-model building blocks
 
 import sys
 import numpy as np
+import logging
 
 from . import methods, cv
 
+logger = logging.getLogger('gemz')
 
 # Basic ops
 # =========
@@ -102,6 +104,8 @@ def fit(model_spec, train_data, _ops=_self):
 
     if hasattr(model, 'OPS_AWARE') and model.OPS_AWARE:
         kwargs['_ops'] = _ops
+
+    logger.info('Fitting %s', methods.get_name(model_spec))
 
     return model.fit(train_data, **kwargs)
 

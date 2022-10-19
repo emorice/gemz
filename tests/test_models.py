@@ -44,6 +44,8 @@ model_specs = [
     { 'model': 'cv', 'inner': {'model': 'svd'} },
     { 'model': 'cv', 'inner': {'model': 'peer'}, 'fold_count': 3, 'grid_size': 3},
     { 'model': 'cv', 'inner': {'model': 'cmk'}, 'fold_count': 3, 'grid_size': 3},
+    { 'model': 'cv', 'inner': {'model': 'gmm'}, 'fold_count': 3, 'grid_size': 3},
+    { 'model': 'cv', 'inner': {'model': 'igmm'}, 'fold_count': 3, 'grid_size': 3},
     ]
 
 def model_id(model):

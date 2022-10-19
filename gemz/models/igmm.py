@@ -5,8 +5,7 @@ Information-driven Gaussian mixture models
 import numpy as np
 from gemz import jax_utils
 from gemz.jax_numpy import jaxify
-from . import methods
-from .gmm import GMM
+from . import methods, gmm, cv
 
 methods.add_module('igmm', __name__)
 
@@ -50,14 +49,18 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
         axis=0
         )
 
-    return GMM.precompute_loo({
+    return gmm.precompute_loo({
         'opt': max_results,
         'data': data,
         'groups': groups,
         'responsibilities': resps
         })
 
-predict_loo = GMM.predict_loo
+predict_loo = gmm.predict_loo
+
+cv = cv.Int1dCV('n_groups', 'components')
+
+get_name = gmm.get_name
 
 # Objective functions
 # ===================
@@ -72,7 +75,7 @@ def _igmm_obj(data, responsibilities, barrier_strength=0.1):
         responsibilities: K x P, K being the number of groups
     """
 
-    precomp = GMM.precompute_loo(dict(
+    precomp = gmm.precompute_loo(dict(
         data=data,
         responsibilities=responsibilities
         ))
@@ -122,7 +125,7 @@ def _gmm_obj(data, responsibilities, barrier_strength=0.1):
         data: N x P, P being the large dimension
         responsibilities: K x P, K being the number of groups
     """
-    precomp = GMM.precompute(dict(data=data, responsibilites=responsibilities))
+    precomp = gmm.precompute(dict(data=data, responsibilites=responsibilities))
 
     group_sizes = precomp['group_sizes'] # k
     means = precomp['means'] # kn

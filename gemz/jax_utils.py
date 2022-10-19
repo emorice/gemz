@@ -173,12 +173,20 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
             value, _ = value
         return value, grad
 
-    opt = scipy.optimize.minimize(
-        obj_scipy,
-        init_anon,
-        method=scipy_method,
-        jac=True,
-    )
+    if len(init_anon) > 0:
+        opt = scipy.optimize.minimize(
+            obj_scipy,
+            init_anon,
+            method=scipy_method,
+            jac=True,
+        )
+    else:
+        # It could be that after reparametrizing parameters to handle
+        # constraints, you're left with zero degrees of freedom to optimize.
+        # The scipy optimizer doesn't like that, so handle it separately.
+        opt = {
+            'x': init_anon
+            }
 
     nat_opt = apply_bijs(unpack(opt['x'], shapes, struct), bijectors)
 
