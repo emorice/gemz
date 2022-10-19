@@ -44,7 +44,8 @@ model_specs = [
     { 'model': 'cv', 'inner': {'model': 'svd'} },
     { 'model': 'cv', 'inner': {'model': 'peer'}, 'fold_count': 3, 'grid_size': 3},
     { 'model': 'cv', 'inner': {'model': 'cmk'}, 'fold_count': 3, 'grid_size': 3},
-    { 'model': 'cv', 'inner': {'model': 'gmm'}, 'fold_count': 3, 'grid_size': 3},
+    # Can't test 2-d cv with less than, say, 2 x 2
+    { 'model': 'cv', 'inner': {'model': 'gmm'}, 'fold_count': 3, 'grid_size': 4},
     { 'model': 'cv', 'inner': {'model': 'igmm'}, 'fold_count': 3, 'grid_size': 3},
     ]
 

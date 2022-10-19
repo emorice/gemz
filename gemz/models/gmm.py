@@ -98,13 +98,21 @@ def predict_loo(model, new_data):
 
     return preds_pm.T
 
-cv = cv.Int1dCV('n_groups', 'components')
+cv = cv.CartesianCV(
+        cv.Int1dCV('n_groups', 'components'),
+        cv.Real1dCV('reg_covar', 'prior variance')
+        )
 
 def get_name(spec):
     """
     Descriptive name
     """
-    return f"{spec['model']}/{spec['n_groups']}"
+    name = f"{spec['model']}/{spec['n_groups']}"
+
+    if 'reg_covar' in spec:
+        name = f'{name}:{spec["reg_covar"]}'
+
+    return name
 
 # Main computations
 # =================

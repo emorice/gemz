@@ -128,15 +128,15 @@ class OneDimCV:
             for size in grid
             ]
 
-    def get_grid_axis(self, specs):
+    def get_grid_axes(self, specs):
         """
         Compact summary of the variable parameter of a list of models
         """
-        return {
+        return [{
             'name': self.display_name,
             'log': self.log,
             'values': [ s[self.spec_name] for s in specs ]
-            }
+            }]
 
 class Int1dCV(OneDimCV):
     """
@@ -172,3 +172,40 @@ class Real1dCV(OneDimCV):
         _ = data
 
         return 10**np.linspace(-2, 2, grid_size)
+
+class CartesianCV:
+    """
+    Cartesian-product CV along several dimensions.
+
+    Args: any number of 1D cv objects
+    """
+    def __init__(self, *cvs):
+        self.cvs = cvs
+
+    def make_grid(self, data, grid_size):
+        """
+        Independent even-sized grids along each dimension
+        """
+        grid_size_dim = int(np.exp(np.log(grid_size) / len(self.cvs)))
+
+        return [ cv.make_grid(data, grid_size_dim) for cv in self.cvs ]
+
+    def make_grid_specs(self, partial_spec, grid):
+        """
+        Cartesian grid building
+        """
+        specs = [partial_spec]
+
+        for cv_dim, grid_dim in zip(self.cvs, grid):
+            next_specs = []
+            for spec in specs:
+                next_specs.extend(cv_dim.make_grid_specs(spec, grid_dim))
+            specs = next_specs
+
+        return specs
+
+    def get_grid_axes(self, specs):
+        """
+        All axes in order
+        """
+        return sum((cv.get_grid_axes(specs) for cv in self.cvs), start=[])

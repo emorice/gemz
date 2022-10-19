@@ -118,6 +118,7 @@ def linear_reg(_, case_name, report_path):
         # Slow
         # ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
         # ('cv', {'inner': {'model': 'cmk'}}),
+        # ('cv', {'inner': {'model': 'gmm'}}),
         # ('cv', {'inner': {'model': 'igmm'}}),
         ]
 
@@ -228,11 +229,11 @@ def linear_reg(_, case_name, report_path):
             }
         )
 
-    figs_cv = [
+    figs_cv = sum((
             plot_cv(spec, model_fit)
                 for spec, (name, model_fit) in zip(model_specs, model_fits)
                 if name == 'cv'
-            ]
+                ), start=[])
 
     figs_cg = [
             plot_convergence(spec, model_fit)
