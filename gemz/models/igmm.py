@@ -3,6 +3,9 @@ Information-driven Gaussian mixture models
 """
 
 import numpy as np
+import distrax
+import jax.numpy as jnp
+
 from gemz import jax_utils
 from gemz.jax_numpy import jaxify
 from . import methods, gmm, cv
@@ -31,14 +34,16 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
     max_results = jax_utils.maximize(
         _igmm_obj,
         init={
-            'responsibilities': resp0
+            'responsibilities': resp0,
+            'reg_covar': 1.,
             },
         data={
             'data': data,
             'barrier_strength': barrier_strength,
             },
         bijectors={
-            'responsibilities': jax_utils.Softmax()
+            'responsibilities': jax_utils.Softmax(),
+            'reg_covar': distrax.Lambda(jnp.exp),
             },
         scipy_method='L-BFGS-B',
         )
@@ -53,7 +58,8 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
         'opt': max_results,
         'data': data,
         'groups': groups,
-        'responsibilities': resps
+        'responsibilities': resps,
+        'reg_covar': max_results['opt']['reg_covar']
         })
 
 predict_loo = gmm.predict_loo
@@ -66,7 +72,7 @@ get_name = gmm.get_name
 # ===================
 
 @jaxify
-def _igmm_obj(data, responsibilities, barrier_strength=0.1):
+def _igmm_obj(data, responsibilities, reg_covar, barrier_strength=0.1):
     """
     Information-GMM objective
 
@@ -77,6 +83,7 @@ def _igmm_obj(data, responsibilities, barrier_strength=0.1):
 
     precomp = gmm.precompute_loo(dict(
         data=data,
+        reg_covar=reg_covar,
         responsibilities=responsibilities
         ))
 

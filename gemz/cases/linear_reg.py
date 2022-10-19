@@ -131,7 +131,7 @@ def linear_reg(_, case_name, report_path):
             ]
 
     model_fits = [
-        (k, models.get(k).fit(train, **kwargs))
+            (k, models.fit({'model': k, **kwargs}, train))
         for k, kwargs in model_args
         ]
 

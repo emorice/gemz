@@ -51,3 +51,9 @@ def spectrum(data, prior_var):
     return adjusted_spectrum
 
 cv = cv.Real1dCV('prior_var', 'prior variance')
+
+def get_name(spec):
+    """
+    Descriptive name
+    """
+    return f"{spec['model']}/{spec['prior_var']}"
