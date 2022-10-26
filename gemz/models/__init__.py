@@ -13,6 +13,7 @@ from . import (
     lscv_precision_target,
     lscv_free_diagonal,
     nonlinear_shrinkage,
+    lscv_loo,
     cmk,
     gmm,
     igmm,

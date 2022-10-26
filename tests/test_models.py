@@ -30,6 +30,7 @@ model_specs = [
     { 'model': 'kmeans', 'n_groups': 2 },
     { 'model': 'wishart' },
     { 'model': 'linear_shrinkage', 'prior_var': 1. },
+    { 'model': 'lscv_loo'},
     { 'model': 'lscv_precision_target' },
     { 'model': 'lscv_free_diagonal', 'scale': None },
     { 'model': 'lscv_free_diagonal', 'scale': 1. },
