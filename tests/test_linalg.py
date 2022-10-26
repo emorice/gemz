@@ -7,6 +7,7 @@ import pytest
 import numpy as np
 
 from gemz import linalg
+from gemz.models import lscv_loo
 
 def assert_dets_regular(matrix, other):
     s_matrix, l_matrix = np.linalg.slogdet(matrix)
@@ -37,3 +38,27 @@ def test_lru_inv(weight):
     assert np.allclose(concrete_lru @ inv_lru, np.eye(3))
 
     assert_dets_regular(concrete_lru, lru)
+
+@pytest.mark.xfail
+def test_loo_residuals():
+    """
+    Test LOO linear predictions
+    """
+
+    data = np.array([1.] * 5 + [-1.] * 5)[:, None] * np.ones(19)
+    data += np.random.default_rng(0).normal(size=data.shape)
+
+    reg = 1.0
+
+    ref_residuals = np.empty_like(data)
+
+    for i, row in enumerate(data):
+        loo_data = data[np.arange(len(data)) != i]
+        loo_cov = reg * np.eye(data.shape[1]) + loo_data.T @ loo_data / len(data)
+        loo_prec = np.linalg.inv(loo_cov)
+
+        ref_residuals[i] = (loo_prec @ row) / np.diagonal(loo_prec)
+
+    test_residuals = lscv_loo._loo_predict(data, reg)
+
+    assert np.allclose(ref_residuals, test_residuals)
