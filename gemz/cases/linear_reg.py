@@ -105,6 +105,7 @@ def linear_reg(_, case_name, report_path):
         ('cv', {'inner': {'model': 'linear_shrinkage'}}),
         ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
         ('lscv_loo', {}),
+        ('lscv_loo', {'loss': 'indep'}),
         ('cv', {'inner': {'model': 'kmeans'}}),
         ('nonlinear_shrinkage',  {}),
         ('wishart',  {}),

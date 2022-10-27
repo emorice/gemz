@@ -47,7 +47,8 @@ def test_loo_residuals():
     data = np.array([1.] * 5 + [-1.] * 5)[:, None] * np.ones(19)
     data += np.random.default_rng(0).normal(size=data.shape)
 
-    reg = 1.0
+    reg = 1e-4 # Empirical threshold under which mild unstability appears
+    # Catastrophic unstability starts around 1e-7
 
     ref_residuals = np.empty_like(data)
 
@@ -58,6 +59,6 @@ def test_loo_residuals():
 
         ref_residuals[i] = (loo_prec @ row) / np.diagonal(loo_prec)
 
-    test_residuals, test_variances = lscv_loo._loo_predict(data, reg)
+    test_residuals, test_precisions = lscv_loo._loo_predict(data, reg)
 
     assert np.allclose(ref_residuals, test_residuals)

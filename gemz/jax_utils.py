@@ -230,3 +230,22 @@ class Softmax:
         weights = weights[1:]
         odd_ratios = weights / weight0
         return jnp.log(odd_ratios)
+
+class RegExp:
+    """
+    Regularized exp bijector.
+    """
+    def __init__(self, lower=0.):
+        self.lower = lower
+
+    def forward(self, inputs):
+        """
+        Maps real -> exp
+        """
+        return self.lower + jnp.exp(inputs)
+
+    def inverse(self, outputs):
+        """
+        Maps postive reals -> log
+        """
+        return jnp.log(outputs - self.lower)
