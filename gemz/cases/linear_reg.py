@@ -105,7 +105,7 @@ def linear_reg(_, case_name, report_path):
         ('cv', {'inner': {'model': 'linear_shrinkage'}}),
         ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
         ('lscv_loo', {}),
-        ('kmeans',  {'n_groups': 4}),
+        ('cv', {'inner': {'model': 'kmeans'}}),
         ('nonlinear_shrinkage',  {}),
         ('wishart',  {}),
         ('cmk', {'n_groups': 1}),
@@ -181,8 +181,7 @@ def linear_reg(_, case_name, report_path):
 
     fig_pcs = plot_pc_clusters(
         train.T,
-        n_clusters=next(args['n_groups'] for name, args in model_args
-            if name == 'kmeans')
+        n_clusters=4,
         )
 
 

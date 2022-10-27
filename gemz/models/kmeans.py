@@ -6,6 +6,7 @@ import numpy as np
 import sklearn.cluster
 
 from . import methods
+from .cv import Int1dCV
 
 @methods.add('kmeans')
 class KMeans:
@@ -59,6 +60,8 @@ class KMeans:
         groups = model['groups']
         # G
         group_sizes = np.bincount(groups)
+        # regularization for empty groups
+        group_sizes = group_sizes + 1e-6
         # G x N2
         one_hot = groups == np.arange(model['n_groups'])[:, None]
 
@@ -75,3 +78,12 @@ class KMeans:
             )
 
         return preds
+
+    @staticmethod
+    def get_name(spec):
+        """
+        Readable short name
+        """
+        return f'{spec["model"]}/{spec["n_groups"]}'
+
+    cv = Int1dCV('n_groups', 'clusters')
