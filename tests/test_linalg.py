@@ -39,7 +39,6 @@ def test_lru_inv(weight):
 
     assert_dets_regular(concrete_lru, lru)
 
-@pytest.mark.xfail
 def test_loo_residuals():
     """
     Test LOO linear predictions
@@ -54,11 +53,11 @@ def test_loo_residuals():
 
     for i, row in enumerate(data):
         loo_data = data[np.arange(len(data)) != i]
-        loo_cov = reg * np.eye(data.shape[1]) + loo_data.T @ loo_data / len(data)
+        loo_cov = reg * np.eye(data.shape[1]) + loo_data.T @ loo_data / len(loo_data)
         loo_prec = np.linalg.inv(loo_cov)
 
         ref_residuals[i] = (loo_prec @ row) / np.diagonal(loo_prec)
 
-    test_residuals = lscv_loo._loo_predict(data, reg)
+    test_residuals, test_variances = lscv_loo._loo_predict(data, reg)
 
     assert np.allclose(ref_residuals, test_residuals)
