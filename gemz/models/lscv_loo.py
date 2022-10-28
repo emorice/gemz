@@ -35,6 +35,7 @@ def fit(data, loss='rss', prior_var_min=0.):
     _loss = {
         'rss': _loo_loss_rss,
         'indep': _loo_loss_indep,
+        'joint': _loo_loss_joint,
         }[loss]
 
     opt = minimize(
@@ -74,6 +75,27 @@ def get_name(spec):
 # Internals
 # =========
 
+def _loo_local_precisions(data_np, prior_var):
+    """
+    Virtual stack of leave-one-out precision estimator, up to a global scale
+    """
+
+    base_gram_pp = linalg.SymmetricLowRankUpdate(
+            prior_var, data_np.T, 1. / (data_np.shape[0] - 1)
+            )
+
+    loo_ugram_npp = linalg.SymmetricLowRankUpdate(
+            base_gram_pp,
+            # n is now a batching dimension, and we add a dummy contracting
+            # dimension at the end
+            data_np[..., None],
+            # Downdate
+            -1. / (data_np.shape[0] - 1))
+
+    loo_uprec_npp = np.linalg.inv(loo_ugram_npp)
+
+    return loo_uprec_npp
+
 def _loo_predict(data, prior_var):
     """
     Computes leave-one-out predictions
@@ -82,29 +104,17 @@ def _loo_predict(data, prior_var):
     # Naming scheme: data shape is (n, p)
     data_np = data
 
-    base_ugram_pp = linalg.SymmetricLowRankUpdate(
-            prior_var * (data.shape[0] - 1), data_np.T, 1.
-            )
-
-    loo_ugram_npp = linalg.SymmetricLowRankUpdate(
-            base_ugram_pp,
-            # n is now a batching dimension, and we add a dummy contracting
-            # dimension at the end
-            data_np[..., None],
-            # Downdate
-            -1.)
-
-    loo_uprec_npp = np.linalg.inv(loo_ugram_npp)
+    loo_prec_npp = _loo_local_precisions(data_np, prior_var)
 
     # n-batched pp-matrix p-vector
-    unscaled_residuals_np = (loo_uprec_npp @ data_np[..., None])[..., 0]
+    local_residuals_np = (loo_prec_npp @ data_np[..., None])[..., 0]
 
     # n-batched diagonal
-    scales_np = np.diagonal(loo_uprec_npp)
+    local_scales_np = np.diagonal(loo_prec_npp)
 
-    residuals = unscaled_residuals_np / scales_np
-    precisions = (data.shape[0] - 1) * scales_np
+    residuals = local_residuals_np / local_scales_np
 
+    precisions = local_scales_np
     # At this point, `precisions` is still off by a global factor. The optimal
     # scale technically depends on the loss function, but we already can set a
     # reasonable default
@@ -122,3 +132,17 @@ def _loo_loss_rss(data, prior_var):
 def _loo_loss_indep(data, prior_var):
     residuals, precisions = _loo_predict(data, prior_var)
     return np.sum((residuals**2) * precisions - np.log(precisions))
+
+def _loo_loss_joint(data, prior_var):
+    data_np = data
+
+    local_prec_npp = _loo_local_precisions(data_np, prior_var)
+
+    misfits_n = (data_np[..., None, :] @ (local_prec_npp @ data_np[..., None]))[..., 0, 0]
+
+    global_scale = np.mean(misfits_n)
+    _, log_dets_n = np.linalg.slogdet(local_prec_npp)
+
+    losses_n = data_np.shape[-1] * np.log(global_scale) - log_dets_n
+
+    return np.sum(losses_n)
