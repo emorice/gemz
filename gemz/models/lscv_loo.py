@@ -58,6 +58,7 @@ def fit(data, loss='rss', prior_var_min=0.):
         )
 
     return {
+            # Warning: precision here is off by a global factor
             'precision': np.linalg.inv(regularized_covariance),
             'opt': opt
             }
@@ -103,6 +104,11 @@ def _loo_predict(data, prior_var):
 
     residuals = unscaled_residuals_np / scales_np
     precisions = (data.shape[0] - 1) * scales_np
+
+    # At this point, `precisions` is still off by a global factor. The optimal
+    # scale technically depends on the loss function, but we already can set a
+    # reasonable default
+    precisions /= np.mean(residuals**2 * precisions)
 
     return residuals, precisions
 
