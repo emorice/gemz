@@ -144,41 +144,23 @@ def plot_hist(fits):
             }
         )
 
-def eval_model(model, train, test, subsets):
+def eval_model(model_spec, train, test, subsets):
     """
     Run models with one loss aggregation strategy
     """
-    name, args = model
-
-    module = models.get(name)
-
     fits = {
-        k: module.fit(train[:, subset], **args)
+        k: models.fit(model_spec, train[:, subset])
         for k, subset in subsets.items()
         }
 
-    # Fit regularized model once for each eval case with the preset prior var
-    if name == 'linear_shrinkage_cv':
-        refits = {
-            k_fit: {
-                k_refit: models.get('linear_shrinkage').fit(
-                    train[:, subset],
-                    prior_var=fit['cv_best'])
-                for k_refit, subset in subsets.items()
-                }
-           for k_fit, fit in fits.items()
-        }
-        pred_module = models.get('linear_shrinkage')
-    else:
-        # For diagonal target chimera models are not defined so just skip
-        # re-fits
-        refits = {
-            k_fit: {
-                k_fit: fit
-                }
-            for k_fit, fit in fits.items()
+    # Legacy format, we're not really doing re-fits anymore
+    refits = {
+        k_fit: {
+            k_fit: fit
             }
-        pred_module = module
+        for k_fit, fit in fits.items()
+        }
+    pred_module = models.get(model_spec['model'])
 
     predictions = {
         k_fit: {
@@ -224,26 +206,22 @@ def heterogeneous_snr(_, case_name, report_path):
 
     initial_plot = plot_data(train, noise_class)
 
-    model_definitions = [
-        ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'RSS'}),
-        ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
-        ('lscv_precision_target', {}),
-        ('lscv_free_diagonal', {'scale': 1.}),
-        ('lscv_free_diagonal', {'scale': None})
-        ]
-
     model_specs = [
-            { 'model': name, **args }
-            for name, args in model_definitions
-            ]
+        {'model': 'cv', 'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'RSS'},
+        {'model': 'cv', 'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'},
+        {'model': 'lscv_precision_target', },
+        {'model': 'lscv_free_diagonal', 'scale': 1.},
+        {'model': 'lscv_free_diagonal', 'scale': None},
+        {'model': 'igmm', 'n_groups': 2},
+        ]
 
     with open_report(report_path, case_name) as stream:
         write_fig(stream, initial_plot)
 
-        for spec, model_def in zip(model_specs, model_definitions):
-            _, args = model_def
-            figs = eval_model(model_def, train, test, subsets)
+        for spec in model_specs:
+            figs = eval_model(spec, train, test, subsets)
             print("<h2>",
-                    models.get_name(spec), ' ; ', *[f"{k}={v}" for k,v in args.items()],
+                    models.get_name(spec), ' ; ',
+                    *[f"{k}={v}" for k,v in spec.items() if k != 'model'],
                     "</h2>", file=stream)
             write_fig(stream, *figs)
