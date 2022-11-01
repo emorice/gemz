@@ -113,7 +113,7 @@ def linear_reg(_, case_name, report_path):
         ('cmk', {'n_groups': 1}),
         ('cmk', {'n_groups': 20}),
         ('gmm', {'n_groups': 2}),
-        ('igmm', {'n_groups': 2}),
+        ('igmm', {'n_groups': 5}),
         ('svd', {'n_factors': 4}),
         ('peer', {'n_factors': 4}),
         ('peer', {'n_factors': 4, 'reestimate_precision': True}),

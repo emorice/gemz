@@ -87,33 +87,39 @@ def _igmm_obj(data, responsibilities, reg_covar, barrier_strength=0.1):
         responsibilities=responsibilities
         ))
 
-    # K x P x N, loo-sum over P
-    means = precomp['means']
+    data_np = data
+    responsibilities_kp = responsibilities
+    group_sizes_k = np.sum(responsibilities_kp, -1)
+    len1 = data.shape[0]
 
-    # K x P x N X N
-    covariances = precomp['covariances']
-    precisions = precomp['precisions']
+    means_kpn = precomp['means']
+    covariances_kpnn = precomp['covariances']
+    precisions_kpnn = precomp['precisions']
 
-    # K x P x N
-    centered_data = data.T - means
+    centered_data_kpn = data_np.T - means_kpn
 
-    # K x P, sum over N
-    misfits = np.sum(
-        (precisions @ centered_data[..., None])
-        * centered_data[..., None],
+    # sum over N
+    misfits_kp = np.sum(
+        (precisions_kpnn @ centered_data_kpn[..., None])
+        * centered_data_kpn[..., None],
         (-2, -1)
         )
 
-    # K x P, det over N x N
-    _signs, log_det_covs = np.linalg.slogdet(covariances)
+    # batched det over N x N
+    _signs, log_det_covs_kp = np.linalg.slogdet(covariances_kpnn)
 
     # scalar
-    agg_misfits = np.tensordot(responsibilities, misfits)
+    #agg_misfits = np.tensordot(responsibilities, misfits)
+
+    avg_misfits_k = (
+            np.sum(misfits_kp * responsibilities_kp, -1)
+            / (len1 * group_sizes_k)
+            )
 
     # scalar
     exp_log_lk = (
-        - 0.5 * np.tensordot(responsibilities, log_det_covs)
-        - 0.5 * agg_misfits
+        - 0.5 * np.tensordot(responsibilities_kp, log_det_covs_kp)
+        - 0.5 * np.sum(len1 * group_sizes_k * np.log(avg_misfits_k))
         )
     # scalar
     entropy = - np.tensordot(responsibilities, np.log(responsibilities))
