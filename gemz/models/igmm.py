@@ -35,7 +35,7 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
         _igmm_obj,
         init={
             'responsibilities': resp0,
-            'reg_covar': 1.,
+            'reg_covar': np.ones(n_groups),
             },
         data={
             'data': data,
