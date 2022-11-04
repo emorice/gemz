@@ -552,12 +552,10 @@ def loo_matmul(left, right):
     The LOO axis is left in the middle, signature is (a, b), (b, c) -> (a, b, c)
     for 2D inputs.
 
-    Assumes inputs are atleast 2D. Supports leading batch dimensions.
-
     Note that in contrast with loo_sum, a concrete loo matmul may be much larger that
     its inputs. Consider using implicit matrices.
     """
-    joint = left[..., None] * right[..., None, :, :]
+    joint = left[..., None] * right
     return loo_sum(joint, -2)
 
 def loo_square(array_bnp, weights_bp, reg_b=np.array(0.)):
@@ -613,4 +611,22 @@ def loo_cross_square(left_bnp, weights_bp, right_bmp):
         weight=-weights_bp[..., None, None],
         # Add dummy contraction dim as second to last (bp1m)
         factor_right=right_bpm[..., None, :]
+        )
+
+def imap(function, *arrays):
+    """
+    Convenience function to map a function over several arrays, calling
+    accelerated implementation if available, else falling back to a python loop.
+
+    To keep simple compatibility with numpy, this has several differences with
+    the more generic jax.lax.map.
+     * arrays must be a tuple of arrays, no other pytree possible
+     * function must take positional array arguments (one array per argument)
+     * function must return a tuple of arrays, no other pytree possible
+    """
+    if arrays and hasattr(arrays[0], 'imap'):
+        return arrays[0].imap(function, *arrays)
+    return tuple(
+        np.stack(ret) for ret in
+        zip(*[function(*args) for args in zip(*arrays)])
         )

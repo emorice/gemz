@@ -6,7 +6,7 @@ import numpy as np
 import distrax
 import jax.numpy as jnp
 
-from gemz import jax_utils
+from gemz import jax_utils, linalg
 from gemz.jax_numpy import jaxify
 from . import methods, gmm, cv
 
@@ -71,6 +71,47 @@ get_name = gmm.get_name
 # Objective functions
 # ===================
 
+def _igmm_stats(data_np, responsibilities_p, reg_covar):
+    """
+    Compute average misfit and log det of precision for a single component
+
+    Returns:
+        triple of scalars, the weighted sum of the log-dets of the covariance
+            matrices, the average misfit, and group size
+    """
+    precomp = gmm.precompute_loo(dict(
+        data=data_np,
+        reg_covar=reg_covar,
+        responsibilities=responsibilities_p
+        ))
+
+    group_size = np.sum(responsibilities_p, -1)
+    len1 = data_np.shape[0]
+
+    means_pn = precomp['means']
+    covariances_pnn = precomp['covariances']
+    precisions_pnn = precomp['precisions']
+
+    centered_data_pn = data_np.T - means_pn
+
+    # sum over N (twice)
+    misfits_p = np.sum(
+        (precisions_pnn @ centered_data_pn[..., None])
+        * centered_data_pn[..., None],
+        (-2, -1)
+        )
+
+    # batched det over N x N
+    _sign, ldet_covs_p = np.linalg.slogdet(covariances_pnn)
+    total_ldet_cov = responsibilities_p @ ldet_covs_p
+
+    avg_misfit = (
+            np.sum(misfits_p * responsibilities_p, -1)
+            / (len1 * group_size)
+            )
+
+    return total_ldet_cov, avg_misfit, group_size
+
 @jaxify
 def _igmm_obj(data, responsibilities, reg_covar, barrier_strength=0.1):
     """
@@ -79,46 +120,19 @@ def _igmm_obj(data, responsibilities, reg_covar, barrier_strength=0.1):
     Args:
         data: N x P, P being the large dimension
         responsibilities: K x P, K being the number of groups
+        reg_covar: K, the regularization for each group
     """
 
-    precomp = gmm.precompute_loo(dict(
-        data=data,
-        reg_covar=reg_covar,
-        responsibilities=responsibilities
-        ))
-
-    data_np = data
     responsibilities_kp = responsibilities
-    group_sizes_k = np.sum(responsibilities_kp, -1)
+    reg_covar_k = reg_covar
     len1 = data.shape[0]
 
-    means_kpn = precomp['means']
-    covariances_kpnn = precomp['covariances']
-    precisions_kpnn = precomp['precisions']
-
-    centered_data_kpn = data_np.T - means_kpn
-
-    # sum over N
-    misfits_kp = np.sum(
-        (precisions_kpnn @ centered_data_kpn[..., None])
-        * centered_data_kpn[..., None],
-        (-2, -1)
-        )
-
-    # batched det over N x N
-    _signs, log_det_covs_kp = np.linalg.slogdet(covariances_kpnn)
-
-    # scalar
-    #agg_misfits = np.tensordot(responsibilities, misfits)
-
-    avg_misfits_k = (
-            np.sum(misfits_kp * responsibilities_kp, -1)
-            / (len1 * group_sizes_k)
-            )
+    total_ldet_covs_k, avg_misfits_k, group_sizes_k = linalg.imap(lambda resp_p, reg:
+            _igmm_stats(data, resp_p, reg), responsibilities_kp, reg_covar_k)
 
     # scalar
     exp_log_lk = (
-        - 0.5 * np.tensordot(responsibilities_kp, log_det_covs_kp)
+        - 0.5 * np.sum(total_ldet_covs_k)
         - 0.5 * np.sum(len1 * group_sizes_k * np.log(avg_misfits_k))
         )
     # scalar

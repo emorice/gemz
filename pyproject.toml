@@ -15,6 +15,9 @@ dependencies = [
 peer = [
   "pmbio-peer @ git+ssh://git@github.com/emorice/peer.git"
 ]
+dev = [
+  "memory_profiler"
+]
 
 [build-system]
 requires = [

@@ -89,6 +89,18 @@ class JaxObject:
             + ')'
             )
 
+    @staticmethod
+    def imap(function, *arrays):
+        """
+        Custom map-like function used to plug lax.map. Default implementation
+        falls back to a loop.
+        """
+        return maybe_wrap_many(
+                *jax.lax.map(lambda args:
+                    maybe_unwrap_many(*function(*maybe_wrap_many(*args))),
+                    maybe_unwrap_many(*arrays))
+                    )
+
 def op_wrapper(name):
     """
     Delegate call to an operator by name
@@ -121,6 +133,12 @@ def maybe_wrap(obj):
         return JaxObject(obj)
     return obj
 
+def maybe_wrap_many(*objs):
+    """
+    Wrap objects in JaxObjects if necessary
+    """
+    return tuple(map(maybe_wrap, objs))
+
 def maybe_unwrap(obj):
     """
     Extract from a JaxObject when needed
@@ -134,7 +152,7 @@ def maybe_unwrap_many(*objs):
     """
     Extract from JaxObjects when needed
     """
-    return map(maybe_unwrap, objs)
+    return tuple(map(maybe_unwrap, objs))
 
 def maybe_unwrap_many_kw(**objs):
     """
