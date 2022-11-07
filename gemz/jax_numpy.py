@@ -41,8 +41,7 @@ class JaxObject:
         if method != "__call__":
             raise NotImplementedError
         ufunc_name = ufunc.__name__
-        jax_ret = getattr(jnp, ufunc_name)(*maybe_unwrap_many(*args))
-        return maybe_wrap(jax_ret)
+        return unjaxify(getattr(jnp, ufunc_name))(*args)
 
     def __array_function__(self, func, _, args, kwargs):
         np_module = func.__module__
@@ -54,12 +53,8 @@ class JaxObject:
             raise NotImplementedError
 
         func_name = func.__name__
-        jax_func = getattr(jax_module, func_name)
-        jax_ret = jax_func(
-            *maybe_unwrap_many(*args),
-            **maybe_unwrap_many_kw(**kwargs),
-            )
-        return maybe_wrap(jax_ret)
+        jax_func = unjaxify(getattr(jax_module, func_name))
+        return jax_func(*args, **kwargs)
 
     def __getitem__(self, *indices):
         return maybe_wrap(self.wrapped.__getitem__(*indices))
@@ -78,7 +73,7 @@ class JaxObject:
         Shape of the wrapped object.
 
         The returned shape is not itself wrapped, this is meant to be used for
-        debugging, not resued as an input for further computations.
+        debugging, not reused as an input for further computations.
         """
         return self.wrapped.shape
 
@@ -95,23 +90,21 @@ class JaxObject:
         Custom map-like function used to plug lax.map. Default implementation
         falls back to a loop.
         """
-        return maybe_wrap_many(
-                *jax.lax.map(lambda args:
-                    maybe_unwrap_many(*function(*maybe_wrap_many(*args))),
-                    maybe_unwrap_many(*arrays))
-                    )
+        @unjaxify(has_aux=True)
+        def _imap(*_arrays):
+            return jax.lax.map(
+                    lambda args: jaxify(function, has_aux=True)(*args),
+                    _arrays)
+
+        return _imap(*arrays)
 
 def op_wrapper(name):
     """
     Delegate call to an operator by name
     """
     def _wrap(self, *args, **kwargs):
-        jax_bound_func = getattr(self.wrapped, name)
-        jax_ret = jax_bound_func(
-            *maybe_unwrap_many(*args),
-            **maybe_unwrap_many_kw(**kwargs),
-            )
-        return maybe_wrap(jax_ret)
+        jax_bound_func = unjaxify(getattr(self.wrapped, name))
+        return jax_bound_func(*args, **kwargs)
     return _wrap
 
 for _op_name in _OP_NAMES:
@@ -133,12 +126,6 @@ def maybe_wrap(obj):
         return JaxObject(obj)
     return obj
 
-def maybe_wrap_many(*objs):
-    """
-    Wrap objects in JaxObjects if necessary
-    """
-    return tuple(map(maybe_wrap, objs))
-
 def maybe_unwrap(obj):
     """
     Extract from a JaxObject when needed
@@ -148,20 +135,6 @@ def maybe_unwrap(obj):
         if isinstance(obj, JaxObject)
         else obj
         )
-def maybe_unwrap_many(*objs):
-    """
-    Extract from JaxObjects when needed
-    """
-    return tuple(map(maybe_unwrap, objs))
-
-def maybe_unwrap_many_kw(**objs):
-    """
-    Extract from JaxObjects when needed
-    """
-    return {
-        k: maybe_unwrap(obj)
-        for k, obj in objs.items()
-        }
 
 def jaxify(*function, has_aux=False):
     """
@@ -184,7 +157,36 @@ def jaxify(*function, has_aux=False):
         kwargs = { k: maybe_wrap(a) for k, a in kwargs.items() }
         wrapped_ret = function(*args, **kwargs)
         if has_aux:
-            return maybe_unwrap_many(*wrapped_ret)
+            return tuple(maybe_unwrap(item) for item in wrapped_ret)
         return maybe_unwrap(wrapped_ret)
+
+    return _wrap
+
+def unjaxify(*function, has_aux=False):
+    """
+    Inverse of jaxify: unwraps numpy-compatible jax wrappers before calling
+    function and re-wraps the result.
+
+    Used to write jax implementations of ops: it transforms a function operating
+    on jax arrays into a function that can act on numpy-compatible JaxObjects.
+
+    Args:
+        has_aux: True if `function` returns a tuple of jax arrays that need to
+            be wrapped individually. Else (default), the result is treated as
+            one jax array and wrapped as a whole.
+    """
+    if not function:
+        return lambda function: unjaxify(function, has_aux=has_aux)
+
+    assert len(function) == 1
+    function = function[0]
+
+    def _wrap(*args, **kwargs):
+        args = [ maybe_unwrap(a) for a in args ]
+        kwargs = { k: maybe_unwrap(a) for k, a in kwargs.items() }
+        unwrapped_ret = function(*args, **kwargs)
+        if has_aux:
+            return tuple(maybe_wrap(item) for item in unwrapped_ret)
+        return maybe_wrap(unwrapped_ret)
 
     return _wrap
