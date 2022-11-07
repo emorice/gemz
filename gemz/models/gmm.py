@@ -45,7 +45,7 @@ def fit(data, n_groups, bayesian=False, **skargs):
         'reg_covar': reg_covar,
         }
 
-    return precompute_loo(model_min)
+    return model_min
 
 def predict_loo(model, new_data):
     """
@@ -59,42 +59,54 @@ def predict_loo(model, new_data):
     #  k: groups
 
     new_data_mp = new_data
-
     data_np = model['data']
     resps_kp = model['responsibilities']
-    group_sizes_kp = model['group_sizes']
-    means_kpn = model['means']
-    precisions_kpnn = model['precisions']
 
-    new_means_kpm = (
-        linalg.loo_matmul(resps_kp, new_data_mp.T)
-        / group_sizes_kp[..., None]
+    preds_pm = np.zeros_like(new_data_mp.T)
+
+    for resps_p, reg_covar in zip(resps_kp,
+            model['reg_covar'] * np.ones(len(resps_kp))
+            ):
+
+        model_one = precompute_loo(dict(
+            data=data_np,
+            responsibilities=resps_p,
+            reg_covar=reg_covar))
+
+
+        group_sizes_p = model_one['group_sizes']
+        means_pn = model_one['means']
+        precisions_pnn = model_one['precisions']
+
+        new_means_pm = (
+            linalg.loo_matmul(resps_p, new_data_mp.T)
+            / group_sizes_p[..., None]
+            )
+
+        new_grams_pmn = (
+            linalg.loo_cross_square(new_data_mp, resps_p, data_np)
+            / group_sizes_p[..., None, None]
         )
 
-    new_grams_kpmn = (
-        linalg.loo_cross_square(new_data_mp, resps_kp, data_np)
-        / group_sizes_kp[..., None, None]
-    )
+        new_covariances_pmn = linalg.LowRankUpdate(
+            new_grams_pmn,
+            # Dummy contraction, last
+            new_means_pm[..., None], # pm1
+            -1,
+            # Dummy contraction, 2nd to last
+            means_pn[..., None, :] # p1n
+            )
 
-    new_covariances_kpmn = linalg.LowRankUpdate(
-        new_grams_kpmn,
-        # Dummy contraction, last
-        new_means_kpm[..., None], # kpm1
-        -1,
-        # Dummy contraction, 2nd to last
-        means_kpn[..., None, :] # kp1n
-        )
+        centered_data_pn = data_np.T - means_pn
 
-    centered_data_kpn = data_np.T - means_kpn
+        trans_data_pn1 = precisions_pnn @ centered_data_pn[..., None]
 
-    trans_data_kpn1 = precisions_kpnn @ centered_data_kpn[..., None]
+        preds_one_pm = (
+            new_means_pm +
+            (new_covariances_pmn @ trans_data_pn1)[..., 0] # pmn pn1 -> pm1
+            )
 
-    preds_kpm = (
-        new_means_kpm +
-        (new_covariances_kpmn @ trans_data_kpn1)[..., 0] # kpmn kpn1 -> kpm1
-        )
-
-    preds_pm = np.sum(preds_kpm * resps_kp[..., None], 0)
+        preds_pm += preds_one_pm * resps_p[..., None]
 
     return preds_pm.T
 

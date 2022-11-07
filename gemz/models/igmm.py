@@ -54,13 +54,13 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
         axis=0
         )
 
-    return gmm.precompute_loo({
+    return {
         'opt': max_results,
         'data': data,
         'groups': groups,
         'responsibilities': resps,
         'reg_covar': max_results['opt']['reg_covar']
-        })
+        }
 
 predict_loo = gmm.predict_loo
 
