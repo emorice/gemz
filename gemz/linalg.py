@@ -613,7 +613,7 @@ def loo_cross_square(left_bnp, weights_bp, right_bmp):
         factor_right=right_bpm[..., None, :]
         )
 
-def imap(function, *arrays):
+def eager_map(function, *arrays):
     """
     Convenience function to map a function over several arrays, calling
     accelerated implementation if available, else falling back to a python loop.
@@ -622,10 +622,12 @@ def imap(function, *arrays):
     the more generic jax.lax.map.
      * arrays must be a tuple of arrays, no other pytree possible
      * function must take positional array arguments (one array per argument)
-     * function must return a tuple of arrays, no other pytree possible
+     * function must return a tuple of arrays, no other pytree possible. For
+       eager differentiation, it must more precisely return a tuple of scalar
+       arrays.
     """
-    if arrays and hasattr(arrays[0], 'imap'):
-        return arrays[0].imap(function, *arrays)
+    if arrays and hasattr(arrays[0], 'eager_map'):
+        return arrays[0].eager_map(function, *arrays)
     return tuple(
         np.stack(ret) for ret in
         zip(*[function(*args) for args in zip(*arrays)])

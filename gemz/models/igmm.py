@@ -127,7 +127,7 @@ def _igmm_obj(data, responsibilities, reg_covar, barrier_strength=0.1):
     reg_covar_k = reg_covar
     len1 = data.shape[0]
 
-    total_ldet_covs_k, avg_misfits_k, group_sizes_k = linalg.imap(lambda resp_p, reg:
+    total_ldet_covs_k, avg_misfits_k, group_sizes_k = linalg.eager_map(lambda resp_p, reg:
             _igmm_stats(data, resp_p, reg), responsibilities_kp, reg_covar_k)
 
     # scalar
