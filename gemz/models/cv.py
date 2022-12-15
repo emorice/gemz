@@ -63,7 +63,7 @@ def geom_loss(method, model, test):
     return np.sum(np.log(dim_squares))
 
 def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
-        grid=None, _ops=ops):
+        grid=None, grid_max=None, _ops=ops):
     """
     Fit and eval the given method on folds of data
 
@@ -76,7 +76,7 @@ def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
 
     specs = _ops.build_eval_grid(
                 inner, data, fold_count, loss_name,
-                grid_size, grid,
+                grid_size, grid_max, grid,
                 seed, _ops=_ops
             )
 
@@ -142,17 +142,20 @@ class Int1dCV(OneDimCV):
     """
     One-dim cv with integer log scale bounded by data dimensions
     """
-    def make_grid(self, data, grid_size):
+    def make_grid(self, data, grid_size, grid_max=None):
         """
         Simple logarithmic scale of not more than grid_size entries.
 
         Grid can be smaller than requested.
         """
 
+        if grid_max is None:
+            grid_max = min(data.shape)
+
         return [ int(size) for size in np.unique(
                 np.int32(np.floor(
                     np.exp(
-                        np.linspace(0., np.log(min(data.shape)), grid_size)
+                        np.linspace(0., np.log(grid_max), grid_size)
                         )
                     ))
                 )]
@@ -161,7 +164,7 @@ class Real1dCV(OneDimCV):
     """
     One-dim cv with positive real log scale
     """
-    def make_grid(self, data, grid_size):
+    def make_grid(self, data, grid_size, grid_max=None):
         """
         A standard grid of prior vars to screen
 
@@ -171,7 +174,10 @@ class Real1dCV(OneDimCV):
         # We could extract a scale from the data here
         _ = data
 
-        return 10**np.linspace(-2, 2, grid_size)
+        if grid_max is None:
+            grid_max = 100
+
+        return 10**np.linspace(-2, np.log10(grid_max), grid_size)
 
 class CartesianCV:
     """
@@ -182,10 +188,13 @@ class CartesianCV:
     def __init__(self, *cvs):
         self.cvs = cvs
 
-    def make_grid(self, data, grid_size):
+    def make_grid(self, data, grid_size, grid_max=None):
         """
         Independent even-sized grids along each dimension
         """
+        if grid_max is not None:
+            raise NotImplementedError('CartesianCV does not support grid_max')
+
         grid_size_dim = int(np.exp(np.log(grid_size) / len(self.cvs)))
 
         return [ cv.make_grid(data, grid_size_dim) for cv in self.cvs ]

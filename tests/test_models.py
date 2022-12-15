@@ -43,6 +43,7 @@ model_specs = [
     { 'model': 'peer', 'n_factors': 2, 'reestimate_precision': True },
     { 'model': 'cv', 'inner': {'model': 'linear_shrinkage' } },
     { 'model': 'cv', 'inner': {'model': 'svd'} },
+    { 'model': 'cv', 'inner': {'model': 'svd'}, 'grid_max': 3},
     { 'model': 'cv', 'inner': {'model': 'peer'}, 'fold_count': 3, 'grid_size': 3},
     { 'model': 'cv', 'inner': {'model': 'cmk'}, 'fold_count': 3, 'grid_size': 3},
     # Can't test 2-d cv with less than, say, 2 x 2
