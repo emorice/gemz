@@ -60,6 +60,15 @@ def fit(data, scale=1.):
 
 predict_loo = linear_shrinkage.predict_loo
 
+def get_name(spec):
+    """
+    Descriptive name
+    """
+    return f"{spec['model']}/" + (
+            "1df" if 'scale' not in spec or spec['scale'] is not None
+            else "2dfs"
+            )
+
 # Objective function
 # ==================
 
