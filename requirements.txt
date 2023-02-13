@@ -1,0 +1,8 @@
+jax
+jaxlib
+numpy
+plotly
+tqdm
+scipy
+pandas
+colorcet
