@@ -2,26 +2,51 @@
 Matrix-t utils
 """
 
+
+from dataclasses import dataclass
+from typing import Any
+
 import jax.numpy as jnp
 
+@dataclass
+class MatrixT:
+    """
+    Specification of a Matrix-t distribution
+    """
+    observed: Any
+    dfs: float
+    left: Any
+    right: Any
+    mean: Any = 0.
 
-def ref_log_kernel(data, dfs, left, right, mean):
+    def __post_init__(self):
+        self.len_left = self.left.shape[-1]
+        self.len_right = self.right.shape[-1]
+
+
+def gen_matrix(mtd):
+    """
+    Dense generating matrix
+    """
+    cdata = mtd.observed - mtd.mean
+
+    return jnp.block(
+        [[ mtd.left, cdata ],
+         [ (-cdata).T, mtd.right ]]
+        )
+
+def ref_log_kernel(mtd):
     """
     Reference unnormalized log-likelihood of a matrix-t distribution
     """
-    len_left, len_right = data.shape
-    _sign, logdet_left = jnp.linalg.slogdet(left)
-    _sign, logdet_right = jnp.linalg.slogdet(right)
+    _sign, logdet_left = jnp.linalg.slogdet(mtd.left)
+    _sign, logdet_right = jnp.linalg.slogdet(mtd.right)
 
-    _sign, logdet = jnp.linalg.slogdet(jnp.block(
-        [[ left, (data - mean) ],
-         [ (mean - data).T, right ]]
-        ))
-
+    _sign, logdet = jnp.linalg.slogdet(gen_matrix(mtd))
     return (
-            0.5 * len_left * logdet_right
-            + 0.5 * len_right * logdet_left
-            - 0.5 * (dfs + len_left + len_right - 1) * logdet
+            0.5 * mtd.len_left * logdet_right
+            + 0.5 * mtd.len_right * logdet_left
+            - 0.5 * (mtd.dfs + mtd.len_left + mtd.len_right - 1) * logdet
             )
 
 def ref_log_kernel_centered(data, dfs, left, right, scale, rel_var_mean_left,
@@ -42,4 +67,4 @@ def ref_log_kernel_centered(data, dfs, left, right, scale, rel_var_mean_left,
             [[ scale*right, jnp.zeros(len_right)[:, None] ],
              [ jnp.zeros(len_right), rel_var_mean_right/scale ]]
             )
-    return ref_log_kernel(padded_data, dfs, padded_left, padded_right, 0.)
+    return ref_log_kernel(MatrixT(padded_data, dfs, padded_left, padded_right))
