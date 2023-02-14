@@ -60,30 +60,30 @@ def make_std_ncmtd_right(x, X, *params):
 ```
 
 ```python
-def cond_right(x, X, *params):
+def logk_right(x, X, *params):
     return matrix_t.ref_log_kernel_noncentral(
         make_std_ncmtd_right(x, X, *params)
     )
 ```
 
 ```python tags=[]
-def cond_mean_right(x, X, *params):
-    return matrix_t.ref_uni_cond_mean_noncentral(
+def cond_right(x, X, *params):
+    return matrix_t.ref_uni_cond_noncentral(
         make_std_ncmtd_right(x, X, *params)
-    )[:, -1]
+    )
 ```
 
 ```python
 dfs = 2.0
-scale = 1.0
+scale = 0.5
 vmr = 0.01
 vml = 1000.
 params = (dfs, scale, vmr, vml)
-axis = 0
+axis = 1
 
 L = np.linspace(-2., 5., 1000)
 G = np.stack(np.meshgrid(L, L), -1)
-lnK = jax.vmap(lambda x: jax.vmap(lambda y: cond_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
+lnK = jax.vmap(lambda x: jax.vmap(lambda y: logk_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
     go.Contour(x=L, y=L, z=-jnp.abs(.5 - jnp.cumsum(jnp.exp(lnK - jsc.logsumexp(lnK, axis, keepdims=True)), axis)), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale='blues', transpose=True),
@@ -95,24 +95,25 @@ go.Figure(data=[
 
 ```python tags=[]
 dfs = 2.0
-scale = 1.0
+scale = 0.5
 vmr = 0.01
 vml = 1000.
 params = (dfs, scale, vmr, vml)
 
 L = np.linspace(-2., 5., 100)
+means, variances = jax.vmap(lambda x: cond_right(jnp.array([x, 0.]), X[:, [1,2]], *params))(L)
+means = means[:, 1, -1]
+variances = variances[:, 1, -1]
 
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
-    go.Scatter(y=L, x=jax.vmap(lambda y: cond_mean_right(jnp.array([0., y]), X[:, [1,2]], *params)[0])(L), mode='lines')
+    go.Scatter(x=L, y=means, mode='lines', name='Mean', line={'color': 'darkblue'}),
+    go.Scatter(x=L, y=means+np.sqrt(variances), mode='lines', name='Mean + 1 std', line={'color': 'grey'}),
+    go.Scatter(x=L, y=means-np.sqrt(variances), mode='lines', name='Mean - 1 std', line={'color': 'grey'}),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1}
 }
     )
-```
-
-```python
-
 ```
 
 ```python

@@ -96,7 +96,7 @@ def ref_log_kernel_noncentral(ncmtd):
     """
     return ref_log_kernel(as_padded_mtd(ncmtd))
 
-def ref_uni_cond_mean(mtd):
+def ref_uni_cond(mtd):
     """
     Conditional means of individual entries
     """
@@ -106,18 +106,22 @@ def ref_uni_cond_mean(mtd):
     inv_diag_left, inv_diag_right = inv_diag[:mtd.len_left], inv_diag[mtd.len_left:]
     inv_data = igmat[:mtd.len_left, mtd.len_left:]
 
-    dets = inv_diag_left[:, None] * inv_diag_right[None, :] + inv_data**2
+    inv_diag_prod = inv_diag_left[:, None] * inv_diag_right[None, :]
+    dets =inv_diag_prod + inv_data**2
 
     residuals = - inv_data / dets
 
-    return mtd.observed - residuals
+    dfs = mtd.dfs + (mtd.len_left - 1) + (mtd.len_right - 1)
+    means = mtd.observed - residuals
+    variances = inv_diag_prod / ((dfs - 2.) * dets**2)
+    return means, variances
 
-def ref_uni_cond_mean_noncentral(ncmtd):
+def ref_uni_cond_noncentral(ncmtd):
     """
     Conditional means of individual entries
     """
 
     mtd = as_padded_mtd(ncmtd)
-    padded_means = ref_uni_cond_mean(mtd)
+    padded_means, padded_vars = ref_uni_cond(mtd)
 
-    return padded_means[1:, :-1]
+    return padded_means[1:, :-1], padded_vars[1:, :-1]
