@@ -6,3 +6,5 @@ tqdm
 scipy
 pandas
 colorcet
+optax
+ipywidgets

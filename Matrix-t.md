@@ -75,9 +75,9 @@ def cond_right(x, X, *params):
 
 ```python
 dfs = 2.0
-scale = 0.5
-vmr = 0.01
-vml = 1000.
+scale = .5
+vmr = 1e-6
+vml = 1e6
 params = (dfs, scale, vmr, vml)
 axis = 1
 
@@ -115,12 +115,6 @@ go.Figure(go.Scatter(x=disc_clnp.flatten(), y=clnp.flatten(), mode='markers', ma
 ```
 
 ```python tags=[]
-dfs = 2.0
-scale = 0.5
-vmr = 0.01
-vml = 1000.
-params = (dfs, scale, vmr, vml)
-
 L = np.linspace(-2., 5., 100)
 means, variances, _logps = jax.vmap(lambda x: cond_right(jnp.array([x, 0.]), X[:, [1,2]], *params))(L)
 means = means[:, 1, -1]
