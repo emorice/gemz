@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import jax.numpy as jnp
+import jax.scipy.special as jsc
 
 @dataclass
 class MatrixT:
@@ -98,7 +99,7 @@ def ref_log_kernel_noncentral(ncmtd):
 
 def ref_uni_cond(mtd):
     """
-    Conditional means of individual entries
+    Conditional distributions of individual entries
     """
     igmat = jnp.linalg.inv(gen_matrix(mtd))
 
@@ -107,21 +108,21 @@ def ref_uni_cond(mtd):
     inv_data = igmat[:mtd.len_left, mtd.len_left:]
 
     inv_diag_prod = inv_diag_left[:, None] * inv_diag_right[None, :]
-    dets =inv_diag_prod + inv_data**2
+    dets = inv_diag_prod + inv_data**2
 
     residuals = - inv_data / dets
 
     dfs = mtd.dfs + (mtd.len_left - 1) + (mtd.len_right - 1)
     means = mtd.observed - residuals
     variances = inv_diag_prod / ((dfs - 2.) * dets**2)
-    return means, variances
+    logks = 0.5 * (dfs * jnp.log(inv_diag_prod) - (dfs - 1) * jnp.log(dets))
+    logps = logks - jsc.betaln(0.5 * dfs, 0.5)
+    return means, variances, logps
 
 def ref_uni_cond_noncentral(ncmtd):
     """
-    Conditional means of individual entries
+    Conditional distributions of individual entries
     """
 
     mtd = as_padded_mtd(ncmtd)
-    padded_means, padded_vars = ref_uni_cond(mtd)
-
-    return padded_means[1:, :-1], padded_vars[1:, :-1]
+    return tuple(stat[1:, :-1] for stat in ref_uni_cond(mtd))

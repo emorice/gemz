@@ -81,16 +81,32 @@ vml = 1000.
 params = (dfs, scale, vmr, vml)
 axis = 1
 
-L = np.linspace(-2., 5., 1000)
+L = np.linspace(-2., 5., 100)
 G = np.stack(np.meshgrid(L, L), -1)
+```
+
+```python tags=[]
 lnK = jax.vmap(lambda x: jax.vmap(lambda y: logk_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
+dL = L[1] - L[0]
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
-    go.Contour(x=L, y=L, z=-jnp.abs(.5 - jnp.cumsum(jnp.exp(lnK - jsc.logsumexp(lnK, axis, keepdims=True)), axis)), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale='blues', transpose=True),
+    go.Contour(x=L, y=L, z=jnp.exp(lnK - jsc.logsumexp(lnK, axis, keepdims=True))/dL, zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale='blues', transpose=True),
 ], layout={
-    'yaxis': {'scaleanchor': 'x', 'scaleratio': 1}
-}
-    )
+    'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
+    'title': 'Conditional by discrete integration'
+})
+```
+
+```python tags=[]
+_means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: cond_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
+clnp = all_clnps[:, :, axis, -1]
+go.Figure(data=[
+    go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
+    go.Contour(x=L, y=L, z=jnp.exp(clnp), contours={'coloring': 'heatmap'}, ncontours=10, colorscale='blues', transpose=True),
+], layout={
+    'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
+    'title': 'Conditional by direct calculation'
+})
 ```
 
 ```python tags=[]
@@ -101,7 +117,7 @@ vml = 1000.
 params = (dfs, scale, vmr, vml)
 
 L = np.linspace(-2., 5., 100)
-means, variances = jax.vmap(lambda x: cond_right(jnp.array([x, 0.]), X[:, [1,2]], *params))(L)
+means, variances, _logps = jax.vmap(lambda x: cond_right(jnp.array([x, 0.]), X[:, [1,2]], *params))(L)
 means = means[:, 1, -1]
 variances = variances[:, 1, -1]
 
