@@ -76,8 +76,8 @@ def logk_left(new, data, *params):
         make_std_mtd_left(new, data, *params)
     )
 
-dfs = 0.0
-scale = 1e-4
+dfs = 1.0
+scale = 1.0
 
 L = np.linspace(-3., 3., 100)
 G = np.stack(np.meshgrid(L, L), -1)
@@ -98,24 +98,20 @@ _m, _v, logps = matrix_t.ref_uni_cond(dist)
 ```
 
 ```python tags=[]
-go.Figure(data_trace.update({'marker': {'color': logps[0], 'colorscale': colorcet.CET_L18}}))
-```
-
-```python tags=[]
-go.Figure(data_trace.update({'marker': {'color': logps[1], 'colorscale': colorcet.CET_L18}}))
+go.Figure(go.Scatter(data_trace).update({'marker': {'color': logps[0], 'colorscale': colorcet.CET_L18}}))
 ```
 
 ```python tags=[]
 def nql(log_weights, dfs=dfs):
     dist = matrix_t.MatrixT(data, dfs, jnp.eye(2), jnp.diag(jnp.exp(log_weights)))
     _m, _v, logps = matrix_t.ref_uni_cond(dist)
-    return - np.sum(logps)
+    return - jnp.sum(logps) + 0.01*jnp.var(jnp.exp(-log_weights))
 ```
 
 ```python tags=[]
 opt = optax.adam(0.4)
 log_weights = jnp.zeros(N)
-state = opt.init(weights)
+state = opt.init(log_weights)
 trace = []
 for i in tqdm(range(100)):
     val, grad = jax.value_and_grad(nql)(log_weights)
@@ -126,6 +122,25 @@ for i in tqdm(range(100)):
 go.Figure(
     go.Scatter(x=np.arange(len(trace)), y=trace)
 )
+```
+
+```python
+go.Figure(
+    [
+        go.Scatter(y=np.exp(-log_weights[is_bg]), mode='markers', name='bg'),
+        go.Scatter(y=np.exp(-log_weights[~is_bg]), mode='markers', name='signal'),
+    ],
+    layout={
+        'yaxis': {'type': 'linear'}
+    }
+)
+```
+
+```python tags=[]
+go.Figure(go.Scatter(data_trace).update({
+    'text': np.exp(-log_weights),
+    'marker': {'color': -log_weights, 'colorscale': colorcet.CET_D8}
+}))
 ```
 
 ```python
