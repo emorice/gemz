@@ -50,15 +50,27 @@ X = np.array([[-1., 1., 2.],
 px.scatter(x=X[0], y=X[1])
 ```
 
-```python
-def lnk(X, dfs, scale, vml, vmr):
-    len1, len2 = X.shape
-    return matrix_t.ref_log_kernel_centered(X, dfs, np.eye(len1), np.eye(len2), scale, vml, vmr)
+```python tags=[]
+def make_std_ncmtd_right(x, X, *params):
+    dfs, *other_params = params
+    data = jnp.hstack((X, x[:, None]))
+    len1, len2 = data.shape
+    dist = matrix_t.NonCentralMatrixT(data, dfs, np.eye(len1), np.eye(len2), *other_params)
+    return dist
 ```
 
 ```python
 def cond_right(x, X, *params):
-    return lnk(jnp.hstack((X, x[:, None])), *params)
+    return matrix_t.ref_log_kernel_noncentral(
+        make_std_ncmtd_right(x, X, *params)
+    )
+```
+
+```python tags=[]
+def cond_mean_right(x, X, *params):
+    return matrix_t.ref_uni_cond_mean_noncentral(
+        make_std_ncmtd_right(x, X, *params)
+    )[:, -1]
 ```
 
 ```python
@@ -67,17 +79,40 @@ scale = 1.0
 vmr = 0.01
 vml = 1000.
 params = (dfs, scale, vmr, vml)
+axis = 0
 
 L = np.linspace(-2., 5., 1000)
 G = np.stack(np.meshgrid(L, L), -1)
 lnK = jax.vmap(lambda x: jax.vmap(lambda y: cond_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
-    go.Contour(x=L, y=L, z=-jnp.abs(.5 - jnp.cumsum(jnp.exp(lnK - jsc.logsumexp(lnK, -1, keepdims=True)), -1)), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale='blues', transpose=True),
+    go.Contour(x=L, y=L, z=-jnp.abs(.5 - jnp.cumsum(jnp.exp(lnK - jsc.logsumexp(lnK, axis, keepdims=True)), axis)), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale='blues', transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1}
 }
     )
+```
+
+```python tags=[]
+dfs = 2.0
+scale = 1.0
+vmr = 0.01
+vml = 1000.
+params = (dfs, scale, vmr, vml)
+
+L = np.linspace(-2., 5., 100)
+
+go.Figure(data=[
+    go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
+    go.Scatter(y=L, x=jax.vmap(lambda y: cond_mean_right(jnp.array([0., y]), X[:, [1,2]], *params)[0])(L), mode='lines')
+], layout={
+    'yaxis': {'scaleanchor': 'x', 'scaleratio': 1}
+}
+    )
+```
+
+```python
+
 ```
 
 ```python

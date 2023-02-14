@@ -23,7 +23,6 @@ class MatrixT:
         self.len_left = self.left.shape[-1]
         self.len_right = self.right.shape[-1]
 
-
 def gen_matrix(mtd):
     """
     Dense generating matrix
@@ -49,22 +48,76 @@ def ref_log_kernel(mtd):
             - 0.5 * (mtd.dfs + mtd.len_left + mtd.len_right - 1) * logdet
             )
 
-def ref_log_kernel_centered(data, dfs, left, right, scale, rel_var_mean_left,
-        rel_var_mean_right):
+@dataclass
+class NonCentralMatrixT:
+    """
+    MatrixT with marginalized mean parameters
+    """
+    observed: Any
+    dfs: float
+    left: Any
+    right: Any
+    scale: float
+    scale_mean_left: float
+    scale_mean_right: float
+    mean: Any = 0.
+
+    def __post_init__(self):
+        self.len_left = self.left.shape[-1]
+        self.len_right = self.right.shape[-1]
+
+def as_padded_mtd(ncmtd):
+    """
+    Generates the padded matrix t equivalent to a given non central matrix t
+
+    Data is padded on top and right (first row, last column)
+    """
+    len_left, len_right = ncmtd.len_left, ncmtd.len_right
+    scale = ncmtd.scale
+
+    padded_data = jnp.block(
+            [[ jnp.ones(len_right), 0. ],
+                [ ncmtd.observed, jnp.ones(len_left)[:, None] ]]
+            )
+    padded_left = jnp.block(
+            [[ ncmtd.scale_mean_left/scale, jnp.zeros(len_left) ],
+                [ jnp.zeros(len_left)[:, None], scale*ncmtd.left ]]
+            )
+    padded_right = jnp.block(
+            [[ scale*ncmtd.right, jnp.zeros(len_right)[:, None] ],
+             [ jnp.zeros(len_right), ncmtd.scale_mean_right/scale ]]
+            )
+
+    return MatrixT(padded_data, ncmtd.dfs, padded_left, padded_right)
+
+def ref_log_kernel_noncentral(ncmtd):
     """
     Matrix-t with left and right means marginalized out
     """
-    len_left, len_right = data.shape
-    padded_data = jnp.block(
-            [[ jnp.ones(len_right), 0. ],
-                [ data, jnp.ones(len_left)[:, None] ]]
-            )
-    padded_left = jnp.block(
-            [[ rel_var_mean_left/scale, jnp.zeros(len_left) ],
-                [ jnp.zeros(len_left)[:, None], scale*left ]]
-            )
-    padded_right = jnp.block(
-            [[ scale*right, jnp.zeros(len_right)[:, None] ],
-             [ jnp.zeros(len_right), rel_var_mean_right/scale ]]
-            )
-    return ref_log_kernel(MatrixT(padded_data, dfs, padded_left, padded_right))
+    return ref_log_kernel(as_padded_mtd(ncmtd))
+
+def ref_uni_cond_mean(mtd):
+    """
+    Conditional means of individual entries
+    """
+    igmat = jnp.linalg.inv(gen_matrix(mtd))
+
+    inv_diag = jnp.diagonal(igmat)
+    inv_diag_left, inv_diag_right = inv_diag[:mtd.len_left], inv_diag[mtd.len_left:]
+    inv_data = igmat[:mtd.len_left, mtd.len_left:]
+
+    dets = inv_diag_left[:, None] * inv_diag_right[None, :] + inv_data**2
+
+    residuals = - inv_data / dets
+
+    return mtd.observed - residuals
+
+def ref_uni_cond_mean_noncentral(ncmtd):
+    """
+    Conditional means of individual entries
+    """
+
+    mtd = as_padded_mtd(ncmtd)
+    padded_means = ref_uni_cond_mean(mtd)
+
+    return padded_means[1:, :-1]
