@@ -43,10 +43,12 @@ def ref_log_kernel(mtd):
     _sign, logdet_right = jnp.linalg.slogdet(mtd.right)
 
     _sign, logdet = jnp.linalg.slogdet(gen_matrix(mtd))
+    tdfs = mtd.dfs + mtd.len_left + mtd.len_right
+
     return (
-            0.5 * mtd.len_left * logdet_right
-            + 0.5 * mtd.len_right * logdet_left
-            - 0.5 * (mtd.dfs + mtd.len_left + mtd.len_right - 1) * logdet
+            0.5 * mtd.len_left * (tdfs - 2) * logdet_right
+            + 0.5 * mtd.len_right * (tdfs - 2) * logdet_left
+            - 0.5 * (tdfs - 1) * logdet
             )
 
 @dataclass
