@@ -38,7 +38,7 @@ plotly.io.templates.default = go.layout.Template(layout={
 ```
 
 ```python
-import matrix_t
+import matrix_t as mt
 ```
 
 ```python
@@ -47,38 +47,26 @@ X = np.array([[-1., 1., 2.],
 ```
 
 ```python
-px.scatter(x=X[0], y=X[1])
-```
-
-```python tags=[]
-def make_std_ncmtd_right(x, X, *params):
-    dfs, *other_params = params
-    data = jnp.hstack((X, x[:, None]))
-    len1, len2 = data.shape
-    dist = matrix_t.NonCentralMatrixTObservation(dfs, np.eye(len1), np.eye(len2), *other_params, data)
-    return dist
+data_trace = go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkblue'})
+go.Figure(data_trace)
 ```
 
 ```python
-def logk_right(x, X, *params):
-    return matrix_t.ref_log_kernel_noncentral(
-        make_std_ncmtd_right(x, X, *params)
-    )
-```
+Xsub = X[:, [1, 2]]
 
-```python tags=[]
-def cond_right(x, X, *params):
-    return matrix_t.ref_uni_cond_noncentral(
-        make_std_ncmtd_right(x, X, *params)
-    )
-```
-
-```python
-dfs = 2.0
 scale = .5
-vmr = 1e-6
-vml = 1e6
-params = (dfs, scale, vmr, vml)
+data = mt.NonCentralMatrixTObservation(
+    dfs=2.0,
+    left=jnp.eye(Xsub.shape[0])*scale,
+    right=jnp.eye(Xsub.shape[0])*scale,
+    gram_mean_left=1e-6 / scale,
+    #gram_mean_right=1e6 / scale,
+    gram_mean_right=None,
+    observed=Xsub
+)
+post = mt.nc_post_left(data)
+predictive = mt.from_left(post, np.eye(1)*scale)
+
 axis = 1
 
 L = np.linspace(-2., 5., 100)
@@ -86,11 +74,42 @@ G = np.stack(np.meshgrid(L, L), -1)
 ```
 
 ```python tags=[]
-lnK = jax.vmap(lambda x: jax.vmap(lambda y: logk_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
+predictive
+```
+
+```python tags=[]
+def pred_logp(x, y):
+    return mt.ref_log_pdf(
+        mt.observe_left_padded(predictive, jnp.array([x, y])[:, None])
+    )
+```
+
+```python tags=[]
+logK = jax.vmap(lambda x: jax.vmap(lambda y: pred_logp(x, y))(L))(L)
+```
+
+```python tags=[]
+# Badly normalized
 dL = L[1] - L[0]
-disc_clnp = lnK - jsc.logsumexp(lnK, axis, keepdims=True) - jnp.log(dL)
+_Z = jnp.exp(jsc.logsumexp(logK))*dL*dL
+print(_Z)
+logP = logK - jnp.log(_Z)
+```
+
+```python tags=[]
 go.Figure(data=[
-    go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkblue'}),
+    data_trace,
+    go.Contour(x=L, y=L, z=jnp.exp(logP), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
+], layout={
+    'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
+    'title': 'Predictive distribution'
+})
+```
+
+```python tags=[]
+disc_clnp = logK - jsc.logsumexp(logK, axis, keepdims=True) - jnp.log(dL)
+go.Figure(data=[
+    data_trace,
     go.Contour(x=L, y=L, z=jnp.exp(disc_clnp), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
@@ -99,8 +118,15 @@ go.Figure(data=[
 ```
 
 ```python tags=[]
-_means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: cond_right(jnp.array([x, y]), X[:, [1,2]], *params))(L))(L)
-clnp = all_clnps[:, :, axis, -1]
+def pred_uni(x, y):
+    return mt.ref_uni_cond(
+        mt.observe_left_padded(predictive, jnp.array([x, y])[:, None])
+    )
+```
+
+```python tags=[]
+_means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: pred_uni(x, y))(L))(L)
+clnp = all_clnps[:, :, 1+axis, -1]
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkblue'}),
     go.Contour(x=L, y=L, z=jnp.exp(clnp), contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
@@ -116,9 +142,9 @@ go.Figure(go.Scatter(x=disc_clnp.flatten(), y=clnp.flatten(), mode='markers', ma
 
 ```python tags=[]
 L = np.linspace(-2., 5., 100)
-means, variances, _logps = jax.vmap(lambda x: cond_right(jnp.array([x, 0.]), X[:, [1,2]], *params))(L)
-means = means[:, 1, -1]
-variances = variances[:, 1, -1]
+means, variances, _logps = jax.vmap(lambda x: pred_uni(x, 0.))(L)
+means = means[:, 1+1, -1]
+variances = variances[:, 1+1, -1]
 
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
@@ -129,8 +155,4 @@ go.Figure(data=[
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1}
 }
     )
-```
-
-```python
-
 ```

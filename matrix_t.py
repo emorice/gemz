@@ -77,23 +77,15 @@ def ref_log_pdf(mto):
             )
 
 @dataclass
-class NonCentralMatrixT:
+class NonCentralMatrixT(MatrixT):
     """
     MatrixT with marginalized mean parameters
+
+    Value "None" for any mean gram is treated as infinity, i.e., ignored and
+    equivalent to the central case
     """
-    dfs: float
-    left: Any
-    right: Any
-    scale: float
-    scale_mean_left: float
-    scale_mean_right: float
-
-    _: dc.KW_ONLY
-    mean: Any = 0.
-
-    def __post_init__(self):
-        self.len_left = self.left.shape[-1]
-        self.len_right = self.right.shape[-1]
+    gram_mean_left: float
+    gram_mean_right: float
 
 @dataclass
 class NonCentralMatrixTObservation(NonCentralMatrixT):
@@ -102,27 +94,52 @@ class NonCentralMatrixTObservation(NonCentralMatrixT):
     """
     observed: Any
 
-def as_padded_mto(ncmto):
+def as_padded_mto(ncmto: NonCentralMatrixTObservation):
     """
     Generates the padded matrix t equivalent to a given non central matrix t
 
     Data is padded on top and right (first row, last column)
     """
     len_left, len_right = ncmto.len_left, ncmto.len_right
-    scale = ncmto.scale
 
-    padded_data = jnp.block(
-            [[ jnp.ones(len_right), 0. ],
-                [ ncmto.observed, jnp.ones(len_left)[:, None] ]]
-            )
-    padded_left = jnp.block(
-            [[ ncmto.scale_mean_left/scale, jnp.zeros(len_left) ],
-                [ jnp.zeros(len_left)[:, None], scale*ncmto.left ]]
-            )
-    padded_right = jnp.block(
-            [[ scale*ncmto.right, jnp.zeros(len_right)[:, None] ],
-             [ jnp.zeros(len_right), ncmto.scale_mean_right/scale ]]
-            )
+    if ncmto.gram_mean_left is None:
+        if ncmto.gram_mean_right is None:
+            # Pad nothing
+            padded_data = ncmto.observed
+        else:
+            # Pad only right
+            padded_data = jnp.hstack((
+                ncmto.observed, jnp.ones(len_left)[:, None]
+                ))
+    else:
+        if ncmto.gram_mean_right is None:
+            # Pad only left
+            padded_data = jnp.vstack((
+                jnp.ones(len_right),
+                ncmto.observed
+                ))
+        else:
+            # Pad both. Mind the corner 0 !
+            padded_data = jnp.block([
+                [ jnp.ones(len_right),  0.                          ],
+                [ ncmto.observed,       jnp.ones(len_left)[:, None] ]
+                ])
+
+    if ncmto.gram_mean_left is None:
+        padded_left = ncmto.left
+    else:
+        padded_left = jnp.block(
+                [[ ncmto.gram_mean_left, jnp.zeros(len_left) ],
+                    [ jnp.zeros(len_left)[:, None], ncmto.left ]]
+                )
+
+    if ncmto.gram_mean_right is None:
+        padded_right = ncmto.right
+    else:
+        padded_right = jnp.block(
+                [[ ncmto.right, jnp.zeros(len_right)[:, None] ],
+                 [ jnp.zeros(len_right), ncmto.gram_mean_right ]]
+                )
 
     return MatrixTObservation(ncmto.dfs, padded_left, padded_right, padded_data)
 
@@ -156,14 +173,6 @@ def ref_uni_cond(mto: MatrixTObservation):
     logps = logks - jsc.betaln(0.5 * dfs, 0.5)
     return means, variances, logps
 
-def ref_uni_cond_noncentral(ncmto):
-    """
-    Conditional distributions of individual entries
-    """
-
-    mto = as_padded_mto(ncmto)
-    return tuple(stat[1:, :-1] for stat in ref_uni_cond(mto))
-
 @dataclass
 class Wishart:
     """
@@ -184,6 +193,17 @@ def post_left(mto: MatrixT) -> Wishart:
             )
         )
 
+def nc_post_left(ncmto: NonCentralMatrixT) -> Wishart:
+    """
+    Padded posterior Wishart.
+
+    The right pseudo data gets included as a sample if present, without
+    affecting dimension.
+    The left pseudo data becomes an extra dimension at the beginning if present.
+    """
+    mto = as_padded_mto(ncmto)
+    return post_left(mto)
+
 def from_left(wishart_left: Wishart, right, mean=0.) -> MatrixT:
     """
     Generate a matrix-t from an existing posterior left gram
@@ -200,3 +220,16 @@ def observe(mtd: MatrixT, data) -> MatrixTObservation:
     Pack distribution and data into an observation object
     """
     return MatrixTObservation(**dc.asdict(mtd), observed=data)
+
+def observe_left_padded(mtd: MatrixT, data):
+    """
+    Pack distribution and data into an observation object after padding data on
+    top
+    """
+    return MatrixTObservation(
+            **dc.asdict(mtd),
+            observed=jnp.vstack((
+                jnp.ones_like(data[0]),
+                data
+                ))
+            )
