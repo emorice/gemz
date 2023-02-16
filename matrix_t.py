@@ -2,7 +2,6 @@
 Matrix-t utils
 """
 
-
 import dataclasses as dc
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +17,7 @@ class MatrixT:
     dfs: float
     left: Any
     right: Any
+
     _: dc.KW_ONLY
     mean: Any = 0.
 
@@ -47,15 +47,15 @@ def log_norm_std(dfs, len_left, len_right):
         - jnp.sum(jsc.gammaln(args + 0.5*large))
         )
 
-def gen_matrix(mtd):
+def gen_matrix(mto):
     """
     Dense generating matrix
     """
-    cdata = mtd.observed - mtd.mean
+    cdata = mto.observed - mto.mean
 
     return jnp.block(
-        [[ mtd.left, cdata ],
-         [ (-cdata).T, mtd.right ]]
+        [[ mto.left, cdata ],
+         [ (-cdata).T, mto.right ]]
         )
 
 def ref_log_pdf(mto):
@@ -76,20 +76,18 @@ def ref_log_pdf(mto):
             - 0.5 * (mto.dfs + mto.len_left + mto.len_right - 1) * logdet
             )
 
-ref_log_kernel = ref_log_pdf
-
 @dataclass
 class NonCentralMatrixT:
     """
     MatrixT with marginalized mean parameters
     """
-    observed: Any
     dfs: float
     left: Any
     right: Any
     scale: float
     scale_mean_left: float
     scale_mean_right: float
+
     _: dc.KW_ONLY
     mean: Any = 0.
 
@@ -103,10 +101,6 @@ class NonCentralMatrixTObservation(NonCentralMatrixT):
     Observation from a noncentral mt
     """
     observed: Any
-
-    def __post_init__(self):
-        self.len_left = self.left.shape[-1]
-        self.len_right = self.right.shape[-1]
 
 def as_padded_mto(ncmto):
     """
@@ -201,7 +195,7 @@ def from_left(wishart_left: Wishart, right, mean=0.) -> MatrixT:
             mean=mean
             )
 
-def observe(mtd: MatrixT, data):
+def observe(mtd: MatrixT, data) -> MatrixTObservation:
     """
     Pack distribution and data into an observation object
     """

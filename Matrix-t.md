@@ -55,7 +55,7 @@ def make_std_ncmtd_right(x, X, *params):
     dfs, *other_params = params
     data = jnp.hstack((X, x[:, None]))
     len1, len2 = data.shape
-    dist = matrix_t.NonCentralMatrixT(data, dfs, np.eye(len1), np.eye(len2), *other_params)
+    dist = matrix_t.NonCentralMatrixTObservation(dfs, np.eye(len1), np.eye(len2), *other_params, data)
     return dist
 ```
 
