@@ -181,7 +181,7 @@ class Wishart:
     dfs: float
     gram: Any
 
-def post_left(mto: MatrixT) -> Wishart:
+def post_left(mto: MatrixTObservation) -> Wishart:
     """
     Compute the posterior distribution of the left gram matrix after observing
     data
@@ -193,7 +193,7 @@ def post_left(mto: MatrixT) -> Wishart:
             )
         )
 
-def nc_post_left(ncmto: NonCentralMatrixT) -> Wishart:
+def nc_post_left(ncmto: NonCentralMatrixTObservation) -> Wishart:
     """
     Padded posterior Wishart.
 
