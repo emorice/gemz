@@ -41,6 +41,10 @@ plotly.io.templates.default = go.layout.Template(layout={
 import matrix_t as mt
 ```
 
+```python tags=[]
+import block_mt as bmt
+```
+
 ```python
 X = np.array([[-1., 1., 2.],
               [-1., 1.5, 2.]])
@@ -53,19 +57,21 @@ go.Figure(data_trace)
 
 ```python
 Xsub = X[:, [1, 2]]
-
 scale = .5
-data = mt.NonCentralMatrixTObservation(
+
+data = bmt.NonCentralMatrixT.from_params(
     dfs=2.0,
     left=jnp.eye(Xsub.shape[0])*scale,
     right=jnp.eye(Xsub.shape[1])*scale,
     gram_mean_left=1e-6 / scale,
-    #gram_mean_right=1e6 / scale,
-    gram_mean_right=None,
-    observed=Xsub
+    gram_mean_right=None
+).observe(Xsub)
+
+predictive = (
+    data
+    .post_left()
+    .extend_right(np.eye(1)*scale)
 )
-post = mt.nc_post_left(data)
-predictive = mt.from_left(post, np.eye(1)*scale)
 
 axis = 1
 
@@ -74,14 +80,8 @@ G = np.stack(np.meshgrid(L, L), -1)
 ```
 
 ```python tags=[]
-predictive
-```
-
-```python tags=[]
 def pred_logp(x, y):
-    return mt.ref_log_pdf(
-        mt.observe_left_padded(predictive, jnp.array([x, y])[:, None])
-    )
+    return predictive.observe(jnp.array([x, y])[:, None]).log_pdf()
 ```
 
 ```python tags=[]
@@ -119,14 +119,12 @@ go.Figure(data=[
 
 ```python tags=[]
 def pred_uni(x, y):
-    return mt.ref_uni_cond(
-        mt.observe_left_padded(predictive, jnp.array([x, y])[:, None])
-    )
+    return predictive.observe(jnp.array([[x, y]]).T).uni_cond()
 ```
 
 ```python tags=[]
 _means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: pred_uni(x, y))(L))(L)
-clnp = all_clnps[:, :, 1+axis, -1]
+clnp = all_clnps[:, :, axis, -1]
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkblue'}),
     go.Contour(x=L, y=L, z=jnp.exp(clnp), contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
@@ -143,8 +141,8 @@ go.Figure(go.Scatter(x=disc_clnp.flatten(), y=clnp.flatten(), mode='markers', ma
 ```python tags=[]
 L = np.linspace(-2., 5., 100)
 means, variances, _logps = jax.vmap(lambda x: pred_uni(x, 0.))(L)
-means = means[:, 1+1, -1]
-variances = variances[:, 1+1, -1]
+means = means[:, 1, -1]
+variances = variances[:, 1, -1]
 
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
