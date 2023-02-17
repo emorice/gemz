@@ -98,13 +98,41 @@ class BlockMatrix:
             left_dims[left], right_dims[right] = value.shape
         return cls(left_dims, right_dims, blocks)
 
+    @classmethod
+    def zero(cls):
+        """
+        Empty block matrix, logically treated as zero
+        """
+        return cls.from_blocks({})
+
     def __setitem__(self, key, value):
         left, right = key
         self.left_dims[left], self.right_dims[right] = value.shape
         self.blocks[key] = value
 
     def __getitem__(self, key):
+        left, right = key
+
+        if self._is_multikey(left) or self._is_multikey(right):
+            left = self._as_multikey(left, axis=0)
+            right = self._as_multikey(right, axis=1)
+            blocks = {}
+            for (_left, _right), block in self.blocks.items():
+                if _left in left and _right in right:
+                    blocks[_left, _right] = block
+            return self.__class__.from_blocks(blocks)
+
         return self.blocks[key]
+
+    def _is_multikey(self, key):
+        return isinstance(key, (set, list, slice, type({}.keys())))
+
+    def _as_multikey(self, key, axis):
+        if key == slice(None):
+            return (self.left_dims.keys(), self.right_dims.keys())[axis]
+        if self._is_multikey(key):
+            return key
+        return {key}
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -118,6 +146,11 @@ class BlockMatrix:
                 self.left_dims | other.left_dims,
                 self.right_dims | other.right_dims,
                 self.blocks | other.blocks
+                )
+
+    def clone(self):
+        return self.__class__(dict(self.left_dims), dict(self.right_dims),
+                dict(self.blocks)
                 )
 
 def dok_to_lol(left_dims: dict, right_dims: dict, dok: dict[Any, dict]

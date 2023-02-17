@@ -85,15 +85,14 @@ def pred_logp(x, y):
 ```
 
 ```python tags=[]
-logK = jax.vmap(lambda x: jax.vmap(lambda y: pred_logp(x, y))(L))(L)
+logP = jax.vmap(lambda x: jax.vmap(lambda y: pred_logp(x, y))(L))(L)
 ```
 
 ```python tags=[]
-# Badly normalized
+# Well normalized
 dL = L[1] - L[0]
-_Z = jnp.exp(jsc.logsumexp(logK))*dL*dL
+_Z = jnp.exp(jsc.logsumexp(logP))*dL*dL
 print(_Z)
-logP = logK - jnp.log(_Z)
 ```
 
 ```python tags=[]
@@ -107,7 +106,7 @@ go.Figure(data=[
 ```
 
 ```python tags=[]
-disc_clnp = logK - jsc.logsumexp(logK, axis, keepdims=True) - jnp.log(dL)
+disc_clnp = logP - jsc.logsumexp(logP, axis, keepdims=True) - jnp.log(dL)
 go.Figure(data=[
     data_trace,
     go.Contour(x=L, y=L, z=jnp.exp(disc_clnp), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),

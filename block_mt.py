@@ -23,7 +23,7 @@ class MatrixT:
     right: BlockMatrix
 
     _: dc.KW_ONLY
-    mean: BlockMatrix | None = None
+    mean: BlockMatrix = dc.field(default_factory=BlockMatrix.zero)
 
     def observe(self, observed: BlockMatrix) -> 'MatrixTObservation':
         """
@@ -44,6 +44,29 @@ class MatrixT:
                 self.left.as_dense(),
                 self.right.as_dense()
                 )
+
+    def condition_left(self, observed: BlockMatrix) -> 'MatrixT':
+        """
+        Condition on block rows of partial observations
+        """
+        keys = observed.left_dims.keys()
+        ckeys = self.left.left_dims.keys() - keys
+
+        centered = observed - self.mean[keys, :]
+        pivot = self.left[keys, keys]
+        inv_pivot = np.linalg.inv(pivot)
+        trans = inv_pivot @ centered
+
+        cond_left = self.left[ckeys, ckeys] - self.left[ckeys, keys] @ (
+                inv_pivot @ self.left[keys, ckeys]
+                )
+        cond_right = self.right + centered.T @ trans
+        cond_mean = self.mean[ckeys, :] + self.left[ckeys, keys] @ trans
+        cond_dfs = self.dfs + observed.shape[-2]
+
+        return self.__class__(cond_dfs, cond_left, cond_right, mean=cond_mean)
+
+
 
 @dataclass
 class MatrixTObservation:
@@ -130,7 +153,7 @@ class Wishart:
                 dfs=self.dfs,
                 left=self.gram,
                 right=right,
-                mean=mean
+                mean=mean if mean is not None else BlockMatrix.zero(),
                 )
 
 @dataclass
@@ -167,20 +190,11 @@ class NonCentralMatrixT:
 
         This adds lift variables as needed.
         """
-        _observed = { ('left', 'right'): observed }
+        _observed = BlockMatrix.from_blocks(
+                { ('left', 'right'): observed }
+                )
 
-        if 'left_lift' in self.mtd.left.left_dims:
-            _observed['left_lift', 'right'] = jnp.ones((
-                1, observed.shape[-1]
-                ))
-        if 'right_lift' in self.mtd.right.right_dims:
-            _observed['left', 'right_lift'] = jnp.ones((
-                observed.shape[-2], 1
-                ))
-
-        # right_lift, left_lift implicitly set as zero
-        mto = self.mtd.observe(BlockMatrix.from_blocks(_observed))
-        return NonCentralMatrixTObservation(mto)
+        return NonCentralMatrixTObservation(self, _observed)
 
     @classmethod
     def from_left(cls, wishart_left: Wishart, right):
@@ -197,6 +211,20 @@ class NonCentralMatrixT:
         mtd = wishart_left.extend_right(BlockMatrix.from_blocks(right))
         return cls(mtd)
 
+    def condition_on_lift(self) -> MatrixT:
+        """
+        Condition on lift variables
+        """
+        if 'right_lift' in self.mtd.right.right_dims:
+            raise NotImplementedError
+        if 'left_lift' in self.mtd.left.left_dims:
+            mtd = self.mtd.condition_left(BlockMatrix.from_blocks({
+                ('left_lift', 'right'): jnp.ones((
+                    1, self.mtd.right.right_dims['right']
+                    ))
+                }))
+        return mtd
+
 @dataclass
 class NonCentralMatrixTObservation:
     """
@@ -204,27 +232,48 @@ class NonCentralMatrixTObservation:
 
     Wrapper around a representation as a central matrix-t with lift dimensions
     """
-    mto: MatrixTObservation
+    ncmtd: NonCentralMatrixT
+    observed: BlockMatrix
+
+    def as_mto(self):
+        """
+        Represent self as a central matrix-t
+        """
+        _observed = self.observed.clone()
+
+        if 'left_lift' in self.ncmtd.mtd.left.left_dims:
+            _observed['left_lift', 'right'] = jnp.ones((
+                1, self.ncmtd.mtd.right.right_dims['right']
+                ))
+        if 'right_lift' in self.ncmtd.mtd.right.right_dims:
+            _observed['left', 'right_lift'] = jnp.ones((
+                self.ncmtd.mtd.left.left_dims['left'], 1
+                ))
+
+        # right_lift, left_lift implicitly set as zero
+        mto = self.ncmtd.mtd.observe(_observed)
+
+        return mto
 
     def post_left(self) -> 'NCWishart':
         """
         Compute the posterior distribution of the (block) left gram matrix after observing
         (block) data
         """
-        return NCWishart(self.mto.post_left())
+        return NCWishart(self.as_mto().post_left())
 
     def log_pdf(self):
         """
         Log density function
         """
-        print('FIXME: this is a dummy')
-        return self.mto.log_pdf()
+        cond_mtd = self.ncmtd.condition_on_lift()
+        return cond_mtd.observe(self.observed).log_pdf()
 
     def uni_cond(self) -> tuple:
         """
         One-dimensional conditionals
         """
-        all_stats = self.mto.uni_cond()
+        all_stats = self.as_mto().uni_cond()
 
         return tuple(
             stat['left', 'right']
