@@ -5,16 +5,20 @@ Block-wise description of matrix-t variates
 import dataclasses as dc
 
 from dataclasses import dataclass
+from typing import TypeVar, Generic
 
 import numpy as np
 import jax.numpy as jnp
+import jax.scipy.special as jsc
 
 from block import BlockMatrix
 
 import matrix_t as mt
 
+Matrix = TypeVar('Matrix')
+
 @dataclass
-class MatrixT:
+class MatrixT(Generic[Matrix]):
     """
     Specification of a matrix-t distribution
     """
@@ -23,7 +27,7 @@ class MatrixT:
     right: BlockMatrix
 
     _: dc.KW_ONLY
-    mean: BlockMatrix = dc.field(default_factory=BlockMatrix.zero)
+    mean: BlockMatrix = dc.field(default_factory=BlockMatrix.zero2d)
 
     def observe(self, observed: BlockMatrix) -> 'MatrixTObservation':
         """
@@ -49,8 +53,8 @@ class MatrixT:
         """
         Condition on block rows of partial observations
         """
-        keys = observed.left_dims.keys()
-        ckeys = self.left.left_dims.keys() - keys
+        keys = observed.dims[-2].keys()
+        ckeys = self.left.dims[-1].keys() - keys
 
         centered = observed - self.mean[keys, :]
         pivot = self.left[keys, keys]
@@ -69,7 +73,7 @@ class MatrixT:
 
 
 @dataclass
-class MatrixTObservation:
+class MatrixTObservation(Generic[Matrix]):
     """
     Observation from the parent matrix-t distribution
     """
@@ -122,7 +126,7 @@ class MatrixTObservation:
         mtd = self.mtd.as_dense()
         return mt.observe(mtd, self.observed.as_dense())
 
-    def uni_cond(self) -> tuple:
+    def uni_cond(self) -> tuple[Matrix, ...]:
         """
         One-dimensional conditionals
         """
@@ -130,9 +134,37 @@ class MatrixTObservation:
         dense_stats = mt.ref_uni_cond(dense_mto)
 
         return tuple(
-            BlockMatrix.from_dense(self.observed.left_dims, self.observed.right_dims, stat)
+            BlockMatrix.from_dense(self.observed.dims, stat)
             for stat in dense_stats
             )
+
+    def _uni_cond(self) -> tuple[Matrix, ...]:
+        """
+        Conditional distributions of individual entries
+        """
+        igmat = np.linalg.inv(self.generator())
+
+        ldims = self.mtd.left.dims[-1].keys()
+        rdims = self.mtd.right.dims[-1].keys()
+
+        inv_diag = np.diagonal(igmat)
+        inv_diag_left, inv_diag_right = inv_diag[ldims], inv_diag[rdims]
+
+        inv_data = igmat[ldims, rdims]
+
+        # Broken from here, wip
+        inv_diag_prod = inv_diag_left[:, None] * inv_diag_right[None, :]
+
+        dets = inv_diag_prod + inv_data**2
+
+        residuals = - inv_data / dets
+
+        dfs = self.mtd.dfs + (self.mtd.len_left - 1) + (self.mtd.len_right - 1)
+        means = self.observed - residuals
+        variances = inv_diag_prod / ((dfs - 2.) * dets**2)
+        logks = 0.5 * (dfs * np.log(inv_diag_prod) - (dfs - 1) * np.log(dets))
+        logps = logks - jsc.betaln(0.5 * dfs, 0.5)
+        return means, variances, logps
 
 @dataclass
 class Wishart:
@@ -153,7 +185,7 @@ class Wishart:
                 dfs=self.dfs,
                 left=self.gram,
                 right=right,
-                mean=mean if mean is not None else BlockMatrix.zero(),
+                mean=mean if mean is not None else BlockMatrix.zero2d(),
                 )
 
 @dataclass
@@ -215,12 +247,12 @@ class NonCentralMatrixT:
         """
         Condition on lift variables
         """
-        if 'right_lift' in self.mtd.right.right_dims:
+        if 'right_lift' in self.mtd.right.dims[-1]:
             raise NotImplementedError
-        if 'left_lift' in self.mtd.left.left_dims:
+        if 'left_lift' in self.mtd.left.dims[-1]:
             mtd = self.mtd.condition_left(BlockMatrix.from_blocks({
                 ('left_lift', 'right'): jnp.ones((
-                    1, self.mtd.right.right_dims['right']
+                    1, self.mtd.right.dims[-1]['right']
                     ))
                 }))
         return mtd
@@ -241,13 +273,13 @@ class NonCentralMatrixTObservation:
         """
         _observed = self.observed.clone()
 
-        if 'left_lift' in self.ncmtd.mtd.left.left_dims:
+        if 'left_lift' in self.ncmtd.mtd.left.dims[-1]:
             _observed['left_lift', 'right'] = jnp.ones((
-                1, self.ncmtd.mtd.right.right_dims['right']
+                1, self.ncmtd.mtd.right.dims[-1]['right']
                 ))
-        if 'right_lift' in self.ncmtd.mtd.right.right_dims:
+        if 'right_lift' in self.ncmtd.mtd.right.dims[-1]:
             _observed['left', 'right_lift'] = jnp.ones((
-                self.ncmtd.mtd.left.left_dims['left'], 1
+                self.ncmtd.mtd.left.dims[-1]['left'], 1
                 ))
 
         # right_lift, left_lift implicitly set as zero

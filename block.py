@@ -7,6 +7,8 @@ import operator
 from dataclasses import dataclass
 from functools import partial
 from typing import Any
+from collections import defaultdict
+from collections.abc import KeysView
 
 import numpy as np
 import jax.numpy as jnp
@@ -17,49 +19,78 @@ class BlockMatrix:
     Wrapper around a dict of array-like objects representing a block matrix
     """
 
-    left_dims: dict[Any, int]
-    right_dims: dict[Any, int]
+    dims: tuple[dict, ...]
     blocks: dict
 
     def __add__(self, other):
         return self.__class__(
-                self.left_dims, self.right_dims,
+                self.dims,
                 dok_add(self.blocks, other.blocks)
                 )
 
     def __sub__(self, other):
         return self.__class__(
-                self.left_dims, self.right_dims,
+                self.dims,
                 dok_sub(self.blocks, other.blocks)
                 )
 
     def __neg__(self):
         return self.__class__(
-                self.left_dims, self.right_dims,
+                self.dims,
                 dok_neg(self.blocks)
                 )
 
     def __matmul__(self, other):
         return self.__class__(
-                self.left_dims, other.right_dims,
+                self.dims,
                 dok_product(self.blocks, other.blocks)
                 )
 
     def __array_function__(self, func, types, args, kwargs):
         if func is np.linalg.inv:
-            if self.left_dims != self.right_dims:
-                raise RuntimeError('Matrix is not square')
+            self._ensure_square()
             return self.__class__(
-                    self.left_dims, self.right_dims,
-                    dok_inv(self.left_dims, self.blocks)
+                    self.dims,
+                    dok_inv(self.dims[-1], self.blocks)
                     )
 
         if func is np.linalg.slogdet:
-            if self.left_dims != self.right_dims:
-                raise RuntimeError('Matrix is not square')
-            return dok_slogdet(self.left_dims, self.blocks)
+            self._ensure_square()
+            return dok_slogdet(self.dims[-1], self.blocks)
+
+        if func is np.diagonal:
+            return self.diagonal()
 
         return NotImplemented
+
+    def _ensure_square(self, axis1=-2, axis2=-1):
+        """
+        Raise if not square
+        """
+        if len(self.dims) >= 2:
+            if self.dims[axis1] == self.dims[axis2]:
+                return
+        raise RuntimeError('Matrix is not square')
+
+    def diagonal(self, axis1=0, axis2=1):
+        """
+        Diagonal of square array
+        """
+        # Note: the numpy convention is unfortunate here, last and
+        # second-to-last axes as default would be more consistent. Sticking with
+        # numpy api nethertheless for least surprise.
+        # Resulting axis is appended at the end, which by itself is sound but
+        # makes the defaults even weirder.
+        self._ensure_square(axis1, axis2)
+
+        blocks = {}
+        for key, value in self.blocks.items():
+            if key[axis1] == key[axis2]:
+                new_key = tuple(ki for i, ki in enumerate(key)
+                                if i not in (axis1, axis2))
+                new_key = (*new_key, key[axis1])
+                blocks[new_key] = value
+        return self.__class__.from_blocks(blocks)
 
     @property
     def T(self): # pylint: disable=invalid-name
@@ -67,7 +98,7 @@ class BlockMatrix:
         Transpose
         """
         return self.__class__(
-                self.right_dims, self.left_dims,
+                self.dims[::-1],
                 dok_transpose(self.blocks)
                 )
 
@@ -75,16 +106,16 @@ class BlockMatrix:
         """
         Concatenate all blocks into a dense matrix
         """
-        return dok_to_dense(self.left_dims, self.right_dims, self.blocks)
+        return dok_to_dense(self.dims, self.blocks)
 
     @classmethod
-    def from_dense(cls, left_dims, right_dims, dense):
+    def from_dense(cls, dims: tuple, dense):
         """
         Split dense matrix into blocks
         """
         return cls(
-                left_dims, right_dims,
-                dense_to_dok(left_dims, right_dims, dense)
+                dims,
+                dense_to_dok(dims, dense)
                 )
 
     @classmethod
@@ -92,11 +123,13 @@ class BlockMatrix:
         """
         Build matrix from dictionnary of blocks, inferring dimensions
         """
-        left_dims = {}
-        right_dims = {}
-        for (left, right), value in blocks.items():
-            left_dims[left], right_dims[right] = value.shape
-        return cls(left_dims, right_dims, blocks)
+        dims : dict[int, dict] = defaultdict(dict)
+        for key, value in blocks.items():
+            for idim, (key_item, length) in enumerate(
+                    zip(key, np.shape(value))
+                    ):
+                dims[idim][key_item] = length
+        return cls(tuple(dims.values()), blocks)
 
     @classmethod
     def zero(cls):
@@ -105,99 +138,122 @@ class BlockMatrix:
         """
         return cls.from_blocks({})
 
+    @classmethod
+    def zero2d(cls):
+        """
+        Empty block matrix, logically treated as zero, but still considered
+        2-dimensional
+        """
+        return cls(({}, {}), {})
+
     def __setitem__(self, key, value):
-        left, right = key
-        self.left_dims[left], self.right_dims[right] = value.shape
+        for idim, (key_item, length) in enumerate(
+                zip(key, np.shape(value))
+                ):
+            self.dims[idim][key_item] = length
         self.blocks[key] = value
 
     def __getitem__(self, key):
-        left, right = key
+        # Indexing a 1d array with a set, normalize to a 1-tuple
+        if self._is_multikey(key):
+            key = (key,)
 
-        if self._is_multikey(left) or self._is_multikey(right):
-            left = self._as_multikey(left, axis=0)
-            right = self._as_multikey(right, axis=1)
+        # At this point key is a dim-matching tuple, except simple key for 1-d
+        # case
+
+        if isinstance(key, tuple) and any(self._is_multikey(ki) for ki in key):
+            key = tuple(self._as_multikey(ki, axis=i)
+                    for i, ki in enumerate(key))
             blocks = {}
-            for (_left, _right), block in self.blocks.items():
-                if _left in left and _right in right:
-                    blocks[_left, _right] = block
+            for _key, block in self.blocks.items():
+                if all(ki in kset for ki, kset in zip(_key, key)):
+                    blocks[_key] = block
             return self.__class__.from_blocks(blocks)
 
+        # Todo: normalize simple 1-tuples
         return self.blocks[key]
 
     def _is_multikey(self, key):
-        return isinstance(key, (set, list, slice, type({}.keys())))
+        return isinstance(key, (set, list, slice, KeysView))
 
     def _as_multikey(self, key, axis):
         if key == slice(None):
-            return (self.left_dims.keys(), self.right_dims.keys())[axis]
+            return self.dims[axis].keys()
         if self._is_multikey(key):
             return key
         return {key}
 
     @property
-    def shape(self) -> tuple[int, int]:
+    def shape(self) -> tuple[int, ...]:
         """
         Total shape, summing over blocks shapes
         """
-        return (sum(self.left_dims.values()), sum(self.right_dims.values()))
+        return tuple(sum(dim.values()) for dim in self.dims)
 
     def __or__(self, other):
         return self.__class__(
-                self.left_dims | other.left_dims,
-                self.right_dims | other.right_dims,
+                tuple(sdim | odim for (sdim, odim) in
+                      zip(self.dims, other.dims)),
                 self.blocks | other.blocks
                 )
 
     def clone(self):
-        return self.__class__(dict(self.left_dims), dict(self.right_dims),
+        """
+        Copy of self. The blocks are not copied.
+        """
+        return self.__class__(
+                tuple(dict(dim) for dim in self.dims),
                 dict(self.blocks)
                 )
 
-def dok_to_lol(left_dims: dict, right_dims: dict, dok: dict[Any, dict]
-               ) -> list[list]:
+def dok_to_lol(dims: tuple[dict, ...], dok: dict) -> list:
     """
-    Convert dict-of-dict to list-of-list with the given orderings
+    Convert dict of blocks to nested lists with the given orderings
     If entries are missing, they are replaced with dense 0 matrices of the
     correct dimension.
     """
+    if len(dims) != 2:
+        raise NotImplementedError
     return [
             [
                 dok[ikey, jkey]
                 if (ikey, jkey) in dok
                 else jnp.zeros((ilen, jlen))
-                for jkey, jlen in right_dims.items()
+                for jkey, jlen in dims[1].items()
             ]
-            for ikey, ilen in left_dims.items()
+            for ikey, ilen in dims[0].items()
             ]
 
-def dok_to_dense(left_dims: dict, right_dims: dict, dok: dict[Any, dict]):
+def dok_to_dense(dims: tuple[dict, ...], dok: dict):
     """
     Convert dict-of-dict to dense matrix
     """
-    return jnp.block(dok_to_lol(left_dims, right_dims, dok))
+    return jnp.block(dok_to_lol(dims, dok))
 
-def dense_to_dok(left_dims: dict[Any, int], right_dims: dict[Any, int], dense):
+def dense_to_dok(dims: tuple[dict[Any, int], ...], dense):
     """
     Split a dense matrix back into a DoK according to partitions
     """
+    if len(dims) != 2:
+        raise NotImplementedError
     dok = {}
     i = 0
-    for left_key, left_len in left_dims.items():
+    for left_key, left_len in dims[0].items():
         j = 0
-        for right_key, right_len in right_dims.items():
+        for right_key, right_len in dims[1].items():
             dok[left_key, right_key] = dense[i:i+left_len, j:j+right_len]
             j += right_len
         i += left_len
     return dok
 
-def dok_inv(dims: dict[Any, int], dok: dict):
+def dok_inv(dim: dict[Any, int], dok: dict):
     """
     Naive DoK invert by dense intermediate
     """
     return dense_to_dok(
-        dims, dims,
+        (dim, dim),
         jnp.linalg.inv(
-            dok_to_dense(dims, dims, dok)
+            dok_to_dense((dim, dim), dok)
             )
         )
 
@@ -240,13 +296,13 @@ def dok_map(function, *doks: dict, fill=None):
         for keys in all_keys
         }
 
-def dok_transpose(dok: dict):
+def dok_transpose(dok: dict) -> dict:
     """
     Transpose a DoK
     """
     return {
-        (right_key, left_key): value.T
-        for (left_key, right_key), value in dok.items()
+            key[::-1]: value.T
+        for key, value in dok.items()
         }
 
 def dok_slogdet(dims: dict[Any, int], dok: dict[Any, dict]):
@@ -254,7 +310,7 @@ def dok_slogdet(dims: dict[Any, int], dok: dict[Any, dict]):
     Naive determinant of dict-of-dict block matrix
     """
     return  jnp.linalg.slogdet(
-        dok_to_dense(dims, dims, dok)
+        dok_to_dense((dims, dims), dok)
         )
 
 dok_add = partial(dok_map, operator.add, fill=0.)
