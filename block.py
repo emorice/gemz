@@ -22,18 +22,23 @@ class BlockMatrix:
     dims: tuple[dict, ...]
     blocks: dict
 
+    # Block-wise operators
     def __add__(self, other):
-        return self.__class__(
-                self.dims,
-                dok_add(self.blocks, other.blocks)
-                )
+        return blockwise_binop(operator.add, self, other)
 
     def __sub__(self, other):
-        return self.__class__(
-                self.dims,
-                dok_sub(self.blocks, other.blocks)
-                )
+        return blockwise_binop(operator.sub, self, other)
 
+    def __truediv__(self, other):
+        return blockwise_binop(operator.truediv, self, other)
+
+    def __rmul__(self, other):
+        return blockwise_binop(operator.mul, other, self)
+
+    def __pow__(self, other):
+        return blockwise_binop(operator.pow, self, other)
+
+    # Other operators
     def __neg__(self):
         return self.__class__(
                 self.dims,
@@ -45,6 +50,8 @@ class BlockMatrix:
                 self.dims,
                 dok_product(self.blocks, other.blocks)
                 )
+
+    # Numpy protocol
 
     def __array_function__(self, func, types, args, kwargs):
         if func is np.linalg.inv:
@@ -61,7 +68,33 @@ class BlockMatrix:
         if func is np.diagonal:
             return self.diagonal()
 
+        if func is np.outer:
+            if kwargs or len(args) != 2 or args[0] is not self:
+                return NotImplemented
+            return self._outer(args[1])
+
         return NotImplemented
+
+    def __array_ufunc__(self, ufunc, name, *args, **kwargs):
+        if name == '__call__':
+            if len(args) == 1 and args[0] is self and not kwargs:
+                jax_ufunc = getattr(jnp, ufunc.__name__)
+                return self.__class__(
+                        self.dims,
+                        dok_map(jax_ufunc, self.blocks)
+                        )
+        return NotImplemented
+
+    def _outer(self, other):
+        """
+        Technically not consistent with np.outer as this does not flatten
+        arguments
+        """
+        blocks = {}
+        for skey, svalue in self.blocks.items():
+            for okey, ovalue in other.blocks.items():
+                blocks[tuple((*skey, *okey))] = jnp.outer(svalue, ovalue)
+        return self.__class__.from_blocks(blocks)
 
     def _ensure_square(self, axis1=-2, axis2=-1):
         """
@@ -89,7 +122,7 @@ class BlockMatrix:
                 new_key = tuple(ki for i, ki in enumerate(key)
                                 if i not in (axis1, axis2))
                 new_key = (*new_key, key[axis1])
-                blocks[new_key] = value
+                blocks[new_key] = jnp.diagonal(value)
         return self.__class__.from_blocks(blocks)
 
     @property
@@ -205,6 +238,36 @@ class BlockMatrix:
                 tuple(dict(dim) for dim in self.dims),
                 dict(self.blocks)
                 )
+
+
+def blockwise_binop(binop, left, right):
+    """
+    Generic implementation of binary operators that act block per block
+    """
+    if isinstance(left, BlockMatrix):
+        if isinstance(right, BlockMatrix):
+            # Two block matrices, do a binary map
+            # Class and dims arbitrarily taken from left arg
+            # Missing blocks treated as as scalar zeros
+            return left.__class__(
+                left.dims,
+                dok_map(binop, left.blocks, right.blocks, fill=0.)
+                )
+        # Left is block but right is not. Try to broadcast right against all
+        # blocks
+        return left.__class__(
+            left.dims,
+            dok_map(lambda b: binop(b, right), left.blocks)
+            )
+    if isinstance(right, BlockMatrix):
+        # Right is block but left is not. Try to broadcast left against all
+        # blocks of right
+        return right.__class__(
+            right.dims,
+            dok_map(lambda b: binop(left, b), right.blocks)
+            )
+    # None are blocks
+    raise NotImplementedError
 
 def dok_to_lol(dims: tuple[dict, ...], dok: dict) -> list:
     """

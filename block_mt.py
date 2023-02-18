@@ -153,7 +153,11 @@ class MatrixTObservation(Generic[Matrix]):
         inv_data = igmat[ldims, rdims]
 
         # Broken from here, wip
-        inv_diag_prod = inv_diag_left[:, None] * inv_diag_right[None, :]
+        # Note on the outer product: np.outer is a legacy function.
+        # np.ufunc.outer is more general, but has no jax implementation.
+        # Using broadcasting would probably be the most portable, but is more
+        # work to implement
+        inv_diag_prod = np.outer(inv_diag_left, inv_diag_right)
 
         dets = inv_diag_prod + inv_data**2
 
@@ -305,7 +309,7 @@ class NonCentralMatrixTObservation:
         """
         One-dimensional conditionals
         """
-        all_stats = self.as_mto().uni_cond()
+        all_stats = self.as_mto()._uni_cond()
 
         return tuple(
             stat['left', 'right']
