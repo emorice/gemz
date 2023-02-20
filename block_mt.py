@@ -12,7 +12,20 @@ import jax.scipy.special as jsc
 
 from block import BlockMatrix
 
-from matrix_t import log_norm_std
+def log_norm_std(dfs, len_left, len_right):
+    """
+    Log normalization constant of a standard matrix-t
+    """
+    small = min(len_left, len_right)
+    large = max(len_left, len_right)
+
+    args = 0.5 * (dfs + jnp.arange(small))
+
+    return (
+        jnp.sum(jsc.gammaln(args))
+        + 0.5 * small * large * jnp.log(jnp.pi)
+        - jnp.sum(jsc.gammaln(args + 0.5*large))
+        )
 
 @dataclass
 class MatrixT:
@@ -165,8 +178,10 @@ class NonCentralMatrixT:
     mtd: MatrixT
 
     @classmethod
-    def from_params(cls, dfs: float, left, right, gram_mean_left: float,
-                    gram_mean_right: float) -> 'NonCentralMatrixT':
+    def from_params(cls, dfs: float, left, right,
+            gram_mean_left: float | None = None,
+            gram_mean_right: float | None = None,
+            ) -> 'NonCentralMatrixT':
 
         left = { ('left', 'left'): left }
         right = { ('right', 'right'): right }
@@ -224,6 +239,8 @@ class NonCentralMatrixT:
                     1, self.mtd.right.dims[-1]['right']
                     ))
                 }))
+        else:
+            mtd = self.mtd
         return mtd
 
 @dataclass

@@ -37,10 +37,6 @@ plotly.io.templates.default = go.layout.Template(layout={
 })
 ```
 
-```python
-import matrix_t as mt
-```
-
 ```python tags=[]
 import block_mt as bmt
 ```

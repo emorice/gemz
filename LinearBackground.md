@@ -42,16 +42,16 @@ plotly.io.templates.default = go.layout.Template(layout={
 ```
 
 ```python tags=[]
-import matrix_t as mt
+import block_mt as bmt
 ```
 
 ```python tags=[]
 rng = np.random.default_rng(0)
 N = 100
 bg_frac = 0.5
-X = rng.uniform(-2., 2., size=N)
-_y_bg = rng.uniform(-2., 2., size=N)
-_y_sig = X + rng.normal(0., 0.1, size=N)
+X = rng.uniform(-1., 3., size=N)
+_y_bg = rng.uniform(0., 5., size=N)
+_y_sig = X + 2. + rng.normal(0., 0.1, size=N)
 is_bg = rng.uniform(size=N) < bg_frac
 Y = np.where(is_bg, _y_bg, _y_sig)
 data = np.vstack((X, Y))
@@ -70,32 +70,41 @@ go.Figure([go.Scatter(x=X[filt], y=Y[filt], mode='markers') for filt in (is_bg, 
 dfs = 1.
 scale = 1.
 
-observed = mt.MatrixTObservation(dfs, scale*np.eye(2), scale*np.eye(N), data)
-predictive_dist = mt.from_left(
-    mt.post_left(observed),
-    scale*np.eye(1)
+observed = bmt.NonCentralMatrixT.from_params(
+    dfs, left=scale*np.eye(2), right=scale*np.eye(N),
+    gram_mean_left=0.5
+).observe(data)
+
+predictive_dist = (
+    observed
+    .post_left()
+    .extend_right(scale*np.eye(1))
 )
 
 def logp(new):
-    return mt.ref_log_pdf(
-        mt.observe(predictive_dist, new[:, None])
-    )
+    return predictive_dist.observe(new[:, None]).log_pdf()
 
-L = np.linspace(-3., 3., 100)
-G = np.stack(np.meshgrid(L, L), -1)
+Lx = np.linspace(-2., 4., 100)
+Ly = np.linspace(-1., 6., 100)
 
-logP = jax.vmap(lambda x: jax.vmap(lambda y: logp(jnp.array([x, y])))(L))(L)
+G = np.stack(np.meshgrid(Lx, Ly), -1)
+
+logP = jax.vmap(lambda x: jax.vmap(lambda y: logp(jnp.array([x, y])))(Ly))(Lx)
                
 go.Figure(data=[
     data_trace,
-    go.Contour(x=L, y=L, z=np.exp(logP), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
+    go.Contour(
+        x=Lx, y=Ly, z=np.exp(logP), zmin=0,
+        contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
+        opacity=0.97,
+        transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
 })
 ```
 
 ```python tags=[]
-_m, _v, uni_logps = mt.ref_uni_cond(observed)
+_m, _v, uni_logps = observed.uni_cond()
 ```
 
 ```python tags=[]
@@ -104,13 +113,20 @@ go.Figure(go.Scatter(data_trace).update({'marker': {'color': uni_logps[0], 'colo
 
 ```python tags=[]
 def observe_weighted(log_precs, data=data, dfs=dfs):
-    return mt.MatrixTObservation(dfs, jnp.eye(2), jnp.diag(jnp.exp(-log_precs)), data)
+    return (
+        bmt.NonCentralMatrixT
+        .from_params(
+            dfs, left=jnp.eye(2), right=jnp.diag(jnp.exp(-log_precs)),
+            gram_mean_left=0.5
+        )
+        .observe(data)
+    )
 
 @jax.jit
 def nql(log_precs, dfs=dfs):
     print('Tracing...')
     dist = observe_weighted(log_precs)
-    _m, _v, logps = mt.ref_uni_cond(dist)
+    _m, _v, logps = dist.uni_cond()
     return - jnp.sum(logps) + jnp.sum(jnp.exp(log_precs))
 ```
 
@@ -150,15 +166,20 @@ go.Figure(go.Scatter(data_trace).update({
 ```
 
 ```python tags=[]
-_post = mt.post_left(observe_weighted(log_precs))
+_post = observe_weighted(log_precs).post_left()
 
 @jax.jit
 def _logk_prec(new, log_prec):
     print('Tracing...')
-    return mt.ref_log_pdf(mt.observe(mt.from_left(_post, jnp.exp(-log_prec) * np.eye(1)), new[:, None]))
+    return (
+        _post
+        .extend_right(jnp.exp(-log_prec) * np.eye(1))
+        .observe(new[:, None])
+        .log_pdf()
+    )
 
 logPs = jnp.stack([
-    jax.vmap(lambda x: jax.vmap(lambda y: _logk_prec(jnp.array([x, y]), lp))(L))(L)
+    jax.vmap(lambda x: jax.vmap(lambda y: _logk_prec(jnp.array([x, y]), lp))(Ly))(Lx)
      for lp in tqdm(log_precs)])
 
 ```
@@ -172,9 +193,9 @@ zm = float(jnp.max(jnp.exp(avg_logP)))
 
 go.Figure(data=[
     data_trace,
-    go.Contour(x=L, y=L, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.46}),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.46}),
     go.Scatter(data_trace).update(xaxis='x2'),
-    go.Contour(x=L, y=L, z=jnp.exp(logP),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(logP),
                zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True,
                xaxis='x2'),
 ], layout={
@@ -183,8 +204,4 @@ go.Figure(data=[
     'showlegend': False,
     'width': 1200,
 })
-```
-
-```python
-
 ```
