@@ -37,7 +37,7 @@ plotly.io.templates.default = go.layout.Template(layout={
         f'{a}axis': {'showline': True, 'ticks': 'outside', 'exponentformat': 'power'}
         for a in 'xy'},
     },
-    data={'contour': [{'colorbar': {'exponentformat': 'power'}}]}
+    data={'contour': [{'colorbar': {'exponentformat': 'power'}, 'opacity': 0.97}]}
 )
 ```
 
@@ -96,7 +96,6 @@ go.Figure(data=[
     go.Contour(
         x=Lx, y=Ly, z=np.exp(logP), zmin=0,
         contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
-        opacity=0.97,
         transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
@@ -193,11 +192,11 @@ zm = float(jnp.max(jnp.exp(avg_logP)))
 
 go.Figure(data=[
     data_trace,
-    go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.46}),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.47}),
     go.Scatter(data_trace).update(xaxis='x2'),
     go.Contour(x=Lx, y=Ly, z=jnp.exp(logP),
                zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True,
-               xaxis='x2'),
+               showscale=False, xaxis='x2'),
 ], layout={
     'xaxis1': {'domain': [0., 0.45], 'scaleanchor': 'y', 'scaleratio': 1, 'title': 'Weighted model'},
     'xaxis2': {'domain': [0.55, 1.0],  'matches': 'x1', 'title': 'Reference linear model'},
