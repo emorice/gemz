@@ -5,7 +5,6 @@ Block-wise description of matrix-t variates
 import dataclasses as dc
 
 from dataclasses import dataclass
-from typing import TypeVar, Generic
 
 import numpy as np
 import jax.numpy as jnp
@@ -13,12 +12,10 @@ import jax.scipy.special as jsc
 
 from block import BlockMatrix
 
-import matrix_t as mt
-
-Matrix = TypeVar('Matrix')
+from matrix_t import log_norm_std
 
 @dataclass
-class MatrixT(Generic[Matrix]):
+class MatrixT:
     """
     Specification of a matrix-t distribution
     """
@@ -38,16 +35,6 @@ class MatrixT(Generic[Matrix]):
     def __post_init__(self):
         self.len_left = self.left.shape[-1]
         self.len_right = self.right.shape[-1]
-
-    def as_dense(self) -> mt.MatrixT:
-        """
-        Pack all arguments into a dense matrix-t
-        """
-        return mt.MatrixT(
-                self.dfs,
-                self.left.as_dense(),
-                self.right.as_dense()
-                )
 
     def condition_left(self, observed: BlockMatrix) -> 'MatrixT':
         """
@@ -73,7 +60,7 @@ class MatrixT(Generic[Matrix]):
 
 
 @dataclass
-class MatrixTObservation(Generic[Matrix]):
+class MatrixTObservation:
     """
     Observation from the parent matrix-t distribution
     """
@@ -84,10 +71,7 @@ class MatrixTObservation(Generic[Matrix]):
         """
         Generator matrix, as a DoK
         """
-        if self.mtd.mean is None:
-            cobs = self.observed
-        else:
-            cobs = self.observed - self.mtd.mean
+        cobs = self.observed - self.mtd.mean
         mcobs_t = - cobs.T
         return self.mtd.left | self.mtd.right | cobs | mcobs_t
 
@@ -103,7 +87,7 @@ class MatrixTObservation(Generic[Matrix]):
         return (
                 0.5 * (self.mtd.dfs + self.mtd.len_right - 1) * logdet_right
                 + 0.5 * (self.mtd.dfs + self.mtd.len_left - 1) * logdet_left
-                - mt.log_norm_std(self.mtd.dfs, self.mtd.len_left, self.mtd.len_right)
+                - log_norm_std(self.mtd.dfs, self.mtd.len_left, self.mtd.len_right)
                 - 0.5 * (self.mtd.dfs + self.mtd.len_left + self.mtd.len_right - 1) * logdet
                 )
 
@@ -119,26 +103,7 @@ class MatrixTObservation(Generic[Matrix]):
                 )
             )
 
-    def as_dense(self) -> mt.MatrixTObservation:
-        """
-        Pack into dense mto
-        """
-        mtd = self.mtd.as_dense()
-        return mt.observe(mtd, self.observed.as_dense())
-
-    def uni_cond(self) -> tuple[Matrix, ...]:
-        """
-        One-dimensional conditionals
-        """
-        dense_mto = self.as_dense()
-        dense_stats = mt.ref_uni_cond(dense_mto)
-
-        return tuple(
-            BlockMatrix.from_dense(self.observed.dims, stat)
-            for stat in dense_stats
-            )
-
-    def _uni_cond(self) -> tuple[Matrix, ...]:
+    def uni_cond(self) -> tuple[BlockMatrix, ...]:
         """
         Conditional distributions of individual entries
         """
@@ -309,7 +274,7 @@ class NonCentralMatrixTObservation:
         """
         One-dimensional conditionals
         """
-        all_stats = self.as_mto()._uni_cond()
+        all_stats = self.as_mto().uni_cond()
 
         return tuple(
             stat['left', 'right']
