@@ -24,6 +24,7 @@ jupyter:
 import numpy as np
 import jax.numpy as jnp
 import jax.scipy.special as jsc
+import scipy.special as sc
 import jax
 from jax import lax
 import optax
@@ -39,6 +40,8 @@ plotly.io.templates.default = go.layout.Template(layout={
     },
     data={'contour': [{'colorbar': {'exponentformat': 'power'}, 'opacity': 0.97}]}
 )
+import pandas as pd
+import scipy.stats
 ```
 
 ```python tags=[]
@@ -120,36 +123,103 @@ def observe_weighted(log_precs, data=data, dfs=dfs):
         )
         .observe(data)
     )
-
-@jax.jit
-def nql(log_precs, dfs=dfs):
-    print('Tracing...')
-    dist = observe_weighted(log_precs)
-    _m, _v, logps = dist.uni_cond()
-    return - jnp.sum(logps) + jnp.sum(jnp.exp(log_precs))
 ```
 
 ```python tags=[]
-opt = optax.adam(0.1)
-log_precs = jnp.zeros(N)
-state = opt.init(log_precs)
+@jax.jit
+def qll(log_precs, dfs=dfs):
+    print('Tracing...')
+    dist = observe_weighted(log_precs)
+    _m, _v, logps = dist.uni_cond()
+    return jnp.sum(logps)
+```
+
+```python tags=[]
+@jax.jit
+def nqelbo(log_alphas, log_betas, prior_log_alpha, prior_log_beta):
+    log_mean_precs = log_alphas - log_betas
+    qll_mean = qll(log_mean_precs)
+    log_prior_mean = jax.scipy.stats.gamma.logpdf(
+        jnp.exp(log_mean_precs),
+        jnp.exp(prior_log_alpha),
+        scale=jnp.exp(-prior_log_beta)
+    )
+    log_var_mean = jax.scipy.stats.gamma.logpdf(
+        jnp.exp(log_mean_precs),
+        jnp.exp(log_alphas),
+        scale=jnp.exp(-log_betas)
+    )
+    disps = log_alphas - jsc.digamma(jnp.exp(log_alphas))
+    return (
+        - qll_mean
+        - jnp.sum(log_prior_mean)
+        + jnp.sum(log_var_mean)
+        + (1 + jnp.exp(prior_log_alpha) - jnp.exp(log_alphas)) @ disps
+    )
+```
+
+```python tags=[]
+opt = optax.adam(1.0)
+params = dict(
+    log_alphas = jnp.zeros(N),
+    log_betas = jnp.zeros(N),
+    prior_log_alpha = jnp.array(0., jnp.float32),
+    prior_log_beta = jnp.array(0., jnp.float32),
+)
+state = opt.init(params)
 trace = []
 for i in tqdm(range(100)):
-    val, grad = jax.value_and_grad(nql)(log_precs)
-    trace.append(val)
-    dlp, scale = opt.update(grad, state)
-    log_precs += dlp
+    val, grad = jax.value_and_grad(lambda kw: nqelbo(**kw))(params)
+    trace.append({
+        'iteration': i,
+        'nqelbo': val,
+        'prior_log_alpha': params['prior_log_alpha'],
+        'prior_log_beta': params['prior_log_beta']
+    })
+    dp, state = opt.update(grad, state)
+    for k in params:
+        params[k]  += dp[k]
 
-go.Figure(
-    go.Scatter(x=np.arange(len(trace)), y=trace)
-)
+trace = pd.DataFrame(trace)
+px.line(trace, x='iteration', y='nqelbo')
+```
+
+```python tags=[]
+trace['prior_alpha'] = np.exp(trace['prior_log_alpha'].astype(np.float32))
+trace['prior_beta'] = np.exp(trace['prior_log_beta'].astype(np.float32))
+trace['prior_mean'] = trace['prior_alpha'] / trace['prior_beta']
+trace['prior_std'] = np.sqrt(trace['prior_alpha'] / trace['prior_beta']**2)
+```
+
+```python tags=[]
+px.line(trace, x='iteration', y=['prior_alpha', 'prior_beta'])
+```
+
+```python
+px.line(trace, x='iteration', y=['prior_mean', 'prior_std'])
+```
+
+```python tags=[]
+log_precs = params['log_alphas'] - params['log_betas']
+```
+
+```python tags=[]
+log_precs_std = 0.5 * params['log_alphas'] - params['log_betas']
 ```
 
 ```python
 go.Figure(
     [
-        go.Scatter(y=np.exp(log_precs[is_bg]), mode='markers', name='bg'),
-        go.Scatter(y=np.exp(log_precs[~is_bg]), mode='markers', name='signal'),
+        go.Scatter(
+            y=np.exp(log_precs[filt]),
+            error_y={
+                'array': None,#np.exp(log_precs_std[filt]),
+                'thickness': 1,
+                'color': 'lightgrey',
+                'width': 0
+            },
+            mode='markers', name=name)
+        for (filt, name) in ((is_bg, 'bg'), (~is_bg, 'signal'))
     ],
     layout={
         'yaxis': {'type': 'linear'}
@@ -188,11 +258,82 @@ avg_logP = jsc.logsumexp(logPs, 0) - jnp.log(len(log_precs))
 ```
 
 ```python tags=[]
-zm = float(jnp.max(jnp.exp(avg_logP)))
+zm = float(jnp.max(jnp.exp(logP)))
 
 go.Figure(data=[
     data_trace,
     go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.47}),
+    go.Scatter(data_trace).update(xaxis='x2'),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(logP),
+               zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True,
+               showscale=False, xaxis='x2'),
+], layout={
+    'xaxis1': {'domain': [0., 0.45], 'scaleanchor': 'y', 'scaleratio': 1, 'title': 'Weighted model'},
+    'xaxis2': {'domain': [0.55, 1.0],  'matches': 'x1', 'title': 'Reference linear model'},
+    'showlegend': False,
+    'width': 1200,
+})
+```
+
+```python tags=[]
+def multit_logpdf(x, mean, sqrt_prec, log_dfs):
+    dim = 2
+    tx = (x - mean) @ sqrt_prec
+    misfits = jnp.sum(tx**2, -1)
+    dfs = jnp.exp(log_dfs)
+    Nx = jnp.atleast_2d(x).shape[-2]
+    return (
+        - 0.5 * (dfs + dim) * jnp.sum(jnp.log(1 + misfits))
+        + Nx * jnp.linalg.slogdet(sqrt_prec)[1]
+        + Nx * (jsc.gammaln(0.5 * (dfs + dim)) - jsc.gammaln(0.5*dfs) - 0.5 * dim * jnp.log(jnp.pi))
+    )
+```
+
+```python tags=[]
+@jax.jit
+def nll_student(mean, sqrt_prec, log_dfs):
+    return - multit_logpdf(data.T, mean, sqrt_prec, log_dfs)
+```
+
+```python tags=[]
+t_opt = optax.adam(0.1)
+t_params = dict(
+    mean = jnp.zeros(2),
+    sqrt_prec = jnp.eye(2),
+    log_dfs = 0.
+)
+t_state = t_opt.init(t_params)
+t_trace = []
+for i in tqdm(range(100)):
+    val, grad = jax.value_and_grad(lambda kw: nll_student(**kw))(t_params)
+    t_trace.append({
+        'iteration': i,
+        'nll': val,
+        'log_dfs': params['prior_log_alpha'],
+        'prior_log_beta': params['prior_log_beta']
+    })
+    dp, t_state = t_opt.update(grad, t_state)
+    for k in t_params:
+        t_params[k]  += dp[k]
+
+t_trace = pd.DataFrame(t_trace)
+px.line(t_trace, x='iteration', y='nll')
+```
+
+```python tags=[]
+t_params['log_dfs']
+```
+
+```python tags=[]
+logp_multit = jax.vmap(lambda x : jax.vmap(lambda y: multit_logpdf(jnp.array([x, y]), **t_params))(Ly))(Lx)
+```
+
+```python tags=[]
+zm = float(jnp.max(jnp.exp(logp_multit)))
+
+go.Figure(data=[
+    data_trace,
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(logp_multit), zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.47}),
     go.Scatter(data_trace).update(xaxis='x2'),
     go.Contour(x=Lx, y=Ly, z=jnp.exp(logP),
                zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True,
