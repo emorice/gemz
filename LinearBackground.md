@@ -140,20 +140,25 @@ def qll(log_precs, dfs=dfs):
 
 ```python tags=[]
 @jax.jit
-def nqelbo(log_precs, prior_log_alpha, prior_log_beta):
-    var_alpha = jnp.exp(prior_log_alpha) + .5 * 2
-    log_var_alpha = jnp.log(var_alpha)
+def nqelbo(log_precs, prior_log_alpha):
+    # Bijectors
+    prior_alpha = jnp.exp(prior_log_alpha)
+    precs = jnp.exp(log_precs)
+
+    # Analytical optimizations
+    var_alpha = prior_alpha + .5 * 2
+    prior_scale = jnp.mean(precs) / prior_alpha
 
     qll_mean = qll(log_precs)
     log_prior_mean = jax.scipy.stats.gamma.logpdf(
-        jnp.exp(log_precs),
-        jnp.exp(prior_log_alpha),
-        scale=jnp.exp(-prior_log_beta)
+        precs,
+        prior_alpha,
+        scale=prior_scale,
     )
     log_var_mean = jax.scipy.stats.gamma.logpdf(
-        jnp.exp(log_precs),
+        precs,
         var_alpha,
-        scale=jnp.exp(log_precs)/var_alpha
+        scale=precs/var_alpha
     )
     return (
         - qll_mean
@@ -163,11 +168,10 @@ def nqelbo(log_precs, prior_log_alpha, prior_log_beta):
 ```
 
 ```python tags=[]
-opt = optax.adam(0.5)
+opt = optax.adam(0.1)
 params = dict(
     log_precs = jnp.zeros(N),
     prior_log_alpha = jnp.array(0., jnp.float32),
-    prior_log_beta = jnp.array(0., jnp.float32),
 )
 state = opt.init(params)
 trace = []
@@ -177,7 +181,7 @@ for i in tqdm(range(100)):
         'iteration': i,
         'nqelbo': val,
         'prior_log_alpha': params['prior_log_alpha'],
-        'prior_log_beta': params['prior_log_beta']
+        'prior_scale': np.mean(jnp.exp(params['log_precs'])) * jnp.exp(-params['prior_log_alpha'])
     })
     dp, state = opt.update(grad, state)
     for k in params:
@@ -189,13 +193,16 @@ px.line(trace, x='iteration', y='nqelbo')
 
 ```python tags=[]
 trace['prior_alpha'] = np.exp(trace['prior_log_alpha'].astype(np.float32))
-trace['prior_beta'] = np.exp(trace['prior_log_beta'].astype(np.float32))
-trace['prior_mean'] = trace['prior_alpha'] / trace['prior_beta']
-trace['prior_std'] = np.sqrt(trace['prior_alpha'] / trace['prior_beta']**2)
+trace['prior_scale'] = trace['prior_scale'].astype(np.float32)
+trace['prior_mean'] = trace['prior_alpha'] * trace['prior_scale']
+trace['prior_std'] = np.sqrt(trace['prior_alpha']) * trace['prior_scale']
 ```
 
 ```python tags=[]
-px.line(trace, x='iteration', y=['prior_alpha', 'prior_beta'])
+px.line(
+    trace.melt(id_vars='iteration', value_vars=['prior_alpha', 'prior_scale']),
+    x='iteration', y='value', facet_col='variable', width=1200
+).update_layout({'yaxis2.matches': None, 'yaxis2.showticklabels': True})
 ```
 
 ```python
@@ -229,11 +236,11 @@ go.Figure(
                 'arrayminus': (precs_mean - precs_ci_low)[filt],
                 'array': (precs_ci_high - precs_mean)[filt],
                 'thickness': 1,
-                'color': 'lightgrey',
+                #'color': 'lightgrey',
                 'width': 1
             },
             mode='markers', name=name)
-        for (filt, name) in ((is_bg, 'bg'), (~is_bg, 'signal'))
+        for (filt, name) in ((is_bg, 'background'), (~is_bg, 'signal'))
     ],
     layout={
         'yaxis': {'type': 'log'},
@@ -250,7 +257,7 @@ go.Figure(
             opacity=0.5,
             histnorm='probability density',
             name=name)
-        for (filt, name) in ((is_bg, 'bg'), (~is_bg, 'signal'))
+        for (filt, name) in ((is_bg, 'background'), (~is_bg, 'signal'))
     ],
     {
         'barmode': 'overlay'
@@ -327,7 +334,7 @@ def nll_student(mean, sqrt_prec, log_dfs):
 ```
 
 ```python tags=[]
-t_opt = optax.adam(0.1)
+t_opt = optax.adam(0.05)
 t_params = dict(
     mean = jnp.zeros(2),
     sqrt_prec = jnp.eye(2),
@@ -340,8 +347,7 @@ for i in tqdm(range(100)):
     t_trace.append({
         'iteration': i,
         'nll': val,
-        'log_dfs': params['prior_log_alpha'],
-        'prior_log_beta': params['prior_log_beta']
+        'log_dfs': t_params['log_dfs']
     })
     dp, t_state = t_opt.update(grad, t_state)
     for k in t_params:
@@ -352,7 +358,7 @@ px.line(t_trace, x='iteration', y='nll')
 ```
 
 ```python tags=[]
-t_params['log_dfs']
+px.line(t_trace.assign(dfs=lambda df: np.exp(df.log_dfs.astype(np.float32))), x='iteration', y='dfs')
 ```
 
 ```python tags=[]
