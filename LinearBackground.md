@@ -131,6 +131,14 @@ def observe_weighted(log_precs, data=data, dfs=dfs):
 
 ```python tags=[]
 @jax.jit
+def ll(log_precs, dfs=dfs):
+    print('Tracing...')
+    dist = observe_weighted(log_precs)
+    return dist.log_pdf()
+```
+
+```python tags=[]
+@jax.jit
 def qll(log_precs, dfs=dfs):
     print('Tracing...')
     dist = observe_weighted(log_precs)
