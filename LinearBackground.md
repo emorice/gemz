@@ -56,7 +56,7 @@ _x_bg = rng.uniform(-1., 3., size=N)
 _y_bg = rng.uniform(0., 5., size=N)
 
 _x_sig = rng.normal(1, 0.5, size=N)
-_y_sig = _x_sig + 2. + rng.normal(0., 0.3, size=N)
+_y_sig = _x_sig + 2. + rng.normal(0., 0.2, size=N)
 
 is_bg = rng.uniform(size=N) < bg_frac
 X = np.where(is_bg, _x_bg, _x_sig)
@@ -211,22 +211,34 @@ log_precs = params['log_alphas'] - params['log_betas']
 log_precs_std = 0.5 * params['log_alphas'] - params['log_betas']
 ```
 
+```python tags=[]
+precs_mean = np.exp(log_precs_std)
+precs_ci_low, precs_ci_high = [
+    scipy.stats.gamma.isf(q, np.exp(params['log_alphas']), scale=np.exp(-params['log_betas']))
+    for q in (0.95, 0.05)
+]
+```
+
 ```python
 go.Figure(
     [
         go.Scatter(
-            y=np.exp(log_precs[filt]),
+            x=np.arange(1, N+1)[filt],
+            y=precs_mean[filt],
             error_y={
-                'array': None,#np.exp(log_precs_std[filt]),
+                #'array': None,#np.exp(log_precs_std[filt]),
+                'arrayminus': (precs_mean - precs_ci_low)[filt],
+                'array': (precs_ci_high - precs_mean)[filt],
                 'thickness': 1,
-                'color': 'lightgrey',
-                'width': 0
+                #'color': 'lightgrey',
+                'width': 1
             },
             mode='markers', name=name)
         for (filt, name) in ((is_bg, 'bg'), (~is_bg, 'signal'))
     ],
     layout={
-        'yaxis': {'type': 'linear'}
+        'yaxis': {'type': 'linear'},
+        'width': 1200,
     }
 )
 ```
