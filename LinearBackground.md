@@ -50,12 +50,16 @@ import block_mt as bmt
 
 ```python tags=[]
 rng = np.random.default_rng(0)
-N = 100
+N = 200
 bg_frac = 0.5
-X = rng.uniform(-1., 3., size=N)
+_x_bg = rng.uniform(-1., 3., size=N)
 _y_bg = rng.uniform(0., 5., size=N)
-_y_sig = X + 2. + rng.normal(0., 0.1, size=N)
+
+_x_sig = rng.normal(1, 0.5, size=N)
+_y_sig = _x_sig + 2. + rng.normal(0., 0.3, size=N)
+
 is_bg = rng.uniform(size=N) < bg_frac
+X = np.where(is_bg, _x_bg, _x_sig)
 Y = np.where(is_bg, _y_bg, _y_sig)
 data = np.vstack((X, Y))
 ```
@@ -258,7 +262,7 @@ avg_logP = jsc.logsumexp(logPs, 0) - jnp.log(len(log_precs))
 ```
 
 ```python tags=[]
-zm = float(jnp.max(jnp.exp(logP)))
+zm = float(jnp.max(jnp.exp(avg_logP)))
 
 go.Figure(data=[
     data_trace,
