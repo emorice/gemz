@@ -140,33 +140,32 @@ def qll(log_precs, dfs=dfs):
 
 ```python tags=[]
 @jax.jit
-def nqelbo(log_alphas, log_betas, prior_log_alpha, prior_log_beta):
-    log_mean_precs = log_alphas - log_betas
-    qll_mean = qll(log_mean_precs)
+def nqelbo(log_precs, prior_log_alpha, prior_log_beta):
+    var_alpha = jnp.exp(prior_log_alpha) + .5 * 2
+    log_var_alpha = jnp.log(var_alpha)
+
+    qll_mean = qll(log_precs)
     log_prior_mean = jax.scipy.stats.gamma.logpdf(
-        jnp.exp(log_mean_precs),
+        jnp.exp(log_precs),
         jnp.exp(prior_log_alpha),
         scale=jnp.exp(-prior_log_beta)
     )
     log_var_mean = jax.scipy.stats.gamma.logpdf(
-        jnp.exp(log_mean_precs),
-        jnp.exp(log_alphas),
-        scale=jnp.exp(-log_betas)
+        jnp.exp(log_precs),
+        var_alpha,
+        scale=jnp.exp(log_precs)/var_alpha
     )
-    disps = log_alphas - jsc.digamma(jnp.exp(log_alphas))
     return (
         - qll_mean
         - jnp.sum(log_prior_mean)
         + jnp.sum(log_var_mean)
-        + (1 + jnp.exp(prior_log_alpha) - jnp.exp(log_alphas)) @ disps
     )
 ```
 
 ```python tags=[]
-opt = optax.adam(1.0)
+opt = optax.adam(0.5)
 params = dict(
-    log_alphas = jnp.zeros(N),
-    log_betas = jnp.zeros(N),
+    log_precs = jnp.zeros(N),
     prior_log_alpha = jnp.array(0., jnp.float32),
     prior_log_beta = jnp.array(0., jnp.float32),
 )
@@ -204,17 +203,17 @@ px.line(trace, x='iteration', y=['prior_mean', 'prior_std'])
 ```
 
 ```python tags=[]
-log_precs = params['log_alphas'] - params['log_betas']
+log_alpha = jnp.log(jnp.exp(params['prior_log_alpha']) + .5 * 2)
 ```
 
 ```python tags=[]
-log_precs_std = 0.5 * params['log_alphas'] - params['log_betas']
+log_precs = params['log_precs']
 ```
 
 ```python tags=[]
-precs_mean = np.exp(log_precs_std)
+precs_mean = np.exp(log_precs)
 precs_ci_low, precs_ci_high = [
-    scipy.stats.gamma.isf(q, np.exp(params['log_alphas']), scale=np.exp(-params['log_betas']))
+    scipy.stats.gamma.isf(q, np.exp(log_alpha), scale=np.exp(log_precs - log_alpha))
     for q in (0.95, 0.05)
 ]
 ```
@@ -230,15 +229,31 @@ go.Figure(
                 'arrayminus': (precs_mean - precs_ci_low)[filt],
                 'array': (precs_ci_high - precs_mean)[filt],
                 'thickness': 1,
-                #'color': 'lightgrey',
+                'color': 'lightgrey',
                 'width': 1
             },
             mode='markers', name=name)
         for (filt, name) in ((is_bg, 'bg'), (~is_bg, 'signal'))
     ],
     layout={
-        'yaxis': {'type': 'linear'},
+        'yaxis': {'type': 'log'},
         'width': 1200,
+    }
+)
+```
+
+```python tags=[]
+go.Figure(
+    [
+        go.Histogram(
+            x=np.log10(precs_mean[filt]),
+            opacity=0.5,
+            histnorm='probability density',
+            name=name)
+        for (filt, name) in ((is_bg, 'bg'), (~is_bg, 'signal'))
+    ],
+    {
+        'barmode': 'overlay'
     }
 )
 ```
