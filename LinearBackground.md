@@ -71,12 +71,20 @@ is_bg = labels == 0
 ```
 
 ```python tags=[]
-data_trace = go.Scatter(x=X, y=Y, mode='markers', marker={'color': 'black', 'size': 4})
-go.Figure([data_trace])
+df = dg.mixture_to_df(labels, data, ('background', 'signal'), ('x', 'y'))
 ```
 
 ```python tags=[]
-go.Figure([go.Scatter(x=X[filt], y=Y[filt], mode='markers') for filt in (is_bg, ~is_bg)])
+data_fig = (
+    px.scatter(df, x='x', y='y')
+    .update_traces(marker={'color': 'black', 'size': 4})
+    .update_yaxes(scaleanchor='x', scaleratio=1)
+)
+data_fig
+```
+
+```python tags=[]
+px.scatter(df, x='x', y='y', color='label')
 ```
 
 ```python tags=[]
@@ -104,15 +112,11 @@ G = np.stack(np.meshgrid(Lx, Ly), -1)
 
 logP = jax.vmap(lambda x: jax.vmap(lambda y: logp(jnp.array([x, y])))(Ly))(Lx)
                
-go.Figure(data=[
-    data_trace,
-    go.Contour(
-        x=Lx, y=Ly, z=np.exp(logP), zmin=0,
-        contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
-        transpose=True),
-], layout={
-    'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
-})
+go.Figure(data_fig).add_contour(
+    x=Lx, y=Ly, z=np.exp(logP), zmin=0,
+    contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
+    transpose=True
+)
 ```
 
 ```python tags=[]
@@ -120,7 +124,7 @@ _m, _v, uni_logps = observed.uni_cond()
 ```
 
 ```python tags=[]
-go.Figure(go.Scatter(data_trace).update({'marker': {'color': uni_logps[0], 'colorscale': colorcet.CET_L18}}))
+go.Figure(data_fig).update_traces(marker={'color': uni_logps[0]/np.log(10), 'colorscale': colorcet.CET_L18, 'showscale': True})
 ```
 
 ```python tags=[]
@@ -239,6 +243,16 @@ precs_ci_low, precs_ci_high = [
 ]
 ```
 
+```python tags=[]
+ px.scatter(
+     df.assign(precision=precs_mean).sort_values('precision').reset_index(),
+     y='precision',
+     color='label',
+     width=1200,
+     log_y=True
+ )
+```
+
 ```python
 order = np.argsort(precs_mean)
 
@@ -267,26 +281,20 @@ _f
 ```
 
 ```python tags=[]
-go.Figure(
-    [
-        go.Histogram(
-            x=np.log10(precs_mean[filt]),
-            opacity=0.5,
-            histnorm='probability density',
-            name=name)
-        for (filt, name) in ((is_bg, 'background'), (~is_bg, 'signal'))
-    ],
-    {
-        'barmode': 'overlay'
-    }
+px.histogram(
+    df.assign(**{'precision (log 10)': np.log10(precs_mean)}),
+    x='precision (log 10)',
+    color='label',
+    histnorm='probability density',
+    barmode='overlay'
 )
 ```
 
 ```python tags=[]
-go.Figure(go.Scatter(data_trace).update({
-    'text': np.exp(log_precs),
-    'marker': {'color': log_precs, 'colorscale': colorcet.CET_D2}
-}))
+go.Figure(data_fig).update_traces(
+    text=np.exp(log_precs),
+    marker={'color': log_precs/np.log(10), 'colorscale': colorcet.CET_D2, 'showscale': True, 'colorbar.title': 'Precision (log 10)'}
+).update_layout(width=700)
 ```
 
 ```python tags=[]
@@ -316,9 +324,9 @@ avg_logP = jsc.logsumexp(logPs, 0) - jnp.log(len(log_precs))
 zm = float(jnp.max(jnp.exp(avg_logP)))
 
 go.Figure(data=[
-    data_trace,
+    data_fig.data[0],
     go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.47}),
-    go.Scatter(data_trace).update(xaxis='x2'),
+    go.Scatter(data_fig.data[0]).update(xaxis='x2'),
     go.Contour(x=Lx, y=Ly, z=jnp.exp(logP),
                zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True,
                showscale=False, xaxis='x2'),
@@ -386,9 +394,9 @@ logp_multit = jax.vmap(lambda x : jax.vmap(lambda y: multit_logpdf(jnp.array([x,
 zm = float(jnp.max(jnp.exp(logp_multit)))
 
 go.Figure(data=[
-    data_trace,
+    data_fig.data[0],
     go.Contour(x=Lx, y=Ly, z=jnp.exp(logp_multit), zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.47}),
-    go.Scatter(data_trace).update(xaxis='x2'),
+    go.Scatter(data_fig.data[0]).update(xaxis='x2'),
     go.Contour(x=Lx, y=Ly, z=jnp.exp(logP),
                zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True,
                showscale=False, xaxis='x2'),

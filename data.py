@@ -8,6 +8,7 @@ from collections.abc import Collection
 
 import numpy as np
 import scipy.stats
+import pandas as pd
 
 def gen_2d_gaussian(size, rng, **params):
     """
@@ -73,3 +74,16 @@ class _Mixture:
         samples, = np.take_along_axis(candidates, categories[None, :, None], axis=0)
 
         return categories, samples
+
+def mixture_to_df(labels, samples, names, dim_names):
+    """
+    Pack random samples generated from a mixture into a data frame
+    """
+    return (pd
+        .DataFrame(samples.T, columns=dim_names)
+        .assign(num_label=labels)
+        .merge(pd.Series(names, name='label'), left_on='num_label',
+            right_index=True)
+        .sort_index()
+        .drop('num_label', axis=1)
+        )
