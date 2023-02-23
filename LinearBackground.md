@@ -46,22 +46,28 @@ import scipy.stats
 
 ```python tags=[]
 import block_mt as bmt
+import data as dg
 ```
 
 ```python tags=[]
 rng = np.random.default_rng(0)
 N = 200
 bg_frac = 0.5
-_x_bg = rng.uniform(-1., 3., size=N)
-_y_bg = rng.uniform(0., 5., size=N)
 
-_x_sig = rng.normal(1, 0.5, size=N)
-_y_sig = _x_sig + 2. + rng.normal(0., 0.2, size=N)
+dist = dg.mixture((
+    dg.rectangle([-1, 0.], [3., 5.]),
+    scipy.stats.multivariate_normal(
+        (1., 3.),
+        ((0.25, 0.25),
+         (0.25, 0.3))
+    )),
+    (bg_frac, 1. - bg_frac)
+)
 
-is_bg = rng.uniform(size=N) < bg_frac
-X = np.where(is_bg, _x_bg, _x_sig)
-Y = np.where(is_bg, _y_bg, _y_sig)
-data = np.vstack((X, Y))
+labels, data = dist.rvs(size=N, random_state=1)
+data = data.T
+X, Y = data
+is_bg = labels == 0
 ```
 
 ```python tags=[]
@@ -176,7 +182,7 @@ def nqelbo(log_precs, prior_log_alpha):
 ```
 
 ```python tags=[]
-opt = optax.adam(0.1)
+opt = optax.adam(0.2)
 params = dict(
     log_precs = jnp.zeros(N),
     prior_log_alpha = jnp.array(0., jnp.float32),
@@ -234,27 +240,30 @@ precs_ci_low, precs_ci_high = [
 ```
 
 ```python
-go.Figure(
+order = np.argsort(precs_mean)
+
+_f = go.Figure(
     [
         go.Scatter(
             x=np.arange(1, N+1)[filt],
-            y=precs_mean[filt],
+            y=precs_mean[order][filt],
             error_y={
                 #'array': None,#np.exp(log_precs_std[filt]),
-                'arrayminus': (precs_mean - precs_ci_low)[filt],
-                'array': (precs_ci_high - precs_mean)[filt],
+                'arrayminus': (precs_mean - precs_ci_low)[order][filt],
+                'array': (precs_ci_high - precs_mean)[order][filt],
                 'thickness': 1,
                 #'color': 'lightgrey',
                 'width': 1
             },
             mode='markers', name=name)
-        for (filt, name) in ((is_bg, 'background'), (~is_bg, 'signal'))
+        for (filt, name) in ((is_bg[order], 'background'), (~is_bg[order], 'signal'))
     ],
     layout={
         'yaxis': {'type': 'log'},
         'width': 1200,
     }
 )
+_f
 ```
 
 ```python tags=[]
