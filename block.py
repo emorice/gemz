@@ -6,12 +6,78 @@ import operator
 
 from dataclasses import dataclass
 from functools import partial
-from typing import Any
+from typing import Any, TypeGuard
 from collections import defaultdict
-from collections.abc import KeysView
+from collections.abc import KeysView, Mapping, Hashable
+import itertools
 
 import numpy as np
 import jax.numpy as jnp
+
+NamedDim = Mapping[Hashable, 'Dim']
+Dim = NamedDim | int
+Dims = tuple[Dim, ...]
+NamedDims = tuple[NamedDim, ...]
+
+
+class ArrayAPI:
+    """
+    Abstract interface to a library implementing array-like objects
+    """
+    @classmethod
+    def array_function(cls, func, *args, **kwargs):
+        """
+        Maps a numpy function to an equivalent and apply it
+        """
+        raise NotImplementedError('Abstract method')
+
+    @classmethod
+    def zeros(cls, shape):
+        """
+        Create an array of specified shape full of zeros
+        """
+        raise NotImplementedError('Abstract method')
+
+
+class JaxAPI(ArrayAPI):
+    """
+    Conversion layer from numpy to jax operations
+    """
+    functions = {
+        np.diagonal: jnp.diagonal,
+        np.outer: jnp.outer,
+        np.linalg.inv: jnp.linalg.inv,
+        np.linalg.slogdet: jnp.linalg.slogdet,
+        }
+
+    @classmethod
+    def array_function(cls, func, *args, **kwargs):
+        """
+        Maps a numpy function to an equivalent and apply it
+        """
+        if func in cls.functions:
+            return cls.functions[func](*args, **kwargs)
+        raise NotImplementedError(func)
+
+    @classmethod
+    def zeros(cls, shape):
+        return jnp.zeros(shape)
+
+class MetaJaxAPI(JaxAPI):
+    """
+    Dymamic conversion to jax that tries to use numpy protocol first
+
+    Array creation defaults to jax types.
+    """
+    @classmethod
+    def array_function(cls, func, *args, **kwargs):
+        """
+        Apply function as-is if first positional argument defines
+        an __array_function__, else try to use jax equivalent.
+        """
+        if args and hasattr(args[0], '__array_function__'):
+            return func(*args, **kwargs)
+        return super().array_function(func, *args, **kwargs)
 
 @dataclass
 class BlockMatrix:
@@ -19,8 +85,10 @@ class BlockMatrix:
     Wrapper around a dict of array-like objects representing a block matrix
     """
 
-    dims: tuple[dict, ...]
-    blocks: dict
+    dims: NamedDims
+    blocks: dict[tuple, Any]
+
+    aa = ArrayAPI
 
     # Block-wise operators
     def __add__(self, other):
@@ -55,15 +123,10 @@ class BlockMatrix:
 
     def __array_function__(self, func, types, args, kwargs):
         if func is np.linalg.inv:
-            self._ensure_square()
-            return self.__class__(
-                    self.dims,
-                    dok_inv(self.dims[-1], self.blocks)
-                    )
+            return self._inv()
 
         if func is np.linalg.slogdet:
-            self._ensure_square()
-            return dok_slogdet(self.dims[-1], self.blocks)
+            return self._slogdet()
 
         if func is np.diagonal:
             return self.diagonal()
@@ -85,16 +148,7 @@ class BlockMatrix:
                         )
         return NotImplemented
 
-    def _outer(self, other):
-        """
-        Technically not consistent with np.outer as this does not flatten
-        arguments
-        """
-        blocks = {}
-        for skey, svalue in self.blocks.items():
-            for okey, ovalue in other.blocks.items():
-                blocks[tuple((*skey, *okey))] = jnp.outer(svalue, ovalue)
-        return self.__class__.from_blocks(blocks)
+    # Implementations
 
     def _ensure_square(self, axis1=-2, axis2=-1):
         """
@@ -105,15 +159,43 @@ class BlockMatrix:
                 return
         raise RuntimeError('Matrix is not square')
 
+    def _inv(self):
+        """
+        Fallback inversion using dense matrices
+        """
+        self._ensure_square()
+        return self.from_dense(
+                self.dims,
+                self.aa.array_function(
+                    np.linalg.inv, self.to_dense()
+                    )
+                )
+
+    def _slogdet(self):
+        """
+        Fallback slogdet using dense matrices
+        """
+        self._ensure_square()
+        return self.aa.array_function(
+            np.linalg.slogdet, self.to_dense()
+            )
+
+    def _outer(self, other):
+        """
+        Technically not consistent with np.outer as this does not flatten
+        arguments
+        """
+        blocks = {}
+        for skey, svalue in self.blocks.items():
+            for okey, ovalue in other.blocks.items():
+                new = self.aa.array_function(np.outer, svalue, ovalue)
+                blocks[tuple((*skey, *okey))] = new
+        return self.__class__.from_blocks(blocks)
+
     def diagonal(self, axis1=0, axis2=1):
         """
         Diagonal of square array
         """
-        # Note: the numpy convention is unfortunate here, last and
-        # second-to-last axes as default would be more consistent. Sticking with
-        # numpy api nethertheless for least surprise.
-        # Resulting axis is appended at the end, which by itself is sound but
-        # makes the defaults even weirder.
         self._ensure_square(axis1, axis2)
 
         blocks = {}
@@ -122,7 +204,7 @@ class BlockMatrix:
                 new_key = tuple(ki for i, ki in enumerate(key)
                                 if i not in (axis1, axis2))
                 new_key = (*new_key, key[axis1])
-                blocks[new_key] = jnp.diagonal(value)
+                blocks[new_key] = self.aa.array_function(np.diagonal, value)
         return self.__class__.from_blocks(blocks)
 
     @property
@@ -132,24 +214,70 @@ class BlockMatrix:
         """
         return self.__class__(
                 self.dims[::-1],
-                dok_transpose(self.blocks)
+                {
+                    key[::-1]: value.T
+                    for key, value in self.blocks.items()
+                    }
                 )
+    @property
+    def shape(self) -> tuple[int, ...]:
+        """
+        Total shape, summing over blocks shapes
+        """
+        return dims_to_shape(self.dims)
 
-    def as_dense(self):
-        """
-        Concatenate all blocks into a dense matrix
-        """
-        return dok_to_dense(self.dims, self.blocks)
+    # Creation and conversion methods
+    # -------------------------------
 
     @classmethod
-    def from_dense(cls, dims: tuple, dense):
+    def indexes(cls, array):
         """
-        Split dense matrix into blocks
+        Unified interface to generalized shape
         """
-        return cls(
-                dims,
-                dense_to_dok(dims, dense)
-                )
+        if isinstance(array, BlockMatrix):
+            return array.dims
+        return np.shape(array)
+
+    def to_dense(self):
+        """
+        Convert self to dense matrix, replacing missing blocks with dense zeros
+        """
+        result = self.aa.zeros(self.shape)
+        cumshape = dims_to_cumshape(self.dims)
+
+        for key, block in self.blocks.items():
+            indexer = _key_to_indexer(key, self.dims, cumshape)
+            dense_block = self.as_dense(block)
+            # Fixme: this only works with jax outputs
+            result = result.at[indexer].set(dense_block)
+
+        return result
+
+    @classmethod
+    def as_dense(cls, array):
+        """
+        Convert array to dense if necesary
+        """
+        if isinstance(array, BlockMatrix):
+            return array.to_dense()
+        return array
+
+    @classmethod
+    def from_dense(cls, dims: Dims, dense):
+        """
+        Split array in blocks conforming to dims
+        """
+        if is_named(dims):
+            cumshape = dims_to_cumshape(dims)
+            blocks: dict = {}
+
+            for key in itertools.product(*dims):
+                indexer = _key_to_indexer(key, dims, cumshape)
+                lower_dims = tuple(dim[ki] for dim, ki in zip(dims, key))
+                blocks[key] = cls.from_dense(lower_dims, dense[indexer])
+
+            return cls(dims, blocks)
+        return dense
 
     @classmethod
     def from_blocks(cls, blocks: dict):
@@ -159,7 +287,7 @@ class BlockMatrix:
         dims : dict[int, dict] = defaultdict(dict)
         for key, value in blocks.items():
             for idim, (key_item, length) in enumerate(
-                    zip(key, np.shape(value))
+                    zip(key, cls.indexes(value))
                     ):
                 dims[idim][key_item] = length
         return cls(tuple(dims.values()), blocks)
@@ -178,6 +306,18 @@ class BlockMatrix:
         2-dimensional
         """
         return cls(({}, {}), {})
+
+    def clone(self):
+        """
+        Copy of self. The blocks are not copied.
+        """
+        return self.__class__(
+                tuple(dict(dim) for dim in self.dims),
+                dict(self.blocks)
+                )
+
+    # Indexing methods
+    # ----------------
 
     def __setitem__(self, key, value):
         for idim, (key_item, length) in enumerate(
@@ -203,7 +343,10 @@ class BlockMatrix:
                     blocks[_key] = block
             return self.__class__.from_blocks(blocks)
 
-        # Todo: normalize simple 1-tuples
+        # In the 1-d case, our keys are 1-tuples so basic keys needs to be
+        # wrapped to make array[key] behave as  array[key,]
+        if not isinstance(key, tuple):
+            key = (key,)
         return self.blocks[key]
 
     def _is_multikey(self, key):
@@ -216,29 +359,12 @@ class BlockMatrix:
             return key
         return {key}
 
-    @property
-    def shape(self) -> tuple[int, ...]:
-        """
-        Total shape, summing over blocks shapes
-        """
-        return tuple(sum(dim.values()) for dim in self.dims)
 
-    def __or__(self, other):
-        return self.__class__(
-                tuple(sdim | odim for (sdim, odim) in
-                      zip(self.dims, other.dims)),
-                self.blocks | other.blocks
-                )
-
-    def clone(self):
-        """
-        Copy of self. The blocks are not copied.
-        """
-        return self.__class__(
-                tuple(dict(dim) for dim in self.dims),
-                dict(self.blocks)
-                )
-
+class JaxBlockMatrix(BlockMatrix):
+    """
+    Block matrix using jax array as its base type
+    """
+    aa = MetaJaxAPI
 
 def blockwise_binop(binop, left, right):
     """
@@ -269,56 +395,50 @@ def blockwise_binop(binop, left, right):
     # None are blocks
     raise NotImplementedError
 
-def dok_to_lol(dims: tuple[dict, ...], dok: dict) -> list:
-    """
-    Convert dict of blocks to nested lists with the given orderings
-    If entries are missing, they are replaced with dense 0 matrices of the
-    correct dimension.
-    """
-    if len(dims) != 2:
-        raise NotImplementedError
-    return [
-            [
-                dok[ikey, jkey]
-                if (ikey, jkey) in dok
-                else jnp.zeros((ilen, jlen))
-                for jkey, jlen in dims[1].items()
-            ]
-            for ikey, ilen in dims[0].items()
-            ]
+# Dimension helpers
 
-def dok_to_dense(dims: tuple[dict, ...], dok: dict):
+def is_named(dims: Dims) -> TypeGuard[NamedDims]:
     """
-    Convert dict-of-dict to dense matrix
+    Check if a Dims object is actually a NamedDims, that this a tuple of
+    dictionnaries and not a tuple of ints
     """
-    return jnp.block(dok_to_lol(dims, dok))
+    return all(isinstance(dim, Mapping) for dim in dims)
 
-def dense_to_dok(dims: tuple[dict[Any, int], ...], dense):
+def dim_len(dim: Dim) -> int:
     """
-    Split a dense matrix back into a DoK according to partitions
+    Total length along a dimension (i.e. recursive sum of lengths)
     """
-    if len(dims) != 2:
-        raise NotImplementedError
-    dok = {}
-    i = 0
-    for left_key, left_len in dims[0].items():
-        j = 0
-        for right_key, right_len in dims[1].items():
-            dok[left_key, right_key] = dense[i:i+left_len, j:j+right_len]
-            j += right_len
-        i += left_len
-    return dok
+    if isinstance(dim, Mapping):
+        return sum(map(dim_len, dim.values()))
+    return dim
 
-def dok_inv(dim: dict[Any, int], dok: dict):
+def dims_to_shape(dims: Dims) -> tuple[int, ...]:
     """
-    Naive DoK invert by dense intermediate
+    Numeric shape of a tuple of dims.
     """
-    return dense_to_dok(
-        (dim, dim),
-        jnp.linalg.inv(
-            dok_to_dense((dim, dim), dok)
+    return tuple(map(dim_len, dims))
+
+def dims_to_cumshape(dims: NamedDims) -> tuple[dict[Any, int], ...]:
+    cumshape: list = []
+    for dim in dims:
+        length = 0
+        cumlen: dict = {}
+        for key, dim_item in dim.items():
+            cumlen[key] = length
+            length += dim_len(dim_item)
+        cumshape.append(cumlen)
+    return tuple(cumshape)
+
+def _key_to_indexer(key, dims, cumshape):
+    return tuple(
+            slice(
+                cumshape[idim][ki],
+                cumshape[idim][ki] + dim_len(dims[idim][ki])
+                )
+            for idim, ki in enumerate(key)
             )
-        )
+
+# Dictionnary of block operations helpers
 
 def dok_product(left_dok: dict, right_dok: dict) -> dict:
     """
@@ -358,23 +478,6 @@ def dok_map(function, *doks: dict, fill=None):
             ))
         for keys in all_keys
         }
-
-def dok_transpose(dok: dict) -> dict:
-    """
-    Transpose a DoK
-    """
-    return {
-            key[::-1]: value.T
-        for key, value in dok.items()
-        }
-
-def dok_slogdet(dims: dict[Any, int], dok: dict[Any, dict]):
-    """
-    Naive determinant of dict-of-dict block matrix
-    """
-    return  jnp.linalg.slogdet(
-        dok_to_dense((dims, dims), dok)
-        )
 
 dok_add = partial(dok_map, operator.add, fill=0.)
 dok_sub = partial(dok_map, operator.sub, fill=0.)

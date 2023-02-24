@@ -10,7 +10,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax.scipy.special as jsc
 
-from block import BlockMatrix
+from block import JaxBlockMatrix as BlockMatrix
 
 def log_norm_std(dfs, len_left, len_right):
     """
@@ -85,8 +85,12 @@ class MatrixTObservation:
         Generator matrix, as a DoK
         """
         cobs = self.observed - self.mtd.mean
-        mcobs_t = - cobs.T
-        return self.mtd.left | self.mtd.right | cobs | mcobs_t
+        return BlockMatrix.from_blocks({
+            ('left', 'left'): self.mtd.left,
+            ('right', 'right'): self.mtd.right,
+            ('left', 'right'): cobs,
+            ('right', 'left'): - cobs.T
+            })
 
     def log_pdf(self):
         """
@@ -122,13 +126,10 @@ class MatrixTObservation:
         """
         igmat = np.linalg.inv(self.generator())
 
-        ldims = self.mtd.left.dims[-1].keys()
-        rdims = self.mtd.right.dims[-1].keys()
-
         inv_diag = np.diagonal(igmat)
-        inv_diag_left, inv_diag_right = inv_diag[ldims], inv_diag[rdims]
+        inv_diag_left, inv_diag_right = inv_diag['left'], inv_diag['right']
 
-        inv_data = igmat[ldims, rdims]
+        inv_data = igmat['left', 'right']
 
         # Broken from here, wip
         # Note on the outer product: np.outer is a legacy function.

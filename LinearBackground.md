@@ -244,13 +244,13 @@ precs_ci_low, precs_ci_high = [
 ```
 
 ```python tags=[]
- px.scatter(
-     df.assign(precision=precs_mean).sort_values('precision').reset_index(),
-     y='precision',
-     color='label',
-     width=1200,
-     log_y=True
- )
+px.scatter(
+    df.assign(precision=precs_mean).sort_values('precision').reset_index(),
+    y='precision',
+    color='label',
+    width=1200,
+    log_y=True
+)
 ```
 
 ```python
