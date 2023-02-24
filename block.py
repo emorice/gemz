@@ -14,11 +14,21 @@ import itertools
 import numpy as np
 import jax.numpy as jnp
 
+# Dimension types
+# ================
+# Generalize a shape (tuple of ints) to a tuples of nested dicts of ints,
+# representing a possibly recursive "block shape"
+
 NamedDim = Mapping[Hashable, 'Dim']
 Dim = NamedDim | int
 Dims = tuple[Dim, ...]
 NamedDims = tuple[NamedDim, ...]
 
+# Abstract array glue
+# ===================
+# We need to deal with collections of array-like objects of different types,
+# especially our meta-arrays and jax arrays. They have close but distinct apis
+# so some intermediate layer is necessary, provided by the classes below
 
 class ArrayAPI:
     """
@@ -79,6 +89,11 @@ class MetaJaxAPI(JaxAPI):
             return func(*args, **kwargs)
         return super().array_function(func, *args, **kwargs)
 
+# Core Block NDArray implementation
+# ==================================
+# Valid only with an ArrayAPI implementation, so you typically want to use a
+# subclass instead
+
 @dataclass
 class BlockMatrix:
     """
@@ -91,26 +106,29 @@ class BlockMatrix:
     aa = ArrayAPI
 
     # Block-wise operators
+    # --------------------
+
     def __add__(self, other):
-        return blockwise_binop(operator.add, self, other)
+        return _blockwise_binop(operator.add, self, other)
 
     def __sub__(self, other):
-        return blockwise_binop(operator.sub, self, other)
+        return _blockwise_binop(operator.sub, self, other)
 
     def __truediv__(self, other):
-        return blockwise_binop(operator.truediv, self, other)
+        return _blockwise_binop(operator.truediv, self, other)
 
     def __rmul__(self, other):
-        return blockwise_binop(operator.mul, other, self)
+        return _blockwise_binop(operator.mul, other, self)
 
     def __pow__(self, other):
-        return blockwise_binop(operator.pow, self, other)
+        return _blockwise_binop(operator.pow, self, other)
 
     # Other operators
+    # ---------------
     def __neg__(self):
         return self.__class__(
                 self.dims,
-                dok_neg(self.blocks)
+                dok_map(operator.neg, self.blocks)
                 )
 
     def __matmul__(self, other):
@@ -120,6 +138,7 @@ class BlockMatrix:
                 )
 
     # Numpy protocol
+    # --------------
 
     def __array_function__(self, func, types, args, kwargs):
         if func is np.linalg.inv:
@@ -148,7 +167,8 @@ class BlockMatrix:
                         )
         return NotImplemented
 
-    # Implementations
+    # Core linalg implementations
+    # ---------------------------
 
     def _ensure_square(self, axis1=-2, axis2=-1):
         """
@@ -359,6 +379,8 @@ class BlockMatrix:
             return key
         return {key}
 
+# Concrete subclasses
+# ===================
 
 class JaxBlockMatrix(BlockMatrix):
     """
@@ -366,7 +388,10 @@ class JaxBlockMatrix(BlockMatrix):
     """
     aa = MetaJaxAPI
 
-def blockwise_binop(binop, left, right):
+# Helper functions
+# ================
+
+def _blockwise_binop(binop, left, right):
     """
     Generic implementation of binary operators that act block per block
     """
@@ -419,6 +444,11 @@ def dims_to_shape(dims: Dims) -> tuple[int, ...]:
     return tuple(map(dim_len, dims))
 
 def dims_to_cumshape(dims: NamedDims) -> tuple[dict[Any, int], ...]:
+    """
+    Cumulative length of dimension items.
+
+    Effectively gives the index in the dense matrix corresponding to a block
+    """
     cumshape: list = []
     for dim in dims:
         length = 0
@@ -439,6 +469,7 @@ def _key_to_indexer(key, dims, cumshape):
             )
 
 # Dictionnary of block operations helpers
+# ========================================
 
 def dok_product(left_dok: dict, right_dok: dict) -> dict:
     """
@@ -471,14 +502,8 @@ def dok_map(function, *doks: dict, fill=None):
 
     return {
         keys: function(*(
-            dok[keys]
-            if keys in dok
-            else fill
+            dok[keys] if keys in dok else fill
             for dok in doks
             ))
         for keys in all_keys
         }
-
-dok_add = partial(dok_map, operator.add, fill=0.)
-dok_sub = partial(dok_map, operator.sub, fill=0.)
-dok_neg = partial(dok_map, operator.neg)
