@@ -46,8 +46,7 @@ class MatrixT:
         return MatrixTObservation(self, observed=observed)
 
     def __post_init__(self):
-        self.len_left = self.left.shape[-1]
-        self.len_right = self.right.shape[-1]
+        self.shape = (self.left.shape[-1], self.right.shape[-1])
 
     def condition_left(self, observed: BlockMatrix) -> 'MatrixT':
         """
@@ -70,7 +69,12 @@ class MatrixT:
 
         return self.__class__(cond_dfs, cond_left, cond_right, mean=cond_mean)
 
-
+    @property
+    def grams(self):
+        """
+        Left and right gram matrices, but as a tuple for numeric indexing
+        """
+        return (self.left, self.right)
 
 @dataclass
 class MatrixTObservation:
@@ -86,37 +90,44 @@ class MatrixTObservation:
         """
         cobs = self.observed - self.mtd.mean
         return BlockMatrix.from_blocks({
-            ('left', 'left'): self.mtd.left,
-            ('right', 'right'): self.mtd.right,
-            ('left', 'right'): cobs,
-            ('right', 'left'): - cobs.T
+            (0, 0): self.mtd.left,  (0, 1): cobs,
+            (1, 0): - cobs.T,       (1, 1): self.mtd.right,
             })
 
     def log_pdf(self):
         """
         Log-density
         """
-        _sign, logdet_left = np.linalg.slogdet(self.mtd.left)
-        _sign, logdet_right = np.linalg.slogdet(self.mtd.right)
-
-        _sign, logdet = np.linalg.slogdet(self.generator())
-
-        return (
-                0.5 * (self.mtd.dfs + self.mtd.len_right - 1) * logdet_right
-                + 0.5 * (self.mtd.dfs + self.mtd.len_left - 1) * logdet_left
-                - log_norm_std(self.mtd.dfs, self.mtd.len_left, self.mtd.len_right)
-                - 0.5 * (self.mtd.dfs + self.mtd.len_left + self.mtd.len_right - 1) * logdet
+        log_inv_norm = (
+                sum(
+                    0.5 * (self.mtd.dfs + length - 1) * np.linalg.slogdet(gram)[1]
+                    for length, gram in zip(self.mtd.shape, self.mtd.grams)
+                    )
+                - log_norm_std(self.mtd.dfs, *self.mtd.shape)
                 )
 
-    def post_left(self) -> 'Wishart':
+        _sign, logdet = np.linalg.slogdet(self.generator())
+        return (
+                log_inv_norm
+                - 0.5 * (self.mtd.dfs + sum(self.mtd.shape) - 1) * logdet
+                )
+
+    def post(self, axis: int = 0) -> 'Wishart':
         """
-        Compute the posterior distribution of the (block) left gram matrix after observing
-        (block) data
+        Compute the posterior distribution of one of the gram matrix after observing
+        data
         """
+        other_axis = 1 - axis
+
+        # obs with required axis first resp. last
+        obs, obs_t = self.observed, self.observed.T
+        if axis == 1:
+            obs, obs_t = obs_t, obs
+
         return Wishart(
-            dfs=self.mtd.dfs + self.mtd.len_right,
-            gram=self.mtd.left + self.observed @ (
-                np.linalg.inv(self.mtd.right) @ self.observed.T
+            dfs=self.mtd.dfs + self.mtd.shape[other_axis],
+            gram=self.mtd.grams[axis] + obs @ (
+                np.linalg.inv(self.mtd.grams[other_axis]) @ obs_t
                 )
             )
 
@@ -127,9 +138,9 @@ class MatrixTObservation:
         igmat = np.linalg.inv(self.generator())
 
         inv_diag = np.diagonal(igmat)
-        inv_diag_left, inv_diag_right = inv_diag['left'], inv_diag['right']
+        inv_diag_left, inv_diag_right = inv_diag[0], inv_diag[1]
 
-        inv_data = igmat['left', 'right']
+        inv_data = igmat[0, 1]
 
         # Broken from here, wip
         # Note on the outer product: np.outer is a legacy function.
@@ -142,12 +153,18 @@ class MatrixTObservation:
 
         residuals = - inv_data / dets
 
-        dfs = self.mtd.dfs + (self.mtd.len_left - 1) + (self.mtd.len_right - 1)
+        dfs = self.mtd.dfs + sum(self.mtd.shape) - 2
         means = self.observed - residuals
         variances = inv_diag_prod / ((dfs - 2.) * dets**2)
         logks = 0.5 * (dfs * np.log(inv_diag_prod) - (dfs - 1) * np.log(dets))
         logps = logks - jsc.betaln(0.5 * dfs, 0.5)
         return means, variances, logps
+
+    def extend(self, gram, axis: int = 0):
+        """
+        Shorthand for computing posterior and extending along axis
+        """
+        return self.post(axis).extend(gram, axis)
 
 @dataclass
 class Wishart:
@@ -160,14 +177,15 @@ class Wishart:
     def __post_init__(self) -> None:
         self.len = self.gram.shape[-1]
 
-    def extend_right(self, right: BlockMatrix, mean: BlockMatrix | None = None) -> MatrixT:
+    def extend(self, new_gram: BlockMatrix, axis: int = 0, mean: BlockMatrix | None = None) -> MatrixT:
         """
-        Generate a matrix-t from an existing posterior left gram
+        Generate a matrix-t from an existing gram posterior, using it as the
+        axis side
         """
         return MatrixT(
                 dfs=self.dfs,
-                left=self.gram,
-                right=right,
+                left=self.gram if axis == 0 else new_gram,
+                right=self.gram if axis == 1 else new_gram,
                 mean=mean if mean is not None else BlockMatrix.zero2d(),
                 )
 
@@ -184,16 +202,16 @@ class NonCentralMatrixT:
             gram_mean_right: float | None = None,
             ) -> 'NonCentralMatrixT':
 
-        left = { ('left', 'left'): left }
-        right = { ('right', 'right'): right }
+        left = { ('obs', 'obs'): left }
+        right = { ('obs', 'obs'): right }
 
         if gram_mean_left is not None:
             # Augment left with lift dimension
-            left['left_lift', 'left_lift'] = gram_mean_left * jnp.eye(1)
+            left['lift', 'lift'] = gram_mean_left * jnp.eye(1)
 
         if gram_mean_right is not None:
             # Augment right with lift dimension
-            right['right_lift', 'right_lift'] = gram_mean_right * jnp.eye(1)
+            right['lift', 'lift'] = gram_mean_right * jnp.eye(1)
 
         return cls(MatrixT(
                 dfs=dfs,
@@ -208,13 +226,13 @@ class NonCentralMatrixT:
         This adds lift variables as needed.
         """
         _observed = BlockMatrix.from_blocks(
-                { ('left', 'right'): observed }
+                { ('obs', 'obs'): observed }
                 )
 
         return NonCentralMatrixTObservation(self, _observed)
 
     @classmethod
-    def from_left(cls, wishart_left: Wishart, right):
+    def from_post(cls, wishart: Wishart, new_gram, axis: int = 0) -> 'NonCentralMatrixT':
         """
         Alternate constructor to directly instantiate from a block-wishart
         already containing lift dimensions
@@ -224,20 +242,20 @@ class NonCentralMatrixT:
         have been absorbed (contracted over) during the conditioning operation
         that created the block-wishart.
         """
-        right = { ('right', 'right'): right }
-        mtd = wishart_left.extend_right(BlockMatrix.from_blocks(right))
+        _new_gram = { ('obs', 'obs'): new_gram }
+        mtd = wishart.extend(BlockMatrix.from_blocks(_new_gram), axis)
         return cls(mtd)
 
     def condition_on_lift(self) -> MatrixT:
         """
         Condition on lift variables
         """
-        if 'right_lift' in self.mtd.right.dims[-1]:
+        if 'lift' in self.mtd.right.dims[-1]:
             raise NotImplementedError
-        if 'left_lift' in self.mtd.left.dims[-1]:
+        if 'lift' in self.mtd.left.dims[-1]:
             mtd = self.mtd.condition_left(BlockMatrix.from_blocks({
-                ('left_lift', 'right'): jnp.ones((
-                    1, self.mtd.right.dims[-1]['right']
+                ('lift', 'obs'): jnp.ones((
+                    1, self.mtd.right.dims[-1]['obs']
                     ))
                 }))
         else:
@@ -260,13 +278,13 @@ class NonCentralMatrixTObservation:
         """
         _observed = self.observed.clone()
 
-        if 'left_lift' in self.ncmtd.mtd.left.dims[-1]:
-            _observed['left_lift', 'right'] = jnp.ones((
-                1, self.ncmtd.mtd.right.dims[-1]['right']
+        if 'lift' in self.ncmtd.mtd.left.dims[-1]:
+            _observed['lift', 'obs'] = jnp.ones((
+                1, self.ncmtd.mtd.right.dims[-1]['obs']
                 ))
-        if 'right_lift' in self.ncmtd.mtd.right.dims[-1]:
-            _observed['left', 'right_lift'] = jnp.ones((
-                self.ncmtd.mtd.left.dims[-1]['left'], 1
+        if 'lift' in self.ncmtd.mtd.right.dims[-1]:
+            _observed['obs', 'lift'] = jnp.ones((
+                self.ncmtd.mtd.left.dims[-1]['obs'], 1
                 ))
 
         # right_lift, left_lift implicitly set as zero
@@ -274,12 +292,12 @@ class NonCentralMatrixTObservation:
 
         return mto
 
-    def post_left(self) -> 'NCWishart':
+    def post(self, axis: int = 0) -> 'NCWishart':
         """
-        Compute the posterior distribution of the (block) left gram matrix after observing
-        (block) data
+        Compute the posterior distribution of the gram matrices specified by
+        axis after observing data
         """
-        return NCWishart(self.as_mto().post_left())
+        return NCWishart(self.as_mto().post(axis))
 
     def log_pdf(self):
         """
@@ -295,9 +313,15 @@ class NonCentralMatrixTObservation:
         all_stats = self.as_mto().uni_cond()
 
         return tuple(
-            stat['left', 'right']
+            stat['obs', 'obs']
             for stat in all_stats
             )
+
+    def extend(self, new_gram, axis: int = 0):
+        """
+        Shorthand for computing posterior and extending along axis
+        """
+        return self.post(axis).extend(new_gram, axis)
 
 @dataclass
 class NCWishart:
@@ -307,8 +331,8 @@ class NCWishart:
     """
     wishart: Wishart
 
-    def extend_right(self, right) -> NonCentralMatrixT:
+    def extend(self, new_gram, axis: int = 0) -> NonCentralMatrixT:
         """
-        Generate a matrix-t from an existing posterior left gram
+        Generate a matrix-t from an existing posterior gram
         """
-        return NonCentralMatrixT.from_left(self.wishart, right)
+        return NonCentralMatrixT.from_post(self.wishart, new_gram, axis)

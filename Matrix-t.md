@@ -65,8 +65,8 @@ data = bmt.NonCentralMatrixT.from_params(
 
 predictive = (
     data
-    .post_left()
-    .extend_right(np.eye(1)*scale)
+    .post(axis=0)
+    .extend(np.eye(1)*scale, axis=0)
 )
 
 axis = 1

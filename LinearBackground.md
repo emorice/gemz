@@ -31,15 +31,9 @@ import optax
 from tqdm.auto import tqdm
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly
+import plotly_template
 import colorcet
-plotly.io.templates.default = go.layout.Template(layout={
-    'width': 600, 'height': 600, 'autosize': False, **{
-        f'{a}axis': {'showline': True, 'ticks': 'outside', 'exponentformat': 'power'}
-        for a in 'xy'},
-    },
-    data={'contour': [{'colorbar': {'exponentformat': 'power'}, 'opacity': 0.97}]}
-)
+
 import pandas as pd
 import scipy.stats
 ```
@@ -65,13 +59,11 @@ dist = dg.mixture((
 )
 
 labels, data = dist.rvs(size=N, random_state=1)
+df = dg.mixture_to_df(labels, data, ('background', 'signal'), ('x', 'y'))
+
 data = data.T
 X, Y = data
 is_bg = labels == 0
-```
-
-```python tags=[]
-df = dg.mixture_to_df(labels, data, ('background', 'signal'), ('x', 'y'))
 ```
 
 ```python tags=[]
@@ -98,8 +90,7 @@ observed = bmt.NonCentralMatrixT.from_params(
 
 predictive_dist = (
     observed
-    .post_left()
-    .extend_right(scale*np.eye(1))
+    .extend(scale*np.eye(1), axis=0)
 )
 
 def logp(new):
@@ -278,14 +269,14 @@ go.Figure(data_fig).update_traces(
 ```
 
 ```python tags=[]
-_post = observe_weighted(log_precs).post_left()
+_post = observe_weighted(log_precs).post()
 
 @jax.jit
 def _logk_prec(new, log_prec):
     print('Tracing...')
     return (
         _post
-        .extend_right(jnp.exp(-log_prec) * np.eye(1))
+        .extend(jnp.exp(-log_prec) * np.eye(1))
         .observe(new[:, None])
         .log_pdf()
     )

@@ -23,13 +23,11 @@ def gen_2d_gaussian(size, rng, **params):
             )
     return data_x, data_y
 
-
 def rectangle(low, high):
     """
     Multivariate rectangular uniform parametrized by its bounds.
     """
     return _Rectangle(low, high)
-
 
 class _Rectangle:
     def __init__(self, low, high):
@@ -78,9 +76,12 @@ class _Mixture:
 def mixture_to_df(labels, samples, names, dim_names):
     """
     Pack random samples generated from a mixture into a data frame
+
+    Args:
+        samples: array of samples, shape (n_samples, n_dims)
     """
     return (pd
-        .DataFrame(samples.T, columns=dim_names)
+        .DataFrame(samples, columns=dim_names)
         .assign(num_label=labels)
         .merge(pd.Series(names, name='label'), left_on='num_label',
             right_index=True)
