@@ -245,39 +245,18 @@ precs_ci_low, precs_ci_high = [
 
 ```python tags=[]
 px.scatter(
-    df.assign(precision=precs_mean).sort_values('precision').reset_index(),
+    df.assign(
+        precision=precs_mean,
+        precision_error_minus=precs_mean - precs_ci_low,
+        precision_error_plus=precs_ci_high - precs_mean,
+    ).sort_values('precision').reset_index(),
     y='precision',
+    error_y='precision_error_plus',
+    error_y_minus='precision_error_minus',
     color='label',
     width=1200,
     log_y=True
-)
-```
-
-```python
-order = np.argsort(precs_mean)
-
-_f = go.Figure(
-    [
-        go.Scatter(
-            x=np.arange(1, N+1)[filt],
-            y=precs_mean[order][filt],
-            error_y={
-                #'array': None,#np.exp(log_precs_std[filt]),
-                'arrayminus': (precs_mean - precs_ci_low)[order][filt],
-                'array': (precs_ci_high - precs_mean)[order][filt],
-                'thickness': 1,
-                #'color': 'lightgrey',
-                'width': 1
-            },
-            mode='markers', name=name)
-        for (filt, name) in ((is_bg[order], 'background'), (~is_bg[order], 'signal'))
-    ],
-    layout={
-        'yaxis': {'type': 'log'},
-        'width': 1200,
-    }
-)
-_f
+).update_traces(error_y={'thickness': 1, 'width': 1})
 ```
 
 ```python tags=[]
