@@ -249,7 +249,7 @@ px.scatter(
         precision=precs_mean,
         precision_error_minus=precs_mean - precs_ci_low,
         precision_error_plus=precs_ci_high - precs_mean,
-    ).sort_values('precision').reset_index(),
+    ).sort_values('precision').reset_index(drop=True),
     y='precision',
     error_y='precision_error_plus',
     error_y_minus='precision_error_minus',
@@ -272,6 +272,7 @@ px.histogram(
 ```python tags=[]
 go.Figure(data_fig).update_traces(
     text=np.exp(log_precs),
+    hovertemplate='x: %{x}<br>y: %{y}<br>λ: %{text:g}',
     marker={'color': log_precs/np.log(10), 'colorscale': colorcet.CET_D2, 'showscale': True, 'colorbar.title': 'Precision (log 10)'}
 ).update_layout(width=700)
 ```
