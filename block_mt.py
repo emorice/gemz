@@ -76,6 +76,12 @@ class MatrixT:
         """
         return (self.left, self.right)
 
+    def log_pdf(self, observed):
+        """
+        Shortand for .observe().log_pdf()
+        """
+        return self.observe(observed).log_pdf()
+
 @dataclass
 class MatrixTObservation:
     """
@@ -261,6 +267,12 @@ class NonCentralMatrixT:
         else:
             mtd = self.mtd
         return mtd
+
+    def log_pdf(self, observed):
+        """
+        Shortand for .observe().log_pdf()
+        """
+        return self.observe(observed).log_pdf()
 
 @dataclass
 class NonCentralMatrixTObservation:

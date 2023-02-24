@@ -48,6 +48,19 @@ class ArrayAPI:
         """
         raise NotImplementedError('Abstract method')
 
+    @classmethod
+    def inv(cls, array):
+        """
+        Applies np.linalg.inv
+        """
+        return cls.array_function(np.linalg.inv, array)
+
+    @classmethod
+    def slogdet(cls, array):
+        """
+        Applies np.linalg.inv
+        """
+        return cls.array_function(np.linalg.slogdet, array)
 
 class JaxAPI(ArrayAPI):
     """
@@ -179,6 +192,54 @@ class BlockMatrix:
                 return
         raise RuntimeError('Matrix is not square')
 
+    def _lu(self):
+        """
+        Simple block LU.
+
+        This returns two block matrices, L and the strict upper part of U (the
+        diagonal being identity matrices)
+        """
+        self._ensure_square()
+        if len(self.dims) > 2:
+            raise NotImplementedError('Batched block lu')
+        lower = dict(self.blocks)
+        upper = dict({})
+
+        ordered_kis = tuple(self.dims[-1].keys())
+
+        # Iterate along the diagonal
+        for i, ki in enumerate(ordered_kis):
+            if (ki, ki) not in lower:
+                raise RuntimeError('Block LU with missing diagonal block')
+            # Invert pivot
+            pivot = lower[ki, ki]
+            inv_pivot = self.aa.inv(pivot)
+
+            # Take all blocks in rest of row
+            for ki_right in ordered_kis[(i+1):]:
+                if (ki, ki_right) in lower:
+                    off_block = lower[ki, ki_right]
+                    # Delete from lower
+                    del lower[ki, ki_right]
+
+                    # Add to upper
+                    trans_block = inv_pivot @ off_block
+                    upper[ki, ki_right] = trans_block
+
+                    # Update rest of lower
+                    for ki_down in ordered_kis[(i+1):]:
+                        if (ki_down, ki) in lower:
+                            prod = lower[ki_down, ki] @ trans_block
+                            if (ki_down, ki_right) in lower:
+                                # Don't use -= here as it could be
+                                # misinterpreted as an in-place modification
+                                lower[ki_down, ki_right] = (
+                                    lower[ki_down, ki_right] - prod
+                                    )
+                            else:
+                                lower[ki_down, ki_right] = - prod
+        return self.__class__(self.dims, lower), self.__class__(self.dims, upper)
+
     def _inv(self):
         """
         Fallback inversion using dense matrices
@@ -192,6 +253,24 @@ class BlockMatrix:
                 )
 
     def _slogdet(self):
+        """
+        Simple block determinant by block-LU factorization
+        """
+        self._ensure_square()
+        if len(self.dims) > 2:
+            raise NotImplementedError('Batched block lu')
+
+        lower, _supper = self._lu()
+        sign = 1.
+        logdet = 0.
+        for kitem in self.dims[-1]:
+            b_sign, b_logdet = self.aa.slogdet(lower[kitem, kitem])
+            sign *= b_sign
+            logdet += b_logdet
+        return sign, logdet
+
+
+    def _slogdet_dense(self):
         """
         Fallback slogdet using dense matrices
         """
