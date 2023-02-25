@@ -5,7 +5,6 @@ Block matrices utils
 import operator
 
 from dataclasses import dataclass
-from functools import partial
 from typing import Any, TypeGuard
 from collections import defaultdict
 from collections.abc import KeysView, Mapping, Hashable
@@ -49,6 +48,13 @@ class ArrayAPI:
         raise NotImplementedError('Abstract method')
 
     @classmethod
+    def eye(cls, length):
+        """
+        Create an identity squaure array of specified dim
+        """
+        raise NotImplementedError('Abstract method')
+
+    @classmethod
     def inv(cls, array):
         """
         Applies np.linalg.inv
@@ -62,6 +68,13 @@ class ArrayAPI:
         """
         return cls.array_function(np.linalg.slogdet, array)
 
+    @classmethod
+    def solve(cls, array, rhs):
+        """
+        Applies np.linalg.solve
+        """
+        return cls.array_function(np.linalg.solve, array, rhs)
+
 class JaxAPI(ArrayAPI):
     """
     Conversion layer from numpy to jax operations
@@ -71,6 +84,7 @@ class JaxAPI(ArrayAPI):
         np.outer: jnp.outer,
         np.linalg.inv: jnp.linalg.inv,
         np.linalg.slogdet: jnp.linalg.slogdet,
+        np.linalg.solve: jnp.linalg.solve,
         }
 
     @classmethod
@@ -85,6 +99,10 @@ class JaxAPI(ArrayAPI):
     @classmethod
     def zeros(cls, shape):
         return jnp.zeros(shape)
+
+    @classmethod
+    def eye(cls, length):
+        return jnp.eye(length)
 
 class MetaJaxAPI(JaxAPI):
     """
@@ -145,8 +163,10 @@ class BlockMatrix:
                 )
 
     def __matmul__(self, other):
+        if (len(self.dims), len(other.dims)) != (2, 2):
+            raise NotImplementedError
         return self.__class__(
-                self.dims,
+                (self.dims[-2], other.dims[-1]),
                 dok_product(self.blocks, other.blocks)
                 )
 
@@ -159,6 +179,11 @@ class BlockMatrix:
 
         if func is np.linalg.slogdet:
             return self._slogdet()
+
+        if func is np.linalg.solve:
+            assert args[0] is self
+            assert len(args) == 2
+            return self.solve(args[1])
 
         if func is np.diagonal:
             return self.diagonal()
@@ -198,6 +223,10 @@ class BlockMatrix:
 
         This returns two block matrices, L and the strict upper part of U (the
         diagonal being identity matrices)
+
+        Bugs: explicitly inverting the pivots proves to be unstable, as can be
+        expected. For now we call solve for each block to eliminate, which will
+        factor the pivot several time.
         """
         self._ensure_square()
         if len(self.dims) > 2:
@@ -213,7 +242,8 @@ class BlockMatrix:
                 raise RuntimeError('Block LU with missing diagonal block')
             # Invert pivot
             pivot = lower[ki, ki]
-            inv_pivot = self.aa.inv(pivot)
+            # Skip for numerical stability tests
+            #inv_pivot = self.aa.inv(pivot)
 
             # Take all blocks in rest of row
             for ki_right in ordered_kis[(i+1):]:
@@ -223,7 +253,8 @@ class BlockMatrix:
                     del lower[ki, ki_right]
 
                     # Add to upper
-                    trans_block = inv_pivot @ off_block
+                    # todo: save factorization
+                    trans_block = self.aa.solve(pivot, off_block)
                     upper[ki, ki_right] = trans_block
 
                     # Update rest of lower
@@ -240,16 +271,16 @@ class BlockMatrix:
                                 lower[ki_down, ki_right] = - prod
         return self.__class__(self.dims, lower), self.__class__(self.dims, upper)
 
-    def _inv(self):
+    def _inv_dense(self):
         """
         Fallback inversion using dense matrices
         """
         self._ensure_square()
         return self.from_dense(
-                self.dims,
                 self.aa.array_function(
                     np.linalg.inv, self.to_dense()
-                    )
+                    ),
+                self.dims
                 )
 
     def triangular_solve(self, target, lower=True, id_diag=False):
@@ -263,31 +294,44 @@ class BlockMatrix:
         result = {}
         tblocks = target.blocks
 
-        if lower:
-            key_order = self.dims[-1]
-        else:
-            key_order = self.dims[-1][::-1]
+        key_order = tuple(self.dims[-1].keys())
+        if not lower:
+            key_order = key_order[::-1]
 
-        for key in key_order:
-            # Get target block
-            if key in tblocks:
-                tblock = tblocks[key]
-            else:
-                tblock = 0.
+        # Iterate in order over result row
+        for i, key in enumerate(key_order):
+            # Iterate over rhs (result col)
+            for rhk in target.dims[-1]:
+                # Get target block
+                if (key, rhk) in tblocks:
+                    tblock = tblocks[key, rhk]
+                else:
+                    tblock = None
 
-            # Eliminate previous coordinates
-            for rkey, rblock in result.items():
-                if (key, rkey) in self.blocks:
-                    tblock -= self.blocks[key, rkey] @ rblock
+                # Eliminate previous coordinates (contracting dim)
+                for prev_key in key_order[:i]:
+                    if (key, prev_key) not in self.blocks:
+                        continue
+                    if (prev_key, rhk) not in result:
+                        continue
+                    update = - (
+                        self.blocks[key, prev_key]
+                        @ result[prev_key, rhk]
+                        )
+                    if tblock is None:
+                        tblock = update
+                    else:
+                        tblock = tblock + update
+                if tblock is None:
+                    continue
+                # Solve
+                if id_diag:
+                    # Fast bypass for diagonal id, as generated by _lu
+                    result[key, rhk] = tblock
+                else:
+                    result[key, rhk] = self.aa.solve(self.blocks[key, key], tblock)
 
-            # Solve
-            if id_diag:
-                # Fast bypass for diagonal id, as generated by _lu
-                result[key] = tblock
-            else:
-                result[key] = np.linalg.inv(self.blocks[key, key]) @ tblock
-
-        return result
+        return self.__class__((self.dims[-2], target.dims[-1]), result)
 
     def solve(self, target):
         """
@@ -298,6 +342,12 @@ class BlockMatrix:
         result = supper.triangular_solve(inter, lower=False, id_diag=True)
         return result
 
+    def _inv(self):
+        """
+        Inversion using simple block LU
+        """
+        self._ensure_square()
+        return self.solve(self.eye(self.dims[-1]))
 
     def _slogdet(self):
         """
@@ -409,10 +459,19 @@ class BlockMatrix:
         return array
 
     @classmethod
-    def from_dense(cls, dims: Dims, dense):
+    def from_dense(cls, dense, dims: Dims | None = None):
         """
         Split array in blocks conforming to dims
+
+        If dims is not provided, make each scalar element a block. Mostly used
+        for testing purposes.
         """
+        if dims is None:
+            dims = tuple(
+                {i: 1 for i in range(length)}
+                for length in np.shape(dense)
+                )
+
         if is_named(dims):
             cumshape = dims_to_cumshape(dims)
             blocks: dict = {}
@@ -420,7 +479,7 @@ class BlockMatrix:
             for key in itertools.product(*dims):
                 indexer = _key_to_indexer(key, dims, cumshape)
                 lower_dims = tuple(dim[ki] for dim, ki in zip(dims, key))
-                blocks[key] = cls.from_dense(lower_dims, dense[indexer])
+                blocks[key] = cls.from_dense(dense[indexer], lower_dims)
 
             return cls(dims, blocks)
         return dense
@@ -437,6 +496,19 @@ class BlockMatrix:
                     ):
                 dims[idim][key_item] = length
         return cls(tuple(dims.values()), blocks)
+
+    @classmethod
+    def eye(cls, dim: Dim):
+        """
+        Identity matrix of given generalized dim.
+        """
+        if isinstance(dim, Mapping):
+            return cls(
+                (dim, dim),
+                { (ki, ki): cls.eye(sub_dim)
+                 for ki, sub_dim in dim.items() }
+                 )
+        return cls.aa.eye(dim)
 
     @classmethod
     def zero(cls):
