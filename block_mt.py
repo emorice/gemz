@@ -37,7 +37,7 @@ class MatrixT:
     right: BlockMatrix
 
     _: dc.KW_ONLY
-    mean: BlockMatrix = dc.field(default_factory=BlockMatrix.zero2d)
+    mean: BlockMatrix | None = None
 
     def observe(self, observed: BlockMatrix) -> 'MatrixTObservation':
         """
@@ -55,7 +55,10 @@ class MatrixT:
         keys = observed.dims[-2].keys()
         ckeys = self.left.dims[-1].keys() - keys
 
-        centered = observed - self.mean[keys, :]
+        centered = observed
+        if self.mean is not None:
+            centered = centered - self.mean[keys, :]
+
         pivot = self.left[keys, keys]
         inv_pivot = np.linalg.inv(pivot)
         trans = inv_pivot @ centered
@@ -64,7 +67,10 @@ class MatrixT:
                 inv_pivot @ self.left[keys, ckeys]
                 )
         cond_right = self.right + centered.T @ trans
-        cond_mean = self.mean[ckeys, :] + self.left[ckeys, keys] @ trans
+
+        cond_mean = self.left[ckeys, keys] @ trans
+        if self.mean is not None:
+            cond_mean = self.mean[ckeys, :] + cond_mean
         cond_dfs = self.dfs + observed.shape[-2]
 
         return self.__class__(cond_dfs, cond_left, cond_right, mean=cond_mean)
@@ -94,7 +100,9 @@ class MatrixTObservation:
         """
         Generator matrix, as a DoK
         """
-        cobs = self.observed - self.mtd.mean
+        cobs = self.observed
+        if self.mtd.mean is not None:
+            cobs = cobs - self.mtd.mean
         return BlockMatrix.from_blocks({
             (0, 0): self.mtd.left,  (0, 1): cobs,
             (1, 0): - cobs.T,       (1, 1): self.mtd.right,
@@ -192,7 +200,7 @@ class Wishart:
                 dfs=self.dfs,
                 left=self.gram if axis == 0 else new_gram,
                 right=self.gram if axis == 1 else new_gram,
-                mean=mean if mean is not None else BlockMatrix.zero2d(),
+                mean=mean,
                 )
 
 @dataclass
