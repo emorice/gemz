@@ -66,7 +66,7 @@ class MatrixT:
         cond_left = self.left[ckeys, ckeys] - self.left[ckeys, keys] @ (
                 inv_pivot @ self.left[keys, ckeys]
                 )
-        cond_right = self.right + centered.T @ trans
+        cond_right = self.right + np.swapaxes(centered, -1, -2) @ trans
 
         cond_mean = self.left[ckeys, keys] @ trans
         if self.mean is not None:
@@ -103,9 +103,11 @@ class MatrixTObservation:
         cobs = self.observed
         if self.mtd.mean is not None:
             cobs = cobs - self.mtd.mean
+        # Batched transpose
+        cobs_t = np.swapaxes(cobs, -1, -2)
         return BlockMatrix.from_blocks({
             (0, 0): self.mtd.left,  (0, 1): cobs,
-            (1, 0): - cobs.T,       (1, 1): self.mtd.right,
+            (1, 0): - cobs_t,       (1, 1): self.mtd.right,
             })
 
     def log_pdf(self):
@@ -134,7 +136,7 @@ class MatrixTObservation:
         other_axis = 1 - axis
 
         # obs with required axis first resp. last
-        obs, obs_t = self.observed, self.observed.T
+        obs, obs_t = self.observed, np.swapaxes(self.observed, -1, -2)
         if axis == 1:
             obs, obs_t = obs_t, obs
 

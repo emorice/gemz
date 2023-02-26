@@ -174,24 +174,20 @@ class BlockMatrix:
     # --------------
 
     def __array_function__(self, func, types, args, kwargs):
-        if func is np.linalg.inv:
-            return self._inv()
+        # Functions implemented as methods on first argument
+        methods = {
+            np.linalg.inv: self._inv,
+            np.linalg.slogdet: self._slogdet,
+            np.linalg.solve: self.solve,
+            np.diagonal: self.diagonal,
+            np.swapaxes: self.swapaxes,
+            np.outer: self._outer
+            }
 
-        if func is np.linalg.slogdet:
-            return self._slogdet()
-
-        if func is np.linalg.solve:
-            assert args[0] is self
-            assert len(args) == 2
-            return self.solve(args[1])
-
-        if func is np.diagonal:
-            return self.diagonal()
-
-        if func is np.outer:
-            if kwargs or len(args) != 2 or args[0] is not self:
-                return NotImplemented
-            return self._outer(args[1])
+        if func in methods:
+            obj, *other_args = args
+            if obj is self:
+                return methods[func](*other_args, **kwargs)
 
         return NotImplemented
 
@@ -406,15 +402,43 @@ class BlockMatrix:
     @property
     def T(self): # pylint: disable=invalid-name
         """
-        Transpose
+        Transpose, i.e. reverse the order of all dimensions.
         """
+        return self.transpose()
+
+    def transpose(self, axes=None):
+        """
+        Apply specified permutation to axes, defaulting to reversal
+        """
+        if axes is None:
+            axes = range(self.ndim)[::-1]
+
         return self.__class__(
-                self.dims[::-1],
+                tuple(self.dims[a] for a in axes),
                 {
-                    key[::-1]: value.T
+                    tuple(key[a] for a in axes): value.T
                     for key, value in self.blocks.items()
                     }
                 )
+
+    def swapaxes(self, axis1, axis2):
+        """
+        Swap the specified axes only.
+        """
+        perm = list(range(self.ndim))
+        perm[axis1] = axis2
+        perm[axis2] = axis1
+        return self.transpose(perm)
+
+    @property
+    def ndim(self):
+        """
+        Number of block dimensions.
+
+        Actual blocks may be larger dimensional
+        """
+        return len(self.dims)
+
     @property
     def shape(self) -> tuple[int, ...]:
         """
@@ -491,11 +515,20 @@ class BlockMatrix:
         """
         dims : dict[int, dict] = defaultdict(dict)
         for key, value in blocks.items():
-            for idim, (key_item, length) in enumerate(
-                    zip(key, cls.indexes(value))
-                    ):
+            # Note: by starting from last dimension, any extra leading
+            # dimensions in value are silently ignored, allowing implicit
+            # batching. E.g. a 2D block array can have elements that are
+            # actually batches of 2D blocks.
+            for idim, (key_item, length) in enumerate(zip(
+                reversed(key),
+                reversed(cls.indexes(value))
+                )):
                 dims[idim][key_item] = length
-        return cls(tuple(dims.values()), blocks)
+        return cls(
+                # List dims in inverse insertion order
+                tuple(reversed(dims.values())),
+                blocks
+                )
 
     @classmethod
     def eye(cls, dim: Dim):
