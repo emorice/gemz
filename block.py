@@ -181,6 +181,7 @@ class BlockMatrix:
             np.linalg.solve: self.solve,
             np.diagonal: self.diagonal,
             np.swapaxes: self.swapaxes,
+            np.transpose: self.transpose,
             np.outer: self._outer
             }
 
@@ -416,7 +417,7 @@ class BlockMatrix:
         return self.__class__(
                 tuple(self.dims[a] for a in axes),
                 {
-                    tuple(key[a] for a in axes): value.T
+                    tuple(key[a] for a in axes): np.transpose(value, axes)
                     for key, value in self.blocks.items()
                     }
                 )
