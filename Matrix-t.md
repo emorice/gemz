@@ -30,11 +30,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import plotly
 import colorcet
-plotly.io.templates.default = go.layout.Template(layout={
-    'width': 600, 'height': 600, 'autosize': False, **{
-        f'{a}axis': {'showline': True, 'ticks': 'outside', 'exponentformat': 'power'}
-        for a in 'xy'}
-})
+import plotly_template
 ```
 
 ```python tags=[]
@@ -44,6 +40,7 @@ import block_mt as bmt
 ```python
 X = np.array([[-1., 1., 2.],
               [-1., 1.5, 2.]])
+X = X[:, [1, 2]]
 ```
 
 ```python
@@ -52,16 +49,15 @@ go.Figure(data_trace)
 ```
 
 ```python
-Xsub = X[:, [1, 2]]
 scale = .5
 
 data = bmt.NonCentralMatrixT.from_params(
     dfs=2.0,
-    left=jnp.eye(Xsub.shape[0])*scale,
-    right=jnp.eye(Xsub.shape[1])*scale,
+    left=jnp.eye(X.shape[0])*scale,
+    right=jnp.eye(X.shape[1])*scale,
     gram_mean_left=1e-6 / scale,
     gram_mean_right=None
-).observe(Xsub)
+).observe(X)
 
 predictive = (
     data
@@ -140,7 +136,7 @@ means = means[:, 1, -1]
 variances = variances[:, 1, -1]
 
 go.Figure(data=[
-    go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}),
+    go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}, name='Observed data'),
     go.Scatter(x=L, y=means, mode='lines', name='Mean', line={'color': 'darkblue'}),
     go.Scatter(x=L, y=means+np.sqrt(variances), mode='lines', name='Mean + 1 std', line={'color': 'grey'}),
     go.Scatter(x=L, y=means-np.sqrt(variances), mode='lines', name='Mean - 1 std', line={'color': 'grey'}),

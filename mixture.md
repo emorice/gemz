@@ -191,7 +191,12 @@ px.line(trace, x='iteration', y='nppelbo')
 ```
 
 ```python tags=[]
-px.line(trace, x='iteration', y=[f'prior_log_alpha_{i}' for i in (0,1)])
+for i in (0, 1):
+    trace[f'prior_alpha_{i}'] = np.exp(trace[f'prior_log_alpha_{i}'].astype(np.float32))
+```
+
+```python tags=[]
+px.line(trace, x='iteration', y=[f'prior_alpha_{i}' for i in (0,1)], log_y=True)
 ```
 
 ```python tags=[]

@@ -11,7 +11,8 @@ plotly.io.templates.default = go.layout.Template(layout={
         f'{a}axis': {
             'showline': True,
             'ticks': 'outside',
-            'exponentformat': 'power'
+            'exponentformat': 'power',
+            'constrain': 'domain'
             }
         for a in 'xy'
         },
