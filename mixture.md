@@ -172,7 +172,7 @@ params = dict(
 )
 state = opt.init(params)
 trace = []
-for i in tqdm(range(100)):
+for i in tqdm(range(200)):
     val, grad = jax.value_and_grad(lambda kw: nppelbo(**kw))(params)
     trace.append({
         'iteration': i,
@@ -183,11 +183,15 @@ for i in tqdm(range(100)):
         }
     })
     dp, state = opt.update(grad, state)
-    for k in ('log_precs',): #params:
+    for k in params:
         params[k]  += dp[k]
 
 trace = pd.DataFrame(trace)
 px.line(trace, x='iteration', y='nppelbo')
+```
+
+```python tags=[]
+px.line(trace, x='iteration', y=[f'prior_log_alpha_{i}' for i in (0,1)])
 ```
 
 ```python tags=[]
