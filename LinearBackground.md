@@ -31,11 +31,21 @@ import optax
 from tqdm.auto import tqdm
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 import plotly_template
 import colorcet
 
 import pandas as pd
 import scipy.stats
+```
+
+```python tags=[]
+import os
+os.makedirs('figs', exist_ok=True)
+def write(fig, name):
+    pio.write_image(fig, f'figs/{name}.svg', 'svg', scale=10., width=500, height=500)
+    pio.write_image(fig, f'figs/{name}.png', 'png', scale=10., width=500, height=500)
+    return fig
 ```
 
 ```python tags=[]
@@ -76,7 +86,7 @@ data_fig
 ```
 
 ```python tags=[]
-px.scatter(df, x='x', y='y', color='label')
+write(px.scatter(df, x='x', y='y', color='label'), 'linbg_data')
 ```
 
 ```python tags=[]
@@ -103,10 +113,13 @@ G = np.stack(np.meshgrid(Lx, Ly), -1)
 
 logP = jax.vmap(lambda x: jax.vmap(lambda y: logp(jnp.array([x, y])))(Ly))(Lx)
                
-go.Figure(data_fig).add_contour(
-    x=Lx, y=Ly, z=np.exp(logP), zmin=0,
-    contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
-    transpose=True
+write(
+    go.Figure(data_fig).add_contour(
+        x=Lx, y=Ly, z=np.exp(logP), zmin=0,
+        contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
+        transpose=True
+    ),
+    'linbg_null'
 )
 ```
 
@@ -235,19 +248,22 @@ precs_ci_low, precs_ci_high = [
 ```
 
 ```python tags=[]
-px.scatter(
-    df.assign(
-        precision=precs_mean,
-        precision_error_minus=precs_mean - precs_ci_low,
-        precision_error_plus=precs_ci_high - precs_mean,
-    ).sort_values('precision').reset_index(drop=True),
-    y='precision',
-    error_y='precision_error_plus',
-    error_y_minus='precision_error_minus',
-    color='label',
-    width=1200,
-    log_y=True
-).update_traces(error_y={'thickness': 1, 'width': 1})
+write(
+    px.scatter(
+        df.assign(
+            precision=precs_mean,
+            precision_error_minus=precs_mean - precs_ci_low,
+            precision_error_plus=precs_ci_high - precs_mean,
+        ).sort_values('precision').reset_index(drop=True),
+        y='precision',
+        error_y='precision_error_plus',
+        error_y_minus='precision_error_minus',
+        color='label',
+        width=1200,
+        log_y=True
+    ).update_traces(error_y={'thickness': 1, 'width': 1}),
+    'linbg_params'
+)
 ```
 
 ```python tags=[]
@@ -294,6 +310,16 @@ avg_logP = jsc.logsumexp(logPs, 0) - jnp.log(len(log_precs))
 ```python tags=[]
 zm = float(jnp.max(jnp.exp(avg_logP)))
 
+write(
+    go.Figure(data=[
+        data_fig.data[0],
+        go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
+    ], layout={
+        'xaxis1': {'scaleanchor': 'y', 'scaleratio': 1, 'title': 'Weighted model'},
+        'showlegend': False,
+    }),
+    'linbg_final'
+)
 go.Figure(data=[
     data_fig.data[0],
     go.Contour(x=Lx, y=Ly, z=jnp.exp(avg_logP), zmin=0., zmax=zm, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True, colorbar={'x': 0.47}),
