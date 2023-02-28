@@ -34,7 +34,8 @@ from tqdm.auto import tqdm
 import plotly.express as px
 import plotly.graph_objects as go
 import colorcet
-import plotly_template
+from plotly_template import write, plotly_init
+plotly_init()
 ```
 
 ```python tags=[]
@@ -69,7 +70,7 @@ data_fig = (
     .update_traces(marker={'color': 'black', 'size': 4})
     .update_yaxes(scaleanchor='x', scaleratio=1)
 )
-data_fig
+write(data_fig, 'mix_data')
 ```
 
 ```python tags=[]
@@ -205,10 +206,13 @@ opt_df = pd.concat((
     df
 ), axis=1)
 opt_df['affinity'] = 1. / (1. + np.exp(opt_df.v - opt_df.u))
-px.scatter(
-    opt_df,
-    x='u', y='v',
-    color='label'
+write(
+    px.scatter(
+        opt_df,
+        x='u', y='v',
+        color='label'
+    ),
+    'mix_params'
 )
 ```
 
@@ -266,8 +270,15 @@ print(Z)
 ```
 
 ```python tags=[]
-go.Figure(data_fig).add_contour(
-    x=Lx, y=Ly, z=avg_logP - np.log(Z), #zmin=0., zmax=0.01,
-    contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
-    transpose=True)
+write(
+    go.Figure(data_fig).add_contour(
+        x=Lx, y=Ly, z=avg_logP - np.log(Z), #zmin=0., zmax=0.01,
+        contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18,
+        transpose=True),
+    'mix_ppdf'
+)
+```
+
+```python
+
 ```

@@ -31,21 +31,13 @@ import optax
 from tqdm.auto import tqdm
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
 import plotly_template
+from plotly_template import write, plotly_init
+plotly_init()
 import colorcet
 
 import pandas as pd
 import scipy.stats
-```
-
-```python tags=[]
-import os
-os.makedirs('figs', exist_ok=True)
-def write(fig, name):
-    pio.write_image(fig, f'figs/{name}.svg', 'svg', scale=10., width=500, height=500)
-    pio.write_image(fig, f'figs/{name}.png', 'png', scale=10., width=500, height=500)
-    return fig
 ```
 
 ```python tags=[]
