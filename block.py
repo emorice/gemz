@@ -6,7 +6,6 @@ import operator
 
 from dataclasses import dataclass
 from typing import Any, TypeGuard
-from collections import defaultdict
 from collections.abc import KeysView, Mapping, Hashable
 import itertools
 
@@ -37,6 +36,20 @@ class ArrayAPI:
     def array_function(cls, func, *args, **kwargs):
         """
         Maps a numpy function to an equivalent and apply it
+        """
+        raise NotImplementedError('Abstract method')
+
+    @classmethod
+    def asarray(cls, obj):
+        """
+        Convert obj to an api array if necessary
+        """
+        raise NotImplementedError('Abstract method')
+
+    @classmethod
+    def broadcast_to(cls, obj, shape):
+        """
+        Create new object from existing by broadcasting
         """
         raise NotImplementedError('Abstract method')
 
@@ -95,6 +108,14 @@ class JaxAPI(ArrayAPI):
         if func in cls.functions:
             return cls.functions[func](*args, **kwargs)
         raise NotImplementedError(func)
+
+    @classmethod
+    def asarray(cls, obj):
+        return jnp.asarray(obj)
+
+    @classmethod
+    def broadcast_to(cls, obj, shape):
+        return jnp.broadcast_to(obj, shape)
 
     @classmethod
     def zeros(cls, shape):
@@ -174,6 +195,7 @@ class BlockMatrix:
     # --------------
 
     def __array_function__(self, func, types, args, kwargs):
+        del types
         # Functions implemented as methods on first argument
         methods = {
             np.linalg.inv: self._inv,
@@ -182,7 +204,8 @@ class BlockMatrix:
             np.diagonal: self.diagonal,
             np.swapaxes: self.swapaxes,
             np.transpose: self.transpose,
-            np.outer: self._outer
+            np.outer: self._outer,
+            np.ndim: lambda: self.ndim,
             }
 
         if func in methods:
@@ -234,30 +257,30 @@ class BlockMatrix:
         ordered_kis = tuple(self.dims[-1].keys())
 
         # Iterate along the diagonal
-        for i, ki in enumerate(ordered_kis):
-            if (ki, ki) not in lower:
+        for i, kei in enumerate(ordered_kis):
+            if (kei, kei) not in lower:
                 raise RuntimeError('Block LU with missing diagonal block')
             # Invert pivot
-            pivot = lower[ki, ki]
+            pivot = lower[kei, kei]
             # Skip for numerical stability tests
             #inv_pivot = self.aa.inv(pivot)
 
             # Take all blocks in rest of row
             for ki_right in ordered_kis[(i+1):]:
-                if (ki, ki_right) in lower:
-                    off_block = lower[ki, ki_right]
+                if (kei, ki_right) in lower:
+                    off_block = lower[kei, ki_right]
                     # Delete from lower
-                    del lower[ki, ki_right]
+                    del lower[kei, ki_right]
 
                     # Add to upper
                     # todo: save factorization
                     trans_block = self.aa.solve(pivot, off_block)
-                    upper[ki, ki_right] = trans_block
+                    upper[kei, ki_right] = trans_block
 
                     # Update rest of lower
                     for ki_down in ordered_kis[(i+1):]:
-                        if (ki_down, ki) in lower:
-                            prod = lower[ki_down, ki] @ trans_block
+                        if (ki_down, kei) in lower:
+                            prod = lower[ki_down, kei] @ trans_block
                             if (ki_down, ki_right) in lower:
                                 # Don't use -= here as it could be
                                 # misinterpreted as an in-place modification
@@ -451,6 +474,18 @@ class BlockMatrix:
     # -------------------------------
 
     @classmethod
+    def asarray(cls, obj):
+        """
+        Extends the array api to pass self types unmodified
+
+        The behavoir when various subclasses of BlockMatrix are involved is yet
+        to be specified
+        """
+        if isinstance(obj, BlockMatrix):
+            return obj
+        return cls.aa.asarray(obj)
+
+    @classmethod
     def indexes(cls, array):
         """
         Unified interface to generalized shape
@@ -458,6 +493,15 @@ class BlockMatrix:
         if isinstance(array, BlockMatrix):
             return array.dims
         return np.shape(array)
+
+    @classmethod
+    def broadcast_to(cls, array, dims: Dims):
+        """
+        Extension of api's broadcast to to handle generalized dims
+        """
+        if is_named(dims):
+            raise NotImplementedError
+        return cls.aa.broadcast_to(array, dims)
 
     def to_dense(self):
         """
@@ -490,7 +534,11 @@ class BlockMatrix:
 
         If dims is not provided, make each scalar element a block. Mostly used
         for testing purposes.
+
+        If dims is provided and is not a named shape, pass dense unmodifed,
+        without performing any shape checking.
         """
+        dense = cls.asarray(dense)
         if dims is None:
             dims = tuple(
                 {i: 1 for i in range(length)}
@@ -513,23 +561,42 @@ class BlockMatrix:
     def from_blocks(cls, blocks: dict):
         """
         Build matrix from dictionnary of blocks, inferring dimensions
+
+        Number of dimensions is the max of any key or block, all the rest are
+        broadcasted by adding extra dimensions on the left.
+
+        In constrast to blocks, all keys must however have the same length,
+        implictly setting several blocks by specifying partial keys is not
+        supported. This may change in the future.
         """
-        dims : dict[int, dict] = defaultdict(dict)
-        for key, value in blocks.items():
-            # Note: by starting from last dimension, any extra leading
-            # dimensions in value are silently ignored, allowing implicit
-            # batching. E.g. a 2D block array can have elements that are
-            # actually batches of 2D blocks.
-            for idim, (key_item, length) in enumerate(zip(
-                reversed(key),
-                reversed(cls.indexes(value))
-                )):
-                dims[idim][key_item] = length
-        return cls(
-                # List dims in inverse insertion order
-                tuple(reversed(dims.values())),
-                blocks
-                )
+        # First pass: compute number of dims
+        key_len = max(map(len, blocks.keys()))
+        if not all(len(key) == key_len for key in blocks.keys()):
+            raise TypeError('All keys must have the same length')
+        ndims = max(np.ndim(val) for val in blocks.values())
+        ndims = max(ndims, key_len)
+        dims : tuple[dict[Any, Dim], ...] = tuple({} for i in range(ndims))
+
+        # Harmonize key dimensions but don't touch blocks yet
+        blocks = { _expand_tuple(key, ndims, 0): val
+                  for key, val in blocks.items() }
+
+        # Second pass: compute block shapes
+        for key, val in blocks.items():
+            block_dims = _expand_tuple(cls.indexes(val), ndims, 1)
+            for dim, key_item, block_dim in zip(dims, key, block_dims):
+                if key_item not in dim:
+                    dim[key_item] = block_dim
+                else:
+                    dim[key_item] = broadcast_dim(dim[key_item], block_dim)
+
+        # Final pass: broadcast each block to its inferred shape
+        bcast_blocks = {}
+        for key, val in blocks.items():
+            block_dims = tuple(dims[i][k] for i, k in enumerate(key))
+            bcast_blocks[key] = np.broadcast_to(val, block_dims)
+
+        return cls(dims, bcast_blocks)
 
     @classmethod
     def eye(cls, dim: Dim):
@@ -657,9 +724,10 @@ def _blockwise_binop(binop, left, right):
 def is_named(dims: Dims) -> TypeGuard[NamedDims]:
     """
     Check if a Dims object is actually a NamedDims, that this a tuple of
-    dictionnaries and not a tuple of ints
+    dictionnaries and not a tuple of ints. An empty tuple is not considered a
+    NamedDims.
     """
-    return all(isinstance(dim, Mapping) for dim in dims)
+    return len(dims) > 0 and all(isinstance(dim, Mapping) for dim in dims)
 
 def dim_len(dim: Dim) -> int:
     """
@@ -690,6 +758,52 @@ def dims_to_cumshape(dims: NamedDims) -> tuple[dict[Any, int], ...]:
             length += dim_len(dim_item)
         cumshape.append(cumlen)
     return tuple(cumshape)
+
+def broadcast_dim(dim1: Dim, dim2: Dim) -> Dim:
+    """
+    Generalized broadcasting for dim elements (ints and dicts).
+
+    Regular broadcasting means length 1 and n can be mapped to n and n.
+
+    Here, on top, broadcasting 1 against a named dim is allowed, and
+    broadcasting two named dims recursively broadcasts children.
+    """
+    if isinstance(dim1, int):
+        if isinstance(dim2, int):
+            # Regular integer broadcast
+            if dim1 == 1 or dim2 == 1 or dim1 == dim2:
+                return max(dim1, dim2)
+        else:
+            # Int to named
+            if dim1 == 1:
+                return dim2
+    else:
+        if isinstance(dim2, int):
+            # Named to int
+            if dim2 == 1:
+                return dim1
+        else:
+            # Named to named
+            if dim1.keys() == dim2.keys():
+                return { k: broadcast_dim(val, dim2[k])
+                        for k, val in dim1.items() }
+
+    raise TypeError(f'Incompatible dims: {dim1} and {dim2}')
+
+def _expand_tuple(tup: tuple, length: int, filler) -> tuple:
+    return tuple((
+        *(filler for _ in range(length - len(tup))),
+        *tup
+        ))
+
+def broadcast_dims(dims1: Dims, dims2: Dims):
+    """
+    Broadcast generalized shapes
+    """
+    ndims = max(len(dims1), len(dims2))
+    dims1 = _expand_tuple(dims1, ndims, 1)
+    dims2 = _expand_tuple(dims2, ndims, 1)
+    return tuple(broadcast_dim(dim1, dim2) for dim1, dim2 in zip(dims1, dims2))
 
 def _key_to_indexer(key, dims, cumshape):
     return tuple(
