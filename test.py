@@ -7,7 +7,7 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
-from block import JaxBlockMatrix
+from block_jax import JaxBlockMatrix
 import block_mt as bmt
 
 mkb = JaxBlockMatrix.from_dense
@@ -53,6 +53,23 @@ def test_block_from_blocks_nested() -> None:
         [4, 6, 7],
         [5, 8, 9]
         ]))
+
+def test_block_inv() -> None:
+    """
+    Invert a block matrix
+    """
+    matrix = np.array([
+        [4, 8, 6, 7],
+        [7, 9, 3, 0],
+        [2, 7, 6, 3],
+        [7, 9, 8, 0]
+        ])
+
+    assert_allclose(
+        np.linalg.inv(mkb(matrix)).to_dense(),
+        np.linalg.inv(matrix),
+        rtol=5e-6,
+    )
 
 @pytest.mark.skip
 def test_batch_ncmt() -> None:

@@ -12,6 +12,8 @@ import itertools
 import numpy as np
 import jax.numpy as jnp
 
+from array_api import ArrayAPI
+
 # Dimension types
 # ================
 # Generalize a shape (tuple of ints) to a tuples of nested dicts of ints,
@@ -22,124 +24,6 @@ Dim = NamedDim | int
 Dims = tuple[Dim, ...]
 NamedDims = tuple[NamedDim, ...]
 
-# Abstract array glue
-# ===================
-# We need to deal with collections of array-like objects of different types,
-# especially our meta-arrays and jax arrays. They have close but distinct apis
-# so some intermediate layer is necessary, provided by the classes below
-
-class ArrayAPI:
-    """
-    Abstract interface to a library implementing array-like objects
-    """
-    @classmethod
-    def array_function(cls, func, *args, **kwargs):
-        """
-        Maps a numpy function to an equivalent and apply it
-        """
-        raise NotImplementedError('Abstract method')
-
-    @classmethod
-    def asarray(cls, obj):
-        """
-        Convert obj to an api array if necessary
-        """
-        raise NotImplementedError('Abstract method')
-
-    @classmethod
-    def broadcast_to(cls, obj, shape):
-        """
-        Create new object from existing by broadcasting
-        """
-        raise NotImplementedError('Abstract method')
-
-    @classmethod
-    def zeros(cls, shape):
-        """
-        Create an array of specified shape full of zeros
-        """
-        raise NotImplementedError('Abstract method')
-
-    @classmethod
-    def eye(cls, length):
-        """
-        Create an identity squaure array of specified dim
-        """
-        raise NotImplementedError('Abstract method')
-
-    @classmethod
-    def inv(cls, array):
-        """
-        Applies np.linalg.inv
-        """
-        return cls.array_function(np.linalg.inv, array)
-
-    @classmethod
-    def slogdet(cls, array):
-        """
-        Applies np.linalg.inv
-        """
-        return cls.array_function(np.linalg.slogdet, array)
-
-    @classmethod
-    def solve(cls, array, rhs):
-        """
-        Applies np.linalg.solve
-        """
-        return cls.array_function(np.linalg.solve, array, rhs)
-
-class JaxAPI(ArrayAPI):
-    """
-    Conversion layer from numpy to jax operations
-    """
-    functions = {
-        np.diagonal: jnp.diagonal,
-        np.outer: jnp.outer,
-        np.linalg.inv: jnp.linalg.inv,
-        np.linalg.slogdet: jnp.linalg.slogdet,
-        np.linalg.solve: jnp.linalg.solve,
-        }
-
-    @classmethod
-    def array_function(cls, func, *args, **kwargs):
-        """
-        Maps a numpy function to an equivalent and apply it
-        """
-        if func in cls.functions:
-            return cls.functions[func](*args, **kwargs)
-        raise NotImplementedError(func)
-
-    @classmethod
-    def asarray(cls, obj):
-        return jnp.asarray(obj)
-
-    @classmethod
-    def broadcast_to(cls, obj, shape):
-        return jnp.broadcast_to(obj, shape)
-
-    @classmethod
-    def zeros(cls, shape):
-        return jnp.zeros(shape)
-
-    @classmethod
-    def eye(cls, length):
-        return jnp.eye(length)
-
-class MetaJaxAPI(JaxAPI):
-    """
-    Dymamic conversion to jax that tries to use numpy protocol first
-
-    Array creation defaults to jax types.
-    """
-    @classmethod
-    def array_function(cls, func, *args, **kwargs):
-        """
-        Apply function as-is if first positional argument defines
-        an __array_function__, else try to use jax equivalent.
-        """
-        if args and hasattr(args[0], '__array_function__'):
-            return func(*args, **kwargs)
-        return super().array_function(func, *args, **kwargs)
 
 # Core Block NDArray implementation
 # ==================================
@@ -249,47 +133,29 @@ class BlockMatrix:
         factor the pivot several time.
         """
         self._ensure_square()
-        if len(self.dims) > 2:
-            raise NotImplementedError('Batched block lu')
-        lower = dict(self.blocks)
-        upper = dict({})
 
-        ordered_kis = tuple(self.dims[-1].keys())
+        # Split self into 2D slices
+        # Note that the blocks of a 2D slice retain the original dimension, a
+        # slice correspond to a block of batched matrices along the batch
+        # dimension. Often, this is actually just a single slice so this just
+        # amounts to removing the trivial batch index "0" at the start of each
+        # key
+        slices = dok_slice(self.blocks, self.ndim - 2)
 
-        # Iterate along the diagonal
-        for i, kei in enumerate(ordered_kis):
-            if (kei, kei) not in lower:
-                raise RuntimeError('Block LU with missing diagonal block')
-            # Invert pivot
-            pivot = lower[kei, kei]
-            # Skip for numerical stability tests
-            #inv_pivot = self.aa.inv(pivot)
+        # Factor each slice
+        lower_slices = {}
+        upper_slices = {}
+        for slice_key, slice_val in slices.items():
+            lower_slice, upper_slice = dok_lu(slice_val, self.aa)
+            lower_slices[slice_key] = lower_slice
+            upper_slices[slice_key] = upper_slice
 
-            # Take all blocks in rest of row
-            for ki_right in ordered_kis[(i+1):]:
-                if (kei, ki_right) in lower:
-                    off_block = lower[kei, ki_right]
-                    # Delete from lower
-                    del lower[kei, ki_right]
+        # Merge back factors
+        lower = dok_unslice(lower_slices)
+        upper = dok_unslice(upper_slices)
 
-                    # Add to upper
-                    # todo: save factorization
-                    trans_block = self.aa.solve(pivot, off_block)
-                    upper[kei, ki_right] = trans_block
-
-                    # Update rest of lower
-                    for ki_down in ordered_kis[(i+1):]:
-                        if (ki_down, kei) in lower:
-                            prod = lower[ki_down, kei] @ trans_block
-                            if (ki_down, ki_right) in lower:
-                                # Don't use -= here as it could be
-                                # misinterpreted as an in-place modification
-                                lower[ki_down, ki_right] = (
-                                    lower[ki_down, ki_right] - prod
-                                    )
-                            else:
-                                lower[ki_down, ki_right] = - prod
         return self.__class__(self.dims, lower), self.__class__(self.dims, upper)
+
 
     def _inv_dense(self):
         """
@@ -374,18 +240,17 @@ class BlockMatrix:
         Simple block determinant by block-LU factorization
         """
         self._ensure_square()
-        if len(self.dims) > 2:
-            raise NotImplementedError('Batched block lu')
-
         lower, _supper = self._lu()
         sign = 1.
         logdet = 0.
+
+        if len(self.dims) > 2:
+            raise NotImplementedError('Batched determinant')
         for kitem in self.dims[-1]:
             b_sign, b_logdet = self.aa.slogdet(lower[kitem, kitem])
             sign *= b_sign
             logdet += b_logdet
         return sign, logdet
-
 
     def _slogdet_dense(self):
         """
@@ -518,7 +383,6 @@ class BlockMatrix:
             tkey = _expand_tuple(key, ndims, 0)
             blocks[tkey] = self.broadcast_to(val, dims_index(dims, tkey))
         return self.from_blocks(blocks)
-
 
     def to_dense(self):
         """
@@ -695,15 +559,6 @@ class BlockMatrix:
             return key
         return {key}
 
-# Concrete subclasses
-# ===================
-
-class JaxBlockMatrix(BlockMatrix):
-    """
-    Block matrix using jax array as its base type
-    """
-    aa = MetaJaxAPI
-
 # Helper functions
 # ================
 
@@ -865,6 +720,50 @@ def dok_product(left_dok: dict, right_dok: dict) -> dict:
                 result[left_left, right_right] = left_value @ right_value
     return result
 
+def dok_lu(dok: dict, anp: ArrayAPI) -> tuple[dict, dict]:
+    """
+    LU decomposition of a square dict of blocks
+    """
+    # Reindex self to make iterations over rows easy
+    lower_rows = dok_slice(dok, 1)
+    upper = dict({})
+
+    # Extract ordered row keys to allow iterating over before/after keys
+    ordered_keys = tuple(lower_rows.keys())
+
+    # Iterate over diag
+    for i, (dkey, row) in enumerate(lower_rows.items()):
+        # Extract pivot
+        if dkey not in row:
+            raise RuntimeError('Block LU with missing diagonal block')
+        pivot = row[dkey]
+
+        # Eliminate all blocks in rest of row on the right
+        for ckey in ordered_keys[(i+1):]:
+            if ckey in row:
+                off_block = row[ckey]
+                # Delete from lower
+                del row[ckey]
+
+                # Add to upper
+                # todo: save factorization
+                trans_block = anp.solve(pivot, off_block)
+                upper[dkey + ckey] = trans_block
+
+                # Travel down the column and update rest of lower
+                for rkey_down in ordered_keys[(i+1):]:
+                    row_down = lower_rows[rkey_down]
+                    if dkey in row_down:
+                        prod = row_down[dkey] @ trans_block
+                        if ckey in row_down:
+                            # Don't use -= here as it could be
+                            # misinterpreted as an in-place modification
+                            row_down[ckey] = row_down[ckey] - prod
+                        else:
+                            row_down[ckey] = - prod
+    lower = dok_unslice(lower_rows)
+    return lower, upper
+
 def dok_map(function, *doks: dict, fill=None):
     """
     Apply function element-wise to DoKs
@@ -881,3 +780,28 @@ def dok_map(function, *doks: dict, fill=None):
             ))
         for keys in all_keys
         }
+
+def dok_slice(dok: dict, ndims: int) -> dict[Any, dict]:
+    """
+    Split a dict with keys of length l into a dict with ndims-long keys of dicts
+    with (l-ndims)-long keys
+    """
+    result: dict = {}
+    for key, value in dok.items():
+        left_key = key[:ndims]
+        right_key = key[ndims:]
+        if left_key in result:
+            result[left_key][right_key] = value
+        else:
+            result[left_key] = {right_key: value}
+    return result
+
+def dok_unslice(dok: dict[Any, dict]) -> dict:
+    """
+    Undo the slicing of dok_slice
+    """
+    return {
+            tuple((*left_key, *right_key)): value
+            for left_key, sub_dok in dok.items()
+            for right_key, value in sub_dok.items()
+            }

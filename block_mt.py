@@ -10,7 +10,7 @@ import numpy as np
 import jax.numpy as jnp
 import jax.scipy.special as jsc
 
-from block import JaxBlockMatrix as BlockMatrix
+from block_jax import JaxBlockMatrix as BlockMatrix
 
 def log_norm_std(dfs, len_left, len_right):
     """
