@@ -500,8 +500,25 @@ class BlockMatrix:
         Extension of api's broadcast to to handle generalized dims
         """
         if is_named(dims):
-            raise NotImplementedError
+            if isinstance(array, BlockMatrix):
+                return array._broadcast_to(dims)
+            # Broadcast a base array to a block. In that case, the base array
+            # is interpreted as an implict block array with one block along each
+            # dim.
+            return cls.broadcast_to(cls.from_blocks({tuple(): array}), dims)
         return cls.aa.broadcast_to(array, dims)
+
+    def _broadcast_to(self, dims):
+        """
+        Broadcast self
+        """
+        blocks = {}
+        ndims = len(dims)
+        for key, val in self.blocks.items():
+            tkey = _expand_tuple(key, ndims, 0)
+            blocks[tkey] = self.broadcast_to(val, dims_index(dims, tkey))
+        return self.from_blocks(blocks)
+
 
     def to_dense(self):
         """
@@ -593,8 +610,8 @@ class BlockMatrix:
         # Final pass: broadcast each block to its inferred shape
         bcast_blocks = {}
         for key, val in blocks.items():
-            block_dims = tuple(dims[i][k] for i, k in enumerate(key))
-            bcast_blocks[key] = np.broadcast_to(val, block_dims)
+            block_dims = dims_index(dims, key)
+            bcast_blocks[key] = cls.broadcast_to(val, block_dims)
 
         return cls(dims, bcast_blocks)
 
@@ -725,9 +742,9 @@ def is_named(dims: Dims) -> TypeGuard[NamedDims]:
     """
     Check if a Dims object is actually a NamedDims, that this a tuple of
     dictionnaries and not a tuple of ints. An empty tuple is not considered a
-    NamedDims.
+    NamedDims. A mixed tuple of dicts and ints is considered a NamedDims.
     """
-    return len(dims) > 0 and all(isinstance(dim, Mapping) for dim in dims)
+    return any(isinstance(dim, Mapping) for dim in dims)
 
 def dim_len(dim: Dim) -> int:
     """
@@ -758,6 +775,17 @@ def dims_to_cumshape(dims: NamedDims) -> tuple[dict[Any, int], ...]:
             length += dim_len(dim_item)
         cumshape.append(cumlen)
     return tuple(cumshape)
+
+def dims_index(dims: Dims, key: tuple) -> Dims:
+    """
+    Return sub-shape for a given key (shape of a block given block coordinates)
+    """
+    return tuple(
+            # Identify a normal length to a single block of index 0
+            dim if (isinstance(dim, int) and k == 0)
+            else dim[k] # Let raise if dim is an int and a non-0 key is used
+            for k, dim in zip(key, dims)
+            )
 
 def broadcast_dim(dim1: Dim, dim2: Dim) -> Dim:
     """
