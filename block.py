@@ -68,11 +68,19 @@ class BlockMatrix:
                 )
 
     def __matmul__(self, other):
-        if (len(self.dims), len(other.dims)) != (2, 2):
+        if len(self.dims) != len(other.dims):
             raise NotImplementedError
+        blocks, = dok_slice_map(
+            lambda self_slice, other_slice: (
+                dok_product(self_slice, other_slice),
+                ),
+            self.blocks, other.blocks,
+            ndims=np.ndim(self) - 2
+            )
         return self.__class__(
-                (self.dims[-2], other.dims[-1]),
-                dok_product(self.blocks, other.blocks)
+                # Batch dims and second-to-last dim of self, + last dim of other
+                self.dims[:-1] + other.dims[-1:],
+                blocks
                 )
 
     # Numpy protocol
@@ -134,28 +142,14 @@ class BlockMatrix:
         """
         self._ensure_square()
 
-        # Split self into 2D slices
-        # Note that the blocks of a 2D slice retain the original dimension, a
-        # slice correspond to a block of batched matrices along the batch
-        # dimension. Often, this is actually just a single slice so this just
-        # amounts to removing the trivial batch index "0" at the start of each
-        # key
-        slices = dok_slice(self.blocks, self.ndim - 2)
-
         # Factor each slice
-        lower_slices = {}
-        upper_slices = {}
-        for slice_key, slice_val in slices.items():
-            lower_slice, upper_slice = dok_lu(self.dims[-2:], slice_val, self.aa)
-            lower_slices[slice_key] = lower_slice
-            upper_slices[slice_key] = upper_slice
-
-        # Merge back factors
-        lower = dok_unslice(lower_slices)
-        upper = dok_unslice(upper_slices)
+        lower, upper = dok_slice_map(
+                lambda matrix: dok_lu(self.dims[-2:], matrix, self.aa),
+                self.blocks,
+                ndims=self.ndim - 2
+                )
 
         return self.__class__(self.dims, lower), self.__class__(self.dims, upper)
-
 
     def _inv_dense(self):
         """
@@ -176,6 +170,8 @@ class BlockMatrix:
         This does *not* check if self is triangular of the specified type.
         """
         self._ensure_square()
+        if len(self.dims) != 2 or len(target.dims) != 2:
+            raise NotImplementedError('Batched triangular solve')
 
         result = {}
         tblocks = target.blocks
@@ -372,6 +368,16 @@ class BlockMatrix:
             # dim.
             return cls.broadcast_to(cls.from_blocks({tuple(): array}), dims)
         return cls.aa.broadcast_to(array, dims)
+
+    @classmethod
+    def broadcast_arrays(cls, *arrays):
+        """
+        Extension of api's broadcast_arrays to to handle generalized dims
+        """
+        common_dims = broadcast_dims(
+            *map(cls.indexes, arrays)
+            )
+        return tuple(cls.broadcast_to(array, common_dims) for array in arrays)
 
     def _broadcast_to(self, dims):
         """
@@ -804,3 +810,24 @@ def dok_unslice(dok: dict[Any, dict]) -> dict:
             for left_key, sub_dok in dok.items()
             for right_key, value in sub_dok.items()
             }
+
+def dok_slice_map(function, *doks, ndims: int):
+    """
+    Apply function to each slice of doks, then unslice the results
+
+    Function must return a tuple of objects to unslice
+
+    Used to apply matrix operations to batched matrices
+    """
+
+    # Slice all dicts
+    slices = [dok_slice(dok, ndims) for dok in doks]
+
+    # Apply slice by slice
+    sliced_results = dok_map(function, *slices)
+
+    # Unslice results
+    return tuple(
+            dok_unslice(dict(zip(sliced_results.keys(), vals)))
+            for vals in zip(*sliced_results.values())
+            )

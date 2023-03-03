@@ -38,7 +38,7 @@ def test_block_from_blocks() -> None:
 def test_block_from_blocks_nested() -> None:
     """
     Create block for various dimensions of blocks, including block objects as
-    blcoks
+    blocks
     """
 
     blk = JaxBlockMatrix.from_blocks({
@@ -71,7 +71,35 @@ def test_block_inv() -> None:
         rtol=5e-6,
     )
 
-@pytest.mark.skip
+def test_block_swapaxes() -> None:
+    """
+    Transpose a block matrix
+    """
+    mat = JaxBlockMatrix.from_blocks(
+            { (0, 0): np.zeros((2, 3))}
+            )
+    assert mat.dims == ({0: 2}, {0:3})
+    assert mat[0, 0].shape == (2, 3)
+
+    mat_t = np.swapaxes(mat, -1, -2)
+    assert mat_t.dims == ({0: 3}, {0: 2})
+    assert mat_t[0, 0].shape == (3, 2)
+
+@pytest.mark.xfail # yet to implement
+def test_block_solve_batched() -> None:
+    """
+    Test a batched solve
+    """
+    linmap = JaxBlockMatrix.from_blocks({ tuple(): 2.*np.ones((3, 1, 1)) })
+    np_targets = np.arange(6).reshape(3, 1, 2)
+    targets = JaxBlockMatrix.from_blocks({ tuple(): np_targets })
+
+    assert_allclose(
+            np.linalg.solve(linmap, targets).to_dense(),
+            .5 * np_targets
+            )
+
+@pytest.mark.xfail # depends on missing batched ops
 def test_batch_ncmt() -> None:
     """
     Compute ncmt log pdfs for a batch of values at once
