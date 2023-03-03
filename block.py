@@ -146,7 +146,7 @@ class BlockMatrix:
         lower_slices = {}
         upper_slices = {}
         for slice_key, slice_val in slices.items():
-            lower_slice, upper_slice = dok_lu(slice_val, self.aa)
+            lower_slice, upper_slice = dok_lu(self.dims[-2:], slice_val, self.aa)
             lower_slices[slice_key] = lower_slice
             upper_slices[slice_key] = upper_slice
 
@@ -720,48 +720,47 @@ def dok_product(left_dok: dict, right_dok: dict) -> dict:
                 result[left_left, right_right] = left_value @ right_value
     return result
 
-def dok_lu(dok: dict, anp: ArrayAPI) -> tuple[dict, dict]:
-    """
-    LU decomposition of a square dict of blocks
-    """
-    # Reindex self to make iterations over rows easy
-    lower_rows = dok_slice(dok, 1)
+def dok_lu(dims: NamedDims, blocks: dict, anp: ArrayAPI):
+    if len(dims) > 2:
+        raise NotImplementedError('Batched block lu')
+    lower = dict(blocks)
     upper = dict({})
 
-    # Extract ordered row keys to allow iterating over before/after keys
-    ordered_keys = tuple(lower_rows.keys())
+    ordered_kis = tuple(dims[-1].keys())
 
-    # Iterate over diag
-    for i, (dkey, row) in enumerate(lower_rows.items()):
-        # Extract pivot
-        if dkey not in row:
+    # Iterate along the diagonal
+    for i, ki in enumerate(ordered_kis):
+        if (ki, ki) not in lower:
             raise RuntimeError('Block LU with missing diagonal block')
-        pivot = row[dkey]
+        # Invert pivot
+        pivot = lower[ki, ki]
+        # Skip for numerical stability tests
+        #inv_pivot = self.aa.inv(pivot)
 
-        # Eliminate all blocks in rest of row on the right
-        for ckey in ordered_keys[(i+1):]:
-            if ckey in row:
-                off_block = row[ckey]
+        # Take all blocks in rest of row
+        for ki_right in ordered_kis[(i+1):]:
+            if (ki, ki_right) in lower:
+                off_block = lower[ki, ki_right]
                 # Delete from lower
-                del row[ckey]
+                del lower[ki, ki_right]
 
                 # Add to upper
                 # todo: save factorization
                 trans_block = anp.solve(pivot, off_block)
-                upper[dkey + ckey] = trans_block
+                upper[ki, ki_right] = trans_block
 
-                # Travel down the column and update rest of lower
-                for rkey_down in ordered_keys[(i+1):]:
-                    row_down = lower_rows[rkey_down]
-                    if dkey in row_down:
-                        prod = row_down[dkey] @ trans_block
-                        if ckey in row_down:
+                # Update rest of lower
+                for ki_down in ordered_kis[(i+1):]:
+                    if (ki_down, ki) in lower:
+                        prod = lower[ki_down, ki] @ trans_block
+                        if (ki_down, ki_right) in lower:
                             # Don't use -= here as it could be
                             # misinterpreted as an in-place modification
-                            row_down[ckey] = row_down[ckey] - prod
+                            lower[ki_down, ki_right] = (
+                                lower[ki_down, ki_right] - prod
+                                )
                         else:
-                            row_down[ckey] = - prod
-    lower = dok_unslice(lower_rows)
+                            lower[ki_down, ki_right] = - prod
     return lower, upper
 
 def dok_map(function, *doks: dict, fill=None):
