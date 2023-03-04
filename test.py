@@ -85,7 +85,6 @@ def test_block_swapaxes() -> None:
     assert mat_t.dims == ({0: 3}, {0: 2})
     assert mat_t[0, 0].shape == (3, 2)
 
-@pytest.mark.xfail # yet to implement
 def test_block_solve_batched() -> None:
     """
     Test a batched solve
