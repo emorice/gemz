@@ -207,16 +207,24 @@ class BlockMatrix:
         """
         self._ensure_square()
         lower, _supper = self._lu()
-        sign = 1.
-        logdet = 0.
 
-        if len(self.dims) > 2:
-            raise NotImplementedError('Batched determinant')
-        for kitem in self.dims[-1]:
-            b_sign, b_logdet = self.aa.slogdet(lower[kitem, kitem])
-            sign *= b_sign
-            logdet += b_logdet
-        return sign, logdet
+        def _slogdet_2d(lslice):
+            sign = 1.
+            logdet = 0.
+            for kitem in self.dims[-1]:
+                b_sign, b_logdet = self.aa.slogdet(lslice[kitem, kitem])
+                sign *= b_sign
+                logdet += b_logdet
+            return { tuple(): sign }, { tuple(): logdet}
+
+        sign, logdet = dok_slice_map(_slogdet_2d, lower.blocks, ndims=self.ndim-2)
+
+        # Attempt unwrapping single scalars instead of returning 0-dim arrays
+        # for compatibility with the 2d case
+        return (
+            self.__class__(self.dims[:-2], sign).canonic(),
+            self.__class__(self.dims[:-2], logdet).canonic(),
+            )
 
     def _slogdet_dense(self):
         """
@@ -491,6 +499,23 @@ class BlockMatrix:
                 tuple(dict(dim) for dim in self.dims),
                 dict(self.blocks)
                 )
+
+    def canonic(self):
+        """
+        Canonic representation of self
+
+        Trivial block arrays may be used to represent base types in contexts
+        where a block array is required. This undoes such transformations to
+        avoid unncecessary wrapping.
+
+        For now, the only supported use is that 0-dimensional arrays are
+        converted back to scalars.
+        """
+        if self.ndim == 0:
+            if self.blocks:
+                return self.blocks[tuple()]
+            return 0.
+        return self
 
     # Indexing methods
     # ----------------
