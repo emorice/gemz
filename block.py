@@ -44,20 +44,33 @@ class BlockMatrix:
     # Block-wise operators
     # --------------------
 
+    # direct
+
     def __add__(self, other):
         return _blockwise_binop(operator.add, self, other)
 
     def __sub__(self, other):
         return _blockwise_binop(operator.sub, self, other)
 
+    def __mul__(self, other):
+        return _blockwise_binop(operator.mul, self, other)
+
     def __truediv__(self, other):
         return _blockwise_binop(operator.truediv, self, other)
 
-    def __rmul__(self, other):
-        return _blockwise_binop(operator.mul, other, self)
-
     def __pow__(self, other):
         return _blockwise_binop(operator.pow, self, other)
+
+    # reverse
+
+    def __radd__(self, other):
+        return _blockwise_binop(operator.add, other, self)
+
+    def __rsub__(self, other):
+        return _blockwise_binop(operator.sub, other, self)
+
+    def __rmul__(self, other):
+        return _blockwise_binop(operator.mul, other, self)
 
     # Other operators
     # ---------------
@@ -508,13 +521,11 @@ class BlockMatrix:
         where a block array is required. This undoes such transformations to
         avoid unncecessary wrapping.
 
-        For now, the only supported use is that 0-dimensional arrays are
-        converted back to scalars.
+        For now, this converts back trivial block matrices (having only one
+        0-keyed block along each dim) back to the base block type.
         """
-        if self.ndim == 0:
-            if self.blocks:
-                return self.blocks[tuple()]
-            return 0.
+        if all(dim.keys() == {0} for dim in self.dims):
+            return self.blocks[tuple(0 for _ in range(self.ndim))]
         return self
 
     # Indexing methods

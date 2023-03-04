@@ -98,7 +98,6 @@ def test_block_solve_batched() -> None:
             .5 * np_targets
             )
 
-@pytest.mark.xfail # depends on missing batched ops
 def test_batch_ncmt() -> None:
     """
     Compute ncmt log pdfs for a batch of values at once
