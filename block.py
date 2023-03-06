@@ -6,7 +6,7 @@ import operator
 
 from dataclasses import dataclass
 from typing import Any, TypeGuard
-from collections.abc import KeysView, Mapping, Hashable
+from collections.abc import KeysView, Mapping, Hashable, Iterable
 import itertools
 
 import numpy as np
@@ -183,20 +183,21 @@ class BlockMatrix:
         This does not check if self is triangular of the specified type.
         """
         self._ensure_square()
-        if len(self.dims) != len(target.dims):
-            raise NotImplementedError('Solve with upcasting')
+        # Broadcast all batch dimensions
+        # Fixme: this should also broadcast the contraction dimension
+        _self, target = self.broadcast_arrays(self, target, exclude=(-2, -1))
 
         result, = dok_slice_map(
                 lambda sslice, tslice: (dok_triangular_solve(
-                    self.dims[-2:], target.dims[-2:],
+                    _self.dims[-2:], target.dims[-2:],
                     sslice, tslice,
                     lower=lower, id_diag=id_diag,
                     anp=self.aa),),
-                self.blocks, target.blocks,
-                ndims=self.ndim - 2
+                _self.blocks, target.blocks,
+                ndims=_self.ndim - 2
                 )
 
-        return self.__class__(self.dims[:-1] + target.dims[-1:], result)
+        return _self.__class__(_self.dims[:-1] + target.dims[-1:], result)
 
     def solve(self, target):
         """
@@ -361,14 +362,16 @@ class BlockMatrix:
         return cls.aa.broadcast_to(array, dims)
 
     @classmethod
-    def broadcast_arrays(cls, *arrays):
+    def broadcast_arrays(cls, *arrays, exclude=None):
         """
         Extension of api's broadcast_arrays to to handle generalized dims
         """
-        common_dims = broadcast_dims(
-            *map(cls.indexes, arrays)
+        new_dims = broadcast_dims(
+            *map(cls.indexes, arrays),
+            exclude=exclude
             )
-        return tuple(cls.broadcast_to(array, common_dims) for array in arrays)
+        return tuple(cls.broadcast_to(array, new_dim) for array, new_dim in
+                     zip(arrays, new_dims))
 
     def _broadcast_to(self, dims):
         """
@@ -379,7 +382,7 @@ class BlockMatrix:
         for key, val in self.blocks.items():
             tkey = _expand_tuple(key, ndims, 0)
             blocks[tkey] = self.broadcast_to(val, dims_index(dims, tkey))
-        return self.from_blocks(blocks)
+        return self.__class__(dims, blocks)
 
     def to_dense(self):
         """
@@ -461,7 +464,7 @@ class BlockMatrix:
 
         # Second pass: compute block shapes
         for key, val in blocks.items():
-            block_dims = _expand_tuple(cls.indexes(val), ndims, 1)
+            block_dims = _expand_dims(cls.indexes(val), ndims)
             for dim, key_item, block_dim in zip(dims, key, block_dims):
                 if key_item not in dim:
                     dim[key_item] = block_dim
@@ -613,7 +616,12 @@ def is_named(dims: Dims) -> TypeGuard[NamedDims]:
     dictionnaries and not a tuple of ints. An empty tuple is not considered a
     NamedDims. A mixed tuple of dicts and ints is considered a NamedDims.
     """
-    return any(isinstance(dim, Mapping) for dim in dims)
+    are_maps = tuple(isinstance(dim, Mapping) for dim in dims)
+    if any(are_maps):
+        if all(are_maps):
+            return True
+        raise TypeError(f'Invalid mixed-dim encountered: {dims}')
+    return False
 
 def dim_len(dim: Dim) -> int:
     """
@@ -693,14 +701,33 @@ def _expand_tuple(tup: tuple, length: int, filler) -> tuple:
         *tup
         ))
 
-def broadcast_dims(dims1: Dims, dims2: Dims):
+def _expand_dims(dims: Dims, length: int):
+    if is_named(dims):
+        return _expand_tuple(dims, length, {0: 1})
+    return _expand_tuple(dims, length, 1)
+
+def broadcast_dims(dims1: Dims, dims2: Dims, exclude: Iterable[int] | None = None):
     """
-    Broadcast generalized shapes
+    Broadcast generalized shapes.
+
+    Args:
+        only: list of integers. If given, after extending both dims to the same
+            order, corresponding axes are returned with no further changes
     """
     ndims = max(len(dims1), len(dims2))
-    dims1 = _expand_tuple(dims1, ndims, 1)
-    dims2 = _expand_tuple(dims2, ndims, 1)
-    return tuple(broadcast_dim(dim1, dim2) for dim1, dim2 in zip(dims1, dims2))
+    dims1 = _expand_dims(dims1, ndims)
+    dims2 = _expand_dims(dims2, ndims)
+    if exclude is None:
+        exclude = {}
+    x_axes = tuple(range(ndims))
+    x_axes = tuple(x_axes[i] for i in exclude)
+
+    return zip(*(
+            (dim1, dim2)
+            if ax in x_axes
+            else (broadcast_dim(dim1, dim2),)*2
+            for ax, (dim1, dim2) in enumerate(zip(dims1, dims2))
+            ))
 
 def _key_to_indexer(key, dims, cumshape):
     return tuple(

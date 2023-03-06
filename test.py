@@ -120,6 +120,19 @@ def test_block_solve_batched() -> None:
             .5 * np_targets
             )
 
+def test_block_solve_upcast() -> None:
+    """
+    Test an upcast (adding dimensions) batched solve
+    """
+    linmap = JaxBlockMatrix.from_blocks({ tuple(): 2.*np.ones((1, 1)) })
+    np_targets = np.arange(6).reshape(3, 1, 2)
+    targets = JaxBlockMatrix.from_blocks({ tuple(): np_targets })
+
+    assert_allclose(
+            np.linalg.solve(linmap, targets).to_dense(),
+            .5 * np_targets
+            )
+
 def test_batch_ncmt() -> None:
     """
     Compute ncmt log pdfs for a batch of values at once
