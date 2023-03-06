@@ -2,6 +2,8 @@
 Misc tests for matrix-t dists
 """
 
+import warnings
+
 import pytest
 
 import numpy as np
@@ -11,6 +13,15 @@ from block_jax import JaxBlockMatrix
 import block_mt as bmt
 
 mkb = JaxBlockMatrix.from_dense
+
+@pytest.fixture(autouse=True)
+def no_deprecated_code():
+    """
+    Pytest fixture to treat deprecation warnings as errors
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error', category=DeprecationWarning)
+        yield
 
 def test_block_from_scalar() -> None:
     """
@@ -93,7 +104,6 @@ def test_block_bcast() -> None:
     right = mkb(np.ones((3, 4)))
 
     res = left + right
-    print(res)
 
     assert_allclose(res.to_dense(), np.ones((1, 3, 4))*2)
 

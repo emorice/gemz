@@ -10,3 +10,4 @@ optax
 ipywidgets
 kaleido
 pytest
+deprecation

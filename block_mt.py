@@ -3,7 +3,6 @@ Block-wise description of matrix-t variates
 """
 
 import dataclasses as dc
-
 from dataclasses import dataclass
 
 import numpy as np
@@ -38,12 +37,6 @@ class MatrixT:
 
     _: dc.KW_ONLY
     mean: BlockMatrix | None = None
-
-    def observe(self, observed: BlockMatrix) -> 'MatrixTObservation':
-        """
-        Make observation from data using model specified by self
-        """
-        return MatrixTObservation(self, observed=observed)
 
     def __post_init__(self):
         self.shape = (self.left.shape[-1], self.right.shape[-1])
@@ -84,52 +77,23 @@ class MatrixT:
 
     def log_pdf(self, observed):
         """
-        Shortand for .observe().log_pdf()
-        """
-        return self.observe(observed).log_pdf()
-
-@dataclass
-class MatrixTObservation:
-    """
-    Observation from the parent matrix-t distribution
-    """
-    mtd: MatrixT
-    observed: BlockMatrix
-
-    def generator(self) -> BlockMatrix:
-        """
-        Generator matrix, as a DoK
-        """
-        cobs = self.observed
-        if self.mtd.mean is not None:
-            cobs = cobs - self.mtd.mean
-        # Batched transpose
-        #import pdb; pdb.set_trace()
-        cobs_t = np.swapaxes(cobs, -1, -2)
-        return BlockMatrix.from_blocks({
-            (0, 0): self.mtd.left,  (0, 1): cobs,
-            (1, 0): - cobs_t,       (1, 1): self.mtd.right,
-            })
-
-    def log_pdf(self):
-        """
         Log-density
         """
         log_inv_norm = (
                 sum(
-                    0.5 * (self.mtd.dfs + length - 1) * np.linalg.slogdet(gram)[1]
-                    for length, gram in zip(self.mtd.shape, self.mtd.grams)
+                    0.5 * (self.dfs + length - 1) * np.linalg.slogdet(gram)[1]
+                    for length, gram in zip(self.shape, self.grams)
                     )
-                - log_norm_std(self.mtd.dfs, *self.mtd.shape)
+                - log_norm_std(self.dfs, *self.shape)
                 )
 
-        _sign, logdet = np.linalg.slogdet(self.generator())
+        _sign, logdet = np.linalg.slogdet(self._generator(observed))
         return (
                 log_inv_norm
-                - 0.5 * (self.mtd.dfs + sum(self.mtd.shape) - 1) * logdet
+                - 0.5 * (self.dfs + sum(self.shape) - 1) * logdet
                 )
 
-    def post(self, axis: int = 0) -> 'Wishart':
+    def post(self, observed, axis: int = 0) -> 'Wishart':
         """
         Compute the posterior distribution of one of the gram matrix after observing
         data
@@ -137,22 +101,42 @@ class MatrixTObservation:
         other_axis = 1 - axis
 
         # obs with required axis first resp. last
-        obs, obs_t = self.observed, np.swapaxes(self.observed, -1, -2)
+        obs, obs_t = observed, np.swapaxes(observed, -1, -2)
         if axis == 1:
             obs, obs_t = obs_t, obs
 
         return Wishart(
-            dfs=self.mtd.dfs + self.mtd.shape[other_axis],
-            gram=self.mtd.grams[axis] + obs @ (
-                np.linalg.inv(self.mtd.grams[other_axis]) @ obs_t
+            dfs=self.dfs + self.shape[other_axis],
+            gram=self.grams[axis] + obs @ (
+                np.linalg.inv(self.grams[other_axis]) @ obs_t
                 )
             )
 
-    def uni_cond(self) -> tuple[BlockMatrix, ...]:
+    def extend(self, observed, gram, axis: int = 0):
+        """
+        Shorthand for computing posterior and extending along axis
+        """
+        return self.post(observed, axis).extend(gram, axis)
+
+    def _generator(self, observed) -> BlockMatrix:
+        """
+        Generator matrix, as a block matrix
+        """
+        cobs = observed
+        if self.mean is not None:
+            cobs = cobs - self.mean
+        # Batched transpose
+        cobs_t = np.swapaxes(cobs, -1, -2)
+        return BlockMatrix.from_blocks({
+            (0, 0): self.left,  (0, 1): cobs,
+            (1, 0): - cobs_t,   (1, 1): self.right,
+            })
+
+    def uni_cond(self, observed) -> tuple[BlockMatrix, ...]:
         """
         Conditional distributions of individual entries
         """
-        igmat = np.linalg.inv(self.generator())
+        igmat = np.linalg.inv(self._generator(observed))
 
         inv_diag = np.diagonal(igmat)
         inv_diag_left, inv_diag_right = inv_diag[0], inv_diag[1]
@@ -170,18 +154,12 @@ class MatrixTObservation:
 
         residuals = - inv_data / dets
 
-        dfs = self.mtd.dfs + sum(self.mtd.shape) - 2
-        means = self.observed - residuals
+        dfs = self.dfs + sum(self.shape) - 2
+        means = observed - residuals
         variances = inv_diag_prod / ((dfs - 2.) * dets**2)
         logks = 0.5 * (dfs * np.log(inv_diag_prod) - (dfs - 1) * np.log(dets))
         logps = logks - jsc.betaln(0.5 * dfs, 0.5)
         return means, variances, logps
-
-    def extend(self, gram, axis: int = 0):
-        """
-        Shorthand for computing posterior and extending along axis
-        """
-        return self.post(axis).extend(gram, axis)
 
 @dataclass
 class Wishart:
@@ -236,18 +214,6 @@ class NonCentralMatrixT:
                 right=BlockMatrix.from_blocks(right),
                 ))
 
-    def observe(self, observed) -> 'NonCentralMatrixTObservation':
-        """
-        Add observed data to distribution.
-
-        This adds lift variables as needed.
-        """
-        _observed = BlockMatrix.from_blocks(
-                { ('obs', 'obs'): observed }
-                )
-
-        return NonCentralMatrixTObservation(self, _observed)
-
     @classmethod
     def from_post(cls, wishart: Wishart, new_gram, axis: int = 0) -> 'NonCentralMatrixT':
         """
@@ -281,70 +247,57 @@ class NonCentralMatrixT:
 
     def log_pdf(self, observed):
         """
-        Shortand for .observe().log_pdf()
-        """
-        return self.observe(observed).log_pdf()
-
-@dataclass
-class NonCentralMatrixTObservation:
-    """
-    Non-central matrix-t observation.
-
-    Wrapper around a representation as a central matrix-t with lift dimensions
-    """
-    ncmtd: NonCentralMatrixT
-    observed: BlockMatrix
-
-    def as_mto(self):
-        """
-        Represent self as a central matrix-t
-        """
-        _observed = self.observed.clone()
-
-        if 'lift' in self.ncmtd.mtd.left.dims[-1]:
-            _observed['lift', 'obs'] = jnp.ones((
-                1, self.ncmtd.mtd.right.dims[-1]['obs']
-                ))
-        if 'lift' in self.ncmtd.mtd.right.dims[-1]:
-            _observed['obs', 'lift'] = jnp.ones((
-                self.ncmtd.mtd.left.dims[-1]['obs'], 1
-                ))
-
-        # right_lift, left_lift implicitly set as zero
-        mto = self.ncmtd.mtd.observe(_observed)
-
-        return mto
-
-    def post(self, axis: int = 0) -> 'NCWishart':
-        """
-        Compute the posterior distribution of the gram matrices specified by
-        axis after observing data
-        """
-        return NCWishart(self.as_mto().post(axis))
-
-    def log_pdf(self):
-        """
         Log density function
         """
-        cond_mtd = self.ncmtd.condition_on_lift()
-        return cond_mtd.observe(self.observed).log_pdf()
+        return self.condition_on_lift().log_pdf(self.wrap_observed(observed))
 
-    def uni_cond(self) -> tuple:
+    def wrap_observed(self, observed):
+        """
+        Wrap observed in a block matrix
+        """
+        return BlockMatrix.from_blocks(
+                { ('obs', 'obs'): observed }
+                )
+
+    def augment_observed(self, observed):
+        """
+        Pad observation with lift dimensions
+        """
+        _observed = self.wrap_observed(observed)
+
+        if 'lift' in self.mtd.left.dims[-1]:
+            _observed['lift', 'obs'] = jnp.ones((
+                1, self.mtd.right.dims[-1]['obs']
+                ))
+        if 'lift' in self.mtd.right.dims[-1]:
+            _observed['obs', 'lift'] = jnp.ones((
+                self.mtd.left.dims[-1]['obs'], 1
+                ))
+        return _observed
+
+    def post(self, observed, axis: int = 0) -> 'NCWishart':
+        """
+        Compute the posterior distribution of the gram matrix specified by
+        axis after observing data
+        """
+        return NCWishart(self.mtd.post(self.augment_observed(observed), axis))
+
+    def uni_cond(self, observed) -> tuple:
         """
         One-dimensional conditionals
         """
-        all_stats = self.as_mto().uni_cond()
+        all_stats = self.mtd.uni_cond(self.augment_observed(observed))
 
         return tuple(
             stat['obs', 'obs']
             for stat in all_stats
             )
 
-    def extend(self, new_gram, axis: int = 0):
+    def extend(self, observed, gram, axis: int = 0):
         """
         Shorthand for computing posterior and extending along axis
         """
-        return self.post(axis).extend(new_gram, axis)
+        return self.post(observed, axis).extend(gram, axis)
 
 @dataclass
 class NCWishart:

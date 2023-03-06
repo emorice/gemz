@@ -52,17 +52,17 @@ go.Figure(data_trace)
 ```python
 scale = .5
 
-data = bmt.NonCentralMatrixT.from_params(
+dist = bmt.NonCentralMatrixT.from_params(
     dfs=2.0,
     left=jnp.eye(X.shape[0])*scale,
     right=jnp.eye(X.shape[1])*scale,
     gram_mean_left=1e-6 / scale,
     gram_mean_right=None
-).observe(X)
+)
 
 predictive = (
-    data
-    .post(axis=0)
+    dist
+    .post(X, axis=0)
     .extend(np.eye(1)*scale, axis=0)
 )
 
@@ -107,8 +107,12 @@ go.Figure(data=[
 ```
 
 ```python tags=[]
+#predictive.observe(jnp.zeros((3, 2, 1))).uni_cond()
+```
+
+```python tags=[]
 def pred_uni(x, y):
-    return predictive.observe(jnp.array([[x, y]]).T).uni_cond()
+    return predictive.uni_cond(jnp.array([[x, y]]).T)
 ```
 
 ```python tags=[]

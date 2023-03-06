@@ -103,8 +103,7 @@ def product_pll(log_precs):
                 right=jnp.diag(jnp.exp(-log_prec)),
                 gram_mean_left=0.5
             )
-            .observe(data)
-            .uni_cond()
+            .uni_cond(data)
         )
         prod_prec += 1. / variances
         prod_mean += means / variances
@@ -233,8 +232,7 @@ posts = [
         right=jnp.diag(jnp.exp(-log_prec)),
         gram_mean_left=0.5
     )
-    .observe(data)
-    .post()
+    .post(data)
     for log_prec in params['log_precs']
 ]
 
@@ -244,9 +242,8 @@ def _logk_prec(new, log_precs):
     return sum([
         post
             .extend(jnp.exp(-log_prec) * np.eye(1))
-            .observe(new[:, None])
             #.log_pdf()
-            .uni_cond()[-1].sum()
+            .uni_cond(new[:, None])[-1].sum()
         for post, log_prec in zip(posts, log_precs)
     ])
 logPs = jnp.stack([
@@ -277,8 +274,4 @@ write(
         transpose=True),
     'mix_ppdf'
 )
-```
-
-```python
-
 ```

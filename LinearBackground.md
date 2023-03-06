@@ -85,18 +85,18 @@ write(px.scatter(df, x='x', y='y', color='label'), 'linbg_data')
 dfs = 1.
 scale = 1.
 
-observed = bmt.NonCentralMatrixT.from_params(
+dist = bmt.NonCentralMatrixT.from_params(
     dfs, left=scale*np.eye(2), right=scale*np.eye(N),
     gram_mean_left=0.5
-).observe(data)
+)
 
 predictive_dist = (
-    observed
-    .extend(scale*np.eye(1), axis=0)
+    dist
+    .extend(data, scale*np.eye(1), axis=0)
 )
 
 def logp(new):
-    return predictive_dist.observe(new[:, None]).log_pdf()
+    return predictive_dist.log_pdf(new[:, None])
 
 Lx = np.linspace(-2., 4., 100)
 Ly = np.linspace(-1., 6., 100)
@@ -116,7 +116,7 @@ write(
 ```
 
 ```python tags=[]
-_m, _v, uni_logps = observed.uni_cond()
+_m, _v, uni_logps = dist.uni_cond(data)
 ```
 
 ```python tags=[]
@@ -124,14 +124,13 @@ go.Figure(data_fig).update_traces(marker={'color': uni_logps[0]/np.log(10), 'col
 ```
 
 ```python tags=[]
-def observe_weighted(log_precs, data=data, dfs=dfs):
+def dist_weighted(log_precs, data=data, dfs=dfs):
     return (
         bmt.NonCentralMatrixT
         .from_params(
             dfs, left=jnp.eye(2), right=jnp.diag(jnp.exp(-log_precs)),
             gram_mean_left=0.5
         )
-        .observe(data)
     )
 ```
 
@@ -139,16 +138,16 @@ def observe_weighted(log_precs, data=data, dfs=dfs):
 @jax.jit
 def ll(log_precs, dfs=dfs):
     print('Tracing...')
-    dist = observe_weighted(log_precs)
-    return dist.log_pdf()
+    dist = dist_weighted(log_precs)
+    return dist.log_pdf(data)
 ```
 
 ```python tags=[]
 @jax.jit
 def qll(log_precs, dfs=dfs):
     print('Tracing...')
-    dist = observe_weighted(log_precs)
-    _m, _v, logps = dist.uni_cond()
+    dist = dist_weighted(log_precs)
+    _m, _v, logps = dist.uni_cond(data)
     return jnp.sum(logps)
 ```
 
@@ -277,7 +276,7 @@ go.Figure(data_fig).update_traces(
 ```
 
 ```python tags=[]
-_post = observe_weighted(log_precs).post()
+_post = dist_weighted(log_precs).post(data)
 
 @jax.jit
 def _logk_prec(new, log_prec):
@@ -285,8 +284,7 @@ def _logk_prec(new, log_prec):
     return (
         _post
         .extend(jnp.exp(-log_prec) * np.eye(1))
-        .observe(new[:, None])
-        .log_pdf()
+        .log_pdf(new[:, None])
     )
 
 logPs = jnp.stack([
