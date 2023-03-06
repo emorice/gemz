@@ -104,6 +104,7 @@ class MatrixTObservation:
         if self.mtd.mean is not None:
             cobs = cobs - self.mtd.mean
         # Batched transpose
+        #import pdb; pdb.set_trace()
         cobs_t = np.swapaxes(cobs, -1, -2)
         return BlockMatrix.from_blocks({
             (0, 0): self.mtd.left,  (0, 1): cobs,

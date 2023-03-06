@@ -31,6 +31,7 @@ import plotly.graph_objects as go
 import plotly
 import colorcet
 import plotly_template
+plotly_template.plotly_init()
 ```
 
 ```python tags=[]
@@ -67,30 +68,27 @@ predictive = (
 
 axis = 1
 
-L = np.linspace(-2., 5., 100)
-G = np.stack(np.meshgrid(L, L), -1)
+Lx = np.linspace(-2., 5., 100)
+Ly = np.linspace(-2., 5., 101)
+G = np.stack(np.meshgrid(Lx, Ly, indexing='ij'), -1)
 ```
 
 ```python tags=[]
-def pred_logp(x, y):
-    return predictive.observe(jnp.array([x, y])[:, None]).log_pdf()
-```
-
-```python tags=[]
-logP = jax.vmap(lambda x: jax.vmap(lambda y: pred_logp(x, y))(L))(L)
+logP = predictive.log_pdf(G[..., None])
 ```
 
 ```python tags=[]
 # Well normalized
-dL = L[1] - L[0]
-_Z = jnp.exp(jsc.logsumexp(logP))*dL*dL
+dLx = Lx[1] - Lx[0]
+dLy = Ly[1] - Ly[0]
+_Z = jnp.exp(jsc.logsumexp(logP))*dLx*dLy
 print(_Z)
 ```
 
 ```python tags=[]
 go.Figure(data=[
     data_trace,
-    go.Contour(x=L, y=L, z=jnp.exp(logP), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(logP), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
     'title': 'Predictive distribution'
@@ -98,10 +96,10 @@ go.Figure(data=[
 ```
 
 ```python tags=[]
-disc_clnp = logP - jsc.logsumexp(logP, axis, keepdims=True) - jnp.log(dL)
+disc_clnp = logP - jsc.logsumexp(logP, axis, keepdims=True) - jnp.log(dLy)
 go.Figure(data=[
     data_trace,
-    go.Contour(x=L, y=L, z=jnp.exp(disc_clnp), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(disc_clnp), zmin=0, contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
     'title': 'Conditional by discrete integration'
@@ -114,11 +112,11 @@ def pred_uni(x, y):
 ```
 
 ```python tags=[]
-_means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: pred_uni(x, y))(L))(L)
+_means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: pred_uni(x, y))(Ly))(Lx)
 clnp = all_clnps[:, :, axis, -1]
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkblue'}),
-    go.Contour(x=L, y=L, z=jnp.exp(clnp), contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
+    go.Contour(x=Lx, y=Ly, z=jnp.exp(clnp), contours={'coloring': 'heatmap'}, ncontours=10, colorscale=colorcet.CET_L18, transpose=True),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1},
     'title': 'Conditional by direct calculation'
@@ -131,15 +129,15 @@ go.Figure(go.Scatter(x=disc_clnp.flatten(), y=clnp.flatten(), mode='markers', ma
 
 ```python tags=[]
 L = np.linspace(-2., 5., 100)
-means, variances, _logps = jax.vmap(lambda x: pred_uni(x, 0.))(L)
+means, variances, _logps = jax.vmap(lambda x: pred_uni(x, 0.))(Lx)
 means = means[:, 1, -1]
 variances = variances[:, 1, -1]
 
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkorange'}, name='Observed data'),
-    go.Scatter(x=L, y=means, mode='lines', name='Mean', line={'color': 'darkblue'}),
-    go.Scatter(x=L, y=means+np.sqrt(variances), mode='lines', name='Mean + 1 std', line={'color': 'grey'}),
-    go.Scatter(x=L, y=means-np.sqrt(variances), mode='lines', name='Mean - 1 std', line={'color': 'grey'}),
+    go.Scatter(x=Lx, y=means, mode='lines', name='Mean', line={'color': 'darkblue'}),
+    go.Scatter(x=Lx, y=means+np.sqrt(variances), mode='lines', name='Mean + 1 std', line={'color': 'grey'}),
+    go.Scatter(x=Lx, y=means-np.sqrt(variances), mode='lines', name='Mean - 1 std', line={'color': 'grey'}),
 ], layout={
     'yaxis': {'scaleanchor': 'x', 'scaleratio': 1}
 }

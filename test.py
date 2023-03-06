@@ -76,14 +76,26 @@ def test_block_swapaxes() -> None:
     Transpose a block matrix
     """
     mat = JaxBlockMatrix.from_blocks(
-            { (0, 0): np.zeros((2, 3))}
+            { (0, 0, 0): np.zeros((2, 3, 4))}
             )
-    assert mat.dims == ({0: 2}, {0:3})
-    assert mat[0, 0].shape == (2, 3)
+    assert mat.dims == ({0: 2}, {0: 3}, {0: 4})
+    assert mat[0, 0, 0].shape == (2, 3, 4)
 
     mat_t = np.swapaxes(mat, -1, -2)
-    assert mat_t.dims == ({0: 3}, {0: 2})
-    assert mat_t[0, 0].shape == (3, 2)
+    assert mat_t.dims == ({0: 2}, {0: 4}, {0: 3})
+    assert mat_t[0, 0, 0].shape == (2, 4, 3)
+
+def test_block_bcast() -> None:
+    """
+    Upcast a matrix before summing with an other
+    """
+    left = mkb(np.ones((1, 3, 4)))
+    right = mkb(np.ones((3, 4)))
+
+    res = left + right
+    print(res)
+
+    assert_allclose(res.to_dense(), np.ones((1, 3, 4))*2)
 
 def test_block_solve_batched() -> None:
     """

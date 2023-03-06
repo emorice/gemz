@@ -581,6 +581,9 @@ def _blockwise_binop(binop, left, right):
     if isinstance(left, BlockMatrix):
         if isinstance(right, BlockMatrix):
             # Two block matrices, do a binary map
+            # First broadcast arguments
+            left, right = left.broadcast_arrays(left, right)
+
             # Class and dims arbitrarily taken from left arg
             # Missing blocks treated as as scalar zeros
             return left.__class__(
@@ -600,7 +603,6 @@ def _blockwise_binop(binop, left, right):
             right.dims,
             dok_map(lambda b: binop(left, b), right.blocks)
             )
-    # None are blocks
     raise NotImplementedError
 
 # Dimension helpers
