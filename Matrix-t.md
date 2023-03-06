@@ -106,8 +106,8 @@ go.Figure(data=[
 })
 ```
 
-```python tags=[]
-#predictive.observe(jnp.zeros((3, 2, 1))).uni_cond()
+```python tags=[] jupyter={"outputs_hidden": true}
+#predictive.uni_cond(jnp.zeros((3, 2, 1)))
 ```
 
 ```python tags=[]

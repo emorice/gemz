@@ -263,17 +263,17 @@ class NonCentralMatrixT:
         """
         Pad observation with lift dimensions
         """
-        _observed = self.wrap_observed(observed)
+        _blocks = { ('obs', 'obs'): observed }
 
         if 'lift' in self.mtd.left.dims[-1]:
-            _observed['lift', 'obs'] = jnp.ones((
+            _blocks['lift', 'obs'] = jnp.ones((
                 1, self.mtd.right.dims[-1]['obs']
                 ))
         if 'lift' in self.mtd.right.dims[-1]:
-            _observed['obs', 'lift'] = jnp.ones((
+            _blocks['obs', 'lift'] = jnp.ones((
                 self.mtd.left.dims[-1]['obs'], 1
                 ))
-        return _observed
+        return BlockMatrix.from_blocks(_blocks)
 
     def post(self, observed, axis: int = 0) -> 'NCWishart':
         """
