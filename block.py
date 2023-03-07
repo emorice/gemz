@@ -229,7 +229,7 @@ class BlockMatrix:
                 b_sign, b_logdet = self.aa.slogdet(lslice[kitem, kitem])
                 sign *= b_sign
                 logdet += b_logdet
-            return { tuple(): sign }, { tuple(): logdet}
+            return { (): sign }, { (): logdet}
 
         sign, logdet = dok_slice_map(_slogdet_2d, lower.blocks, ndims=self.ndim-2)
 
@@ -267,13 +267,18 @@ class BlockMatrix:
         """
         self._ensure_square(axis1, axis2)
 
+        # Canonicalize axes
+        axes = tuple(range(self.ndim))
+        axis1, axis2 = axes[axis1], axes[axis2]
+
         blocks = {}
         for key, value in self.blocks.items():
             if key[axis1] == key[axis2]:
                 new_key = tuple(ki for i, ki in enumerate(key)
                                 if i not in (axis1, axis2))
                 new_key = (*new_key, key[axis1])
-                blocks[new_key] = self.aa.array_function(np.diagonal, value)
+                blocks[new_key] = self.aa.array_function(np.diagonal, value,
+                        axis1=axis1, axis2=axis2)
         return self.__class__.from_blocks(blocks)
 
     @property
@@ -358,7 +363,7 @@ class BlockMatrix:
             # Broadcast a base array to a block. In that case, the base array
             # is interpreted as an implict block array with one block along each
             # dim.
-            return cls.broadcast_to(cls.from_blocks({tuple(): array}), dims)
+            return cls.broadcast_to(cls.from_blocks({ (): array}), dims)
         return cls.aa.broadcast_to(array, dims)
 
     @classmethod
@@ -542,12 +547,15 @@ class BlockMatrix:
         self.blocks[key] = value
 
     def __getitem__(self, key):
-        # Indexing a 1d array with a set, normalize to a 1-tuple
+        # Indexing a 1d array with a set-like object, normalize to a 1-tuple
         if self._is_multikey(key):
             key = (key,)
 
-        # At this point key is a dim-matching tuple, except simple key for 1-d
-        # case
+        # Handle elippses if any
+        key = self._expand_ellipses(key)
+
+        # At this point key is a dim-matching tuple, or a single key item for
+        # 1-d case
 
         if isinstance(key, tuple) and any(self._is_multikey(ki) for ki in key):
             key = tuple(self._as_multikey(ki, axis=i)
@@ -565,7 +573,7 @@ class BlockMatrix:
         return self.blocks[key]
 
     def _is_multikey(self, key):
-        return isinstance(key, (set, list, slice, KeysView))
+        return isinstance(key, (set, list, slice, KeysView)) or key is Ellipsis
 
     def _as_multikey(self, key, axis):
         if key == slice(None):
@@ -573,6 +581,19 @@ class BlockMatrix:
         if self._is_multikey(key):
             return key
         return {key}
+
+    def _expand_ellipses(self, key):
+        """
+        Replace Ellipsis in keys by a suitable number of trivial slices
+        """
+        if isinstance(key, tuple):
+            return sum((
+                (slice(None),) * (self.ndim - len(key) + 1)
+                if kitem is Ellipsis
+                else (kitem,)
+                for kitem in key
+                ), start=())
+        return key
 
 # Helper functions
 # ================

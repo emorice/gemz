@@ -133,6 +133,21 @@ def test_block_solve_upcast() -> None:
             .5 * np_targets
             )
 
+def test_block_index_ellipsis() -> None:
+    """
+    Index a ND block with ellipses
+    """
+    np_array = np.arange(30).reshape((2, 3, 5))
+    array = mkb(np_array)
+
+    # Note that selecting the "block" 4 means selecting a singleton of columns,
+    # not a single column. This is a point where indexing semantics differ
+    # between block and pure arrays.
+    np_sub = np_array[..., [4]]
+    sub = array[..., 4]
+
+    assert_allclose(sub.to_dense(), np_sub)
+
 def test_batch_ncmt() -> None:
     """
     Compute ncmt log pdfs for a batch of values at once
@@ -156,3 +171,28 @@ def test_batch_ncmt() -> None:
     batched_pdfs = dist.log_pdf(observed)
 
     assert_allclose(iterative_pdfs, batched_pdfs)
+
+@pytest.mark.xfail
+def test_batch_ncmt_uni_cond() -> None:
+    """
+    Compute ncmt uni conditional for a batch of values at once
+    """
+    observed = np.array([
+        [0., 1.],
+        [3., 2.],
+        [-1., 1.]
+        ])[..., None, :]
+
+    left = np.eye(1)
+    right = np.eye(2)
+    dfs = 1.
+
+    dist = bmt.NonCentralMatrixT.from_params(dfs, left, right)
+
+    iterative_ucs = [np.stack(stat) for stat in zip(
+        dist.uni_cond(x)
+        for x in observed
+        )]
+    batched_ucs = dist.uni_cond(observed)
+
+    assert_allclose(iterative_ucs, batched_ucs)

@@ -138,10 +138,10 @@ class MatrixT:
         """
         igmat = np.linalg.inv(self._generator(observed))
 
-        inv_diag = np.diagonal(igmat)
-        inv_diag_left, inv_diag_right = inv_diag[0], inv_diag[1]
+        inv_diag = np.diagonal(igmat, axis1=-1, axis2=-2)
+        inv_diag_left, inv_diag_right = inv_diag[..., 0], inv_diag[..., 1]
 
-        inv_data = igmat[0, 1]
+        inv_data = igmat[..., 0, 1]
 
         # Broken from here, wip
         # Note on the outer product: np.outer is a legacy function.
