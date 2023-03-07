@@ -111,6 +111,7 @@ class BlockMatrix:
             np.transpose: self.transpose,
             np.outer: self._outer,
             np.ndim: lambda: self.ndim,
+            np.expand_dims: self._expand_dims,
             }
 
         if func in methods:
@@ -311,6 +312,26 @@ class BlockMatrix:
         perm[axis1] = axis2
         perm[axis2] = axis1
         return self.transpose(perm)
+
+    def _expand_dims(self, axis):
+        """
+        Insert trivial axis where asked
+        """
+        axis = axis % (self.ndim + 1)
+        # Fill first indexes
+        axes = list(range(self.ndim + 1))
+        # Shift indexes after inserted dim
+        axes[axis+1:] = axes[axis:-1]
+        # Clear inserted axis
+        axes[axis] = None
+
+        dims = tuple({0: 1} if a is None else self.dims[a] for a in axes)
+        blocks = {
+                tuple(0 if a is None else key[a] for a in axes):
+                self.aa.expand_dims(val, axis)
+                for key, val in self.blocks.items()
+                }
+        return self.__class__(dims, blocks)
 
     @property
     def ndim(self):

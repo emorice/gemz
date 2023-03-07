@@ -138,17 +138,22 @@ class MatrixT:
         """
         igmat = np.linalg.inv(self._generator(observed))
 
-        inv_diag = np.diagonal(igmat, axis1=-1, axis2=-2)
-        inv_diag_left, inv_diag_right = inv_diag[..., 0], inv_diag[..., 1]
+        bis = (0,) * (np.ndim(igmat) - 2)
 
-        inv_data = igmat[..., 0, 1]
+        inv_diag = np.diagonal(igmat, axis1=-1, axis2=-2)
+        inv_diag_left, inv_diag_right = inv_diag[(*bis, 0)], inv_diag[(*bis, 1)]
+
+        inv_data = igmat[(*bis, 0, 1)]
 
         # Broken from here, wip
         # Note on the outer product: np.outer is a legacy function.
         # np.ufunc.outer is more general, but has no jax implementation.
         # Using broadcasting would probably be the most portable, but is more
         # work to implement
-        inv_diag_prod = np.outer(inv_diag_left, inv_diag_right)
+        inv_diag_prod = (
+                np.expand_dims(inv_diag_left, -1)
+                * np.expand_dims(inv_diag_right, -2)
+                )
 
         dets = inv_diag_prod + inv_data**2
 
@@ -289,7 +294,7 @@ class NonCentralMatrixT:
         all_stats = self.mtd.uni_cond(self.augment_observed(observed))
 
         return tuple(
-            stat['obs', 'obs']
+            stat[..., 'obs', 'obs']
             for stat in all_stats
             )
 

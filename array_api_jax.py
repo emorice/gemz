@@ -18,6 +18,7 @@ class JaxAPI(ArrayAPI):
         np.linalg.inv: jnp.linalg.inv,
         np.linalg.slogdet: jnp.linalg.slogdet,
         np.linalg.solve: jnp.linalg.solve,
+        np.expand_dims: jnp.expand_dims,
         }
 
     @classmethod

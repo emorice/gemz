@@ -34,6 +34,13 @@ class ArrayAPI:
         raise NotImplementedError('Abstract method')
 
     @classmethod
+    def expand_dims(cls, array, axis):
+        """
+        Applies np.expand_dims
+        """
+        return cls.array_function(np.expand_dims, array, axis)
+
+    @classmethod
     def zeros(cls, shape):
         """
         Create an array of specified shape full of zeros
