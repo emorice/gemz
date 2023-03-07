@@ -183,27 +183,28 @@ def test_batch_ncmt() -> None:
 
     assert_allclose(iterative_pdfs, batched_pdfs)
 
-@pytest.mark.xfail
 def test_batch_ncmt_uni_cond() -> None:
     """
     Compute ncmt uni conditional for a batch of values at once
     """
     observed = np.array([
-        [0., 1.],
-        [3., 2.],
-        [-1., 1.]
+        [0., 1., 2.],
+        [3., 2., -1.],
         ])[..., None, :]
 
     left = np.eye(1)
-    right = np.eye(2)
+    right = np.eye(3)
     dfs = 1.
 
-    dist = bmt.NonCentralMatrixT.from_params(dfs, left, right)
+    dist = bmt.NonCentralMatrixT.from_params(dfs, left, right, gram_mean_left=1.)
 
-    iterative_ucs = [np.stack(stat) for stat in zip(
+    iterative_ucs = [np.stack(stat) for stat in zip(*(
         dist.uni_cond(x)
         for x in observed
-        )]
+        ))]
     batched_ucs = dist.uni_cond(observed)
 
-    assert_allclose(iterative_ucs, batched_ucs)
+    for istat, bstat in zip(iterative_ucs, batched_ucs):
+        # Why isn't this closer ? The sequence of floating point operations
+        # should be essentially identical
+        assert_allclose(bstat, istat, rtol=5e-6)

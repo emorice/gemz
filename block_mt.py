@@ -294,7 +294,7 @@ class NonCentralMatrixT:
         all_stats = self.mtd.uni_cond(self.augment_observed(observed))
 
         return tuple(
-            stat[..., 'obs', 'obs']
+            stat[(*(0 for _ in range(np.ndim(stat) - 2)), 'obs', 'obs')]
             for stat in all_stats
             )
 
