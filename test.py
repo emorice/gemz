@@ -176,10 +176,10 @@ def test_batch_ncmt() -> None:
     dist = bmt.NonCentralMatrixT.from_params(dfs, left, right)
 
     iterative_pdfs = np.stack([
-        dist.log_pdf(x)
+        dist.logpdf(x)
         for x in observed
         ])
-    batched_pdfs = dist.log_pdf(observed)
+    batched_pdfs = dist.logpdf(observed)
 
     assert_allclose(iterative_pdfs, batched_pdfs)
 

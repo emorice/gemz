@@ -4,6 +4,7 @@ Block-wise description of matrix-t variates
 
 import dataclasses as dc
 from dataclasses import dataclass
+from deprecation import deprecated
 
 import numpy as np
 import jax.numpy as jnp
@@ -75,7 +76,7 @@ class MatrixT:
         """
         return (self.left, self.right)
 
-    def log_pdf(self, observed):
+    def logpdf(self, observed):
         """
         Log-density
         """
@@ -92,6 +93,13 @@ class MatrixT:
                 log_inv_norm
                 - 0.5 * (self.dfs + sum(self.shape) - 1) * logdet
                 )
+
+    @deprecated()
+    def log_pdf(self, observed):
+        """
+        Legacy alias to logpdf
+        """
+        return self.logpdf(observed)
 
     def post(self, observed, axis: int = 0) -> 'Wishart':
         """
@@ -250,11 +258,19 @@ class NonCentralMatrixT:
             mtd = self.mtd
         return mtd
 
-    def log_pdf(self, observed):
+    def logpdf(self, observed):
         """
         Log density function
         """
-        return self.condition_on_lift().log_pdf(self.wrap_observed(observed))
+        return self.condition_on_lift().logpdf(self.wrap_observed(observed))
+
+    @deprecated()
+    def log_pdf(self, observed):
+        """
+        Legacy alias to logpdf
+        """
+        return self.logpdf(observed)
+
 
     def wrap_observed(self, observed):
         """
