@@ -106,17 +106,8 @@ go.Figure(data=[
 })
 ```
 
-```python tags=[] jupyter={"outputs_hidden": true}
-#predictive.uni_cond(jnp.zeros((3, 2, 1)))
-```
-
 ```python tags=[]
-def pred_uni(x, y):
-    return predictive.uni_cond(jnp.array([[x, y]]).T)
-```
-
-```python tags=[]
-_means, _vars, all_clnps = jax.vmap(lambda x: jax.vmap(lambda y: pred_uni(x, y))(Ly))(Lx)
+_means, _vars, all_clnps = predictive.uni_cond(G[..., None])
 clnp = all_clnps[:, :, axis, -1]
 go.Figure(data=[
     go.Scatter(x=X[0], y=X[1], mode='markers', marker={'color': 'darkblue'}),
@@ -133,7 +124,7 @@ go.Figure(go.Scatter(x=disc_clnp.flatten(), y=clnp.flatten(), mode='markers', ma
 
 ```python tags=[]
 L = np.linspace(-2., 5., 100)
-means, variances, _logps = jax.vmap(lambda x: pred_uni(x, 0.))(Lx)
+means, variances, _logps = predictive.uni_cond(jnp.vstack((Lx, np.zeros_like(Lx))).T[..., None])
 means = means[:, 1, -1]
 variances = variances[:, 1, -1]
 
