@@ -383,10 +383,24 @@ class BlockMatrix:
         Broadcast self
         """
         blocks = {}
+        # Expand self shape to right number of dims
         ndims = len(dims)
-        for key, val in self.blocks.items():
-            tkey = _expand_tuple(key, ndims, 0)
-            blocks[tkey] = self.broadcast_to(val, dims_index(dims, tkey))
+        src_dims = _expand_dims(self.dims, ndims)
+
+        # Iterate over all blocks
+        for src_key, val in self.blocks.items():
+            # Expand key to right number of dimensions
+            src_key = _expand_tuple(src_key, ndims, 0)
+            # Compute the target keys for each dim
+            dst_dims = (
+                dst_dim.keys() if src_dim == {0: 1} # Bcast
+                else (kitem,) # No bcast
+                for kitem, src_dim, dst_dim in zip(src_key, src_dims, dims)
+                )
+            # Compute all target keys and blocks
+            for dst_key in itertools.product(*dst_dims):
+                blocks[dst_key] = self.broadcast_to(val, dims_index(dims, dst_key))
+
         return self.__class__(dims, blocks)
 
     def to_dense(self):
@@ -713,6 +727,11 @@ def broadcast_dim(dim1: Dim, dim2: Dim) -> Dim:
             if dim1.keys() == dim2.keys():
                 return { k: broadcast_dim(val, dim2[k])
                         for k, val in dim1.items() }
+            # Trivial named broadcast to named
+            if dim1 == {0: 1}:
+                return dim2
+            if dim2 == {0: 1}:
+                return dim1
 
     raise TypeError(f'Incompatible dims: {dim1} and {dim2}')
 

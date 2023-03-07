@@ -96,7 +96,7 @@ def test_block_swapaxes() -> None:
     assert mat_t.dims == ({0: 2}, {0: 4}, {0: 3})
     assert mat_t[0, 0, 0].shape == (2, 4, 3)
 
-def test_block_bcast() -> None:
+def test_block_ucast() -> None:
     """
     Upcast a matrix before summing with an other
     """
@@ -106,6 +106,17 @@ def test_block_bcast() -> None:
     res = left + right
 
     assert_allclose(res.to_dense(), np.ones((1, 3, 4))*2)
+
+def test_block_bcast() -> None:
+    """
+    Broadcast a vector before summing with an other
+    """
+    left = mkb(np.ones((1,))) # One block
+    right = mkb(np.ones((3,))) # Three blocks
+
+    res = left + right
+
+    assert_allclose(res.to_dense(), np.ones((3,))*2)
 
 def test_block_solve_batched() -> None:
     """
