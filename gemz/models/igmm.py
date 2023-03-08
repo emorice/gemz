@@ -3,8 +3,6 @@ Information-driven Gaussian mixture models
 """
 
 import numpy as np
-import distrax
-import jax.numpy as jnp
 
 from gemz import jax_utils, linalg
 from gemz.jax_numpy import jaxify
@@ -43,7 +41,7 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
             },
         bijectors={
             'responsibilities': jax_utils.Softmax(),
-            'reg_covar': distrax.Lambda(jnp.exp),
+            'reg_covar': jax_utils.RegExp(),
             },
         scipy_method='L-BFGS-B',
         )

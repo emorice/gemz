@@ -8,7 +8,6 @@ to natural parameters.
 import numpy as np
 import scipy
 
-import distrax
 import jax
 import jax.numpy as jnp
 
@@ -145,7 +144,7 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
     # NOTE: this could be done in [un]apply bijs ?
     for k in init:
         if k not in bijectors:
-            bijectors[k] = distrax.Lambda(lambda x: x)
+            bijectors[k] = Identity()
 
     init_anon, shapes, struct = pack(unapply_bijs(init, bijectors))
 
@@ -249,3 +248,19 @@ class RegExp:
         Maps postive reals -> log
         """
         return jnp.log(outputs - self.lower)
+
+class Identity:
+    """
+    Identity bijector
+    """
+    def forward(self, value):
+        """
+        x -> x
+        """
+        return value
+
+    def inverse(self, value):
+        """
+        x -> x
+        """
+        return value

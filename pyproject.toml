@@ -5,11 +5,22 @@ dependencies = [
   "numpy",
   "scipy",
   "scikit-learn",
-  "jax <= 0.3.7", # breaks distrax
-  "jaxlib <= 0.3.7", # matches jax
-  "distrax",
+  "jax", # breaks distrax
+  "jaxlib", # matches jax
   "rpy2",
   "deprecation",
+]
+
+[tool.setuptools]
+packages = [
+  "gemz",
+  "gemz.plots",
+  "gemz.linalg",
+  "gemz.cases",
+  "gemz.jax",
+  "gemz.jax.linalg",
+  "gemz.stats",
+  "gemz.models",
 ]
 
 [project.optional-dependencies]
@@ -17,7 +28,11 @@ peer = [
   "pmbio-peer @ git+ssh://git@github.com/emorice/peer.git"
 ]
 dev = [
-  "memory_profiler"
+  "memory_profiler",
+  "pandas",
+  "plotly",
+  "pytest",
+  "pytest-asyncio",
 ]
 
 [build-system]
