@@ -41,6 +41,11 @@ class BlockMatrix:
 
     aa = ArrayAPI
 
+    def __post_init__(self):
+        if self.aa is ArrayAPI:
+            raise TypeError('BlockMatrix must be subclassed and a concrete '
+                    'ArrayAPI provided')
+
     # Block-wise operators
     # --------------------
 
@@ -299,7 +304,7 @@ class BlockMatrix:
         return self.__class__(
                 tuple(self.dims[a] for a in axes),
                 {
-                    tuple(key[a] for a in axes): np.transpose(value, axes)
+                    tuple(key[a] for a in axes): self.aa.transpose(value, axes)
                     for key, value in self.blocks.items()
                     }
                 )
@@ -309,6 +314,10 @@ class BlockMatrix:
         Swap the specified axes only.
         """
         perm = list(range(self.ndim))
+        # Normalize axes, not all versions of all libraries accept negative
+        # indices in arrays
+        axis1 = perm[axis1]
+        axis2 = perm[axis2]
         perm[axis1] = axis2
         perm[axis2] = axis1
         return self.transpose(perm)

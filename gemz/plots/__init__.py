@@ -5,7 +5,7 @@ Plotting utils
 import pandas as pd
 import plotly.graph_objects as go
 
-from . import models
+from gemz import models
 
 def plot_cv(spec, fit):
     """

@@ -41,6 +41,13 @@ class ArrayAPI:
         return cls.array_function(np.expand_dims, array, axis)
 
     @classmethod
+    def transpose(cls, array, axes=None):
+        """
+        Applies np.transpose
+        """
+        return cls.array_function(np.transpose, array, axes)
+
+    @classmethod
     def zeros(cls, shape):
         """
         Create an array of specified shape full of zeros

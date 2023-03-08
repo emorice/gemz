@@ -19,6 +19,7 @@ class JaxAPI(ArrayAPI):
         np.linalg.slogdet: jnp.linalg.slogdet,
         np.linalg.solve: jnp.linalg.solve,
         np.expand_dims: jnp.expand_dims,
+        np.transpose: jnp.transpose,
         }
 
     @classmethod
