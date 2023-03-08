@@ -5,3 +5,4 @@ venv
 demo/
 .coverage
 *.png
+.mypy_cache
