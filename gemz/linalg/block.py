@@ -12,7 +12,7 @@ import itertools
 import numpy as np
 import jax.numpy as jnp
 
-from array_api import ArrayAPI
+from .array_api import ArrayAPI
 
 # Dimension types
 # ================

@@ -9,6 +9,7 @@ dependencies = [
   "jaxlib <= 0.3.7", # matches jax
   "distrax",
   "rpy2",
+  "deprecation",
 ]
 
 [project.optional-dependencies]

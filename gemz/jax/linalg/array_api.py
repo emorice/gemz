@@ -5,7 +5,7 @@ Jax provider for array api
 import numpy as np
 import jax.numpy as jnp
 
-from array_api import ArrayAPI
+from gemz.linalg.array_api import ArrayAPI
 
 
 class JaxAPI(ArrayAPI):

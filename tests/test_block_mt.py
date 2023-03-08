@@ -9,8 +9,8 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
-from block_jax import JaxBlockMatrix
-import block_mt as bmt
+from gemz.jax.linalg.block import JaxBlockMatrix
+import gemz.stats.matrixt as bmt
 
 mkb = JaxBlockMatrix.from_dense
 
