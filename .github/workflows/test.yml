@@ -1,4 +1,4 @@
-name: Python tests
+name: Tests
 
 # Mashup of the default python action at
 # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
