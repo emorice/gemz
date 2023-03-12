@@ -77,7 +77,7 @@ def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
     specs = _ops.build_eval_grid(
                 inner, data, fold_count, loss_name,
                 grid_size, grid_max, grid,
-                seed, _ops=_ops
+                seed
             )
 
     best_model = _ops.select_best(specs)

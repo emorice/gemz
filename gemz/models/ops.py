@@ -135,7 +135,7 @@ def build_eval_grid(inner, data, fold_count, loss_name, grid_size, grid_max, gri
     specs = inner_model.cv.make_grid_specs(inner, grid)
 
     results = [
-        _ops.cv_fit_eval(spec, data, fold_count, loss_name, seed, _ops=_ops)
+        _ops.cv_fit_eval(spec, data, fold_count, loss_name, seed)
         for spec in specs
         ]
 
