@@ -40,7 +40,9 @@ jobs:
       - name: Install
         run: |
           python -m pip install --upgrade pip wheel
-          pip install -e .[dev]
+          git config --global url."https://ssh:${{secrets.GH_PAT}}@github.com/".insteadOf 'ssh://git@github.com/'
+          git config --global url."https://git:${{secrets.GH_PAT}}@github.com/".insteadOf 'git@github.com:'
+          pip install -e .[dev] -e ./gemz-galp
       - name: Test
         run: |
-          pytest -k 'not nonlinear_shrinkage and not peer'
+          pytest -k 'not nonlinear_shrinkage and not peer' -v
