@@ -15,7 +15,7 @@ def pack(kwargs):
     """
     Flattens a tree of tensors into a single array.
     """
-    leaves, struct = jax.tree_flatten(kwargs)
+    leaves, struct = jax.tree_util.tree_flatten(kwargs)
     shapes = [leave.shape for leave in leaves]
     return (
         jnp.hstack([leave.flatten() for leave in leaves]),
@@ -35,7 +35,7 @@ def unpack(data, shapes, struct):
             size *= dim
         leaves.append(data[i:i+size].reshape(shape))
         i += size
-    return jax.tree_unflatten(struct, leaves)
+    return jax.tree_util.tree_unflatten(struct, leaves)
 
 def apply_bijs(anon_tree, bijs):
     """
