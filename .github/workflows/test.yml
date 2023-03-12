@@ -30,6 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_PAT }}
+          submodules: 'recursive'
       - name: Set up python 
         uses: actions/setup-python@v4
         with:
