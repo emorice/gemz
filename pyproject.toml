@@ -27,12 +27,13 @@ packages = [
 peer = [
   "pmbio-peer @ git+ssh://git@github.com/emorice/peer.git"
 ]
+test = [
+  "pytest"
+]
 dev = [
   "memory_profiler",
   "pandas",
   "plotly",
-  "pytest",
-  "pytest-asyncio",
 ]
 
 [build-system]
