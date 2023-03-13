@@ -1,32 +1,17 @@
 name: Tests
 
-# Mashup of the default python action at
+# Adapted from the default python action at
 # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-# and an example lazy nightly trigger from
-# https://github.com/orgs/community/discussions/27128
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '3 0 * * *'
+    - cron: '5 0 * * 2'
+  push:
 
 jobs:
-  check_new:
-    runs-on: ubuntu-latest
-    name: Check latest commit
-    outputs:
-      should_run: ${{ steps.should_run.outputs.should_run }}
-    steps:
-      - uses: actions/checkout@v3
-      - id: should_run
-        continue-on-error: true
-        name: check latest commit is less than a day
-        if: ${{ github.event_name == 'schedule' }}
-        run: test -z $(git rev-list  --after="24 hours"  ${{ github.sha }}) && echo "::set-output name=should_run::false"
   test:
     name: Run tests
-    needs: check_new
-    if: ${{ needs.check_new.outputs.should_run != 'false' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
