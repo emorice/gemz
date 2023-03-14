@@ -22,7 +22,7 @@ class KMeans:
             data: N1 x N2, with N2 being the large dimension to split into clusters
         """
 
-        sk_model = sklearn.cluster.KMeans(n_clusters=n_groups)
+        sk_model = sklearn.cluster.KMeans(n_clusters=n_groups, n_init='auto')
 
         sk_fit = sk_model.fit(data.T)
 

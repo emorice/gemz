@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 from jax import lax
 
-from . import methods, cv
+from . import methods, cv as _cv
 
 # High-level interface
 # ====================
@@ -88,7 +88,7 @@ def get_name(spec):
     return f"{spec['model']}/{spec['n_groups']}"
 
 
-cv = cv.Int1dCV('n_groups', 'groups')
+cv = _cv.Int1dCV('n_groups', 'groups')
 
 # CMK algorithm
 # =============
@@ -100,6 +100,7 @@ def cmk_init(data, n_groups):
     clusters = sklearn.cluster.KMeans(
             n_clusters=n_groups,
             random_state=4758,
+            n_init='auto',
         ).fit(
             data.T
         ).labels_

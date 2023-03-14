@@ -102,6 +102,7 @@ def linear_reg(_, case_name, report_path):
 
     model_args = [
         ('linear',  {}),
+        ('mt_sym', {'centered': (True, True)}),
         ('cv', {'inner': {'model': 'linear_shrinkage'}}),
         ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
         ('lscv_loo', {}),

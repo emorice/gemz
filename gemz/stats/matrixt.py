@@ -11,6 +11,7 @@ import jax.numpy as jnp
 import jax.scipy.special as jsc
 
 from gemz.jax.linalg.block import JaxBlockMatrix as BlockMatrix
+from gemz.stats import Model
 
 def log_norm_std(dfs, len_left, len_right):
     """
@@ -27,7 +28,7 @@ def log_norm_std(dfs, len_left, len_right):
         - jnp.sum(jsc.gammaln(args + 0.5*large))
         )
 
-class Distribution:
+class Distribution(Model):
     """
     Distribution base class and utils
     """
