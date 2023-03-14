@@ -78,25 +78,18 @@ class VirtualArray:
     def __add__(self, right):
         """
         Self + right
+        """
+        raise NotImplementedError
+
+    def __radd__(self, left):
+        """
+        Left + self
 
         Note: both __add__ and __radd__ map to the same op, as we assume addition on
         ImplicitMatrices commutes. The distinction is mostly useful for
         types where '+' means concatenation (non commutative) I believe.
         """
-        return self.add(right)
-
-    def __radd__(self, left):
-        """
-        Left + self
-        """
-        return self.add(left)
-
-    # Todo: remove
-    def add(self, other, out=None):
-        """
-        Self + other
-        """
-        raise NotImplementedError
+        return self.__add__(left)
 
     # Todo: this will most likely become a general pattern to factor out
     @classmethod
@@ -180,9 +173,9 @@ def _add(obj, *args, out=None):
         return NotImplemented
     left, right = args
     if left is obj:
-        return obj.add(right, out=out)
+        return obj.__add__(right)
     if right is obj:
-        return obj.add(left, out=out)
+        return obj.__add__(left)
     return NotImplemented
 
 @VirtualArray.implements(np.ndim)

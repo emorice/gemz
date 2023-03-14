@@ -183,14 +183,6 @@ class LowRankUpdate(ImplicitMatrix):
                 str(divisor.shape))
         return ScaledMatrix(self, 1. / divisor[..., 0, 0])
 
-    def add(self, other, out=None):
-        """
-        Addition with other.
-
-        Only very specific cases could be supported, so not implemented for now.
-        """
-        raise NotImplementedError
-
 class SymmetricLowRankUpdate(LowRankUpdate):
     """
     Symmetric low-rank update of a matrix, stored symbolically.
@@ -222,14 +214,6 @@ class SymmetricLowRankUpdate(LowRankUpdate):
             factor=self.inv_base @ self.factor_left,
             weight=-(self.weight @ np.linalg.inv(self.capacitance))
             )
-
-    def add(self, other, out=None):
-        """
-        Addition with other.
-
-        Only very specific cases could be supported, so not implemented for now.
-        """
-        raise NotImplementedError
 
 def as_matrix(obj, bcast_inner_dim):
     """

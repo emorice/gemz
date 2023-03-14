@@ -36,6 +36,15 @@ class ScaledIdentity(ImplicitMatrix):
         """
         return left * self.scalar
 
+
+    def __add__(self, other):
+        """
+        Concrete addition
+        """
+        # For now we only consider adding to a concrete array, in which case we
+        # can concretize self
+        return self._as_dense() + other
+
     def __sub__(self, right):
         """
         self - right
@@ -61,17 +70,6 @@ class ScaledIdentity(ImplicitMatrix):
 
     def _solve(self, rhs):
         return rhs / self.scalar
-
-    def add(self, other, out=None):
-        """
-        Concrete addition
-        """
-        # For now we only consider adding to a concrete array, in which case we
-        # can concretize self
-        return np.add(
-            other,
-            self.scalar[..., None, None] * np.eye(self.inner_dim),
-            out=out)
 
     def slogdet(self):
         """
