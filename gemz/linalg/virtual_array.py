@@ -75,30 +75,6 @@ class VirtualArray:
         """
         raise NotImplementedError
 
-    def __matmul__(self, right):
-        """
-        Self @ right
-        """
-        return self.matmul_right(right)
-
-    def __rmatmul__(self, left):
-        """
-        Left @ self
-        """
-        return self.matmul_left(left)
-
-    def matmul_right(self, right):
-        """
-        Self @ right
-        """
-        raise NotImplementedError
-
-    def matmul_left(self, left):
-        """
-        Left @ self
-        """
-        raise NotImplementedError
-
     def __add__(self, right):
         """
         Self + right
@@ -191,13 +167,12 @@ def _matmul(obj, *args):
 
     left, right = args
 
-    if left is obj:
-        return left.matmul_right(right)
-
+    # If matmul was called on right object, reverse priorities and try right's
+    # rmatmul before left's matmul
     if right is obj:
-        return right.matmul_left(left)
+        return obj.__rmatmul__(left)
 
-    return NotImplemented
+    return left @ right
 
 @VirtualArray.implements(np.add)
 def _add(obj, *args, out=None):

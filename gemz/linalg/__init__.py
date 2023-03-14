@@ -75,7 +75,7 @@ class LowRankUpdate(ImplicitMatrix):
         """
         return self.LRUShape(self)
 
-    def matmul_right(self, right):
+    def __matmul__(self, right):
         """
         Matmul of `self @ right`
 
@@ -91,7 +91,7 @@ class LowRankUpdate(ImplicitMatrix):
                 )
             )
 
-    def matmul_left(self, left):
+    def __rmatmul__(self, left):
         """
         Matmul of `left @ self`
 

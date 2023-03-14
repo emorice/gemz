@@ -24,13 +24,13 @@ class ScaledIdentity(ImplicitMatrix):
         """
         return np.shape(self.scalar) + (self.inner_dim, self.inner_dim)
 
-    def matmul_right(self, right):
+    def __matmul__(self, right):
         """
         Matmul of self @ right
         """
         return self.scalar * right
 
-    def matmul_left(self, left):
+    def __rmatmul__(self, left):
         """
         Matmul of left @ self
         """
@@ -128,7 +128,7 @@ class ScaledMatrix(ImplicitMatrix):
             multiplier=1. / self.multiplier
             )
 
-    def matmul_right(self, right):
+    def __matmul__(self, right):
         """
         Self @ right
 
@@ -138,7 +138,7 @@ class ScaledMatrix(ImplicitMatrix):
         """
         return self.multiplier[..., None, None] * (self.base @ right)
 
-    def matmul_left(self, left):
+    def __rmatmul__(self, left):
         """
         Left @ self
 
@@ -189,13 +189,13 @@ class Diagonal(ImplicitMatrix):
         """
         return Diagonal(1. / self._diagonal)
 
-    def matmul_right(self, right):
+    def __matmul__(self, right):
         """
         Matmul of self @ right, i.e. multiplying elementwise each column
         """
         return self._diagonal[..., :, None] * right
 
-    def matmul_left(self, left):
+    def __rmatmul__(self, left):
         """
         Matmul of left @ self, i.e. multiplying elementwise each row
         """
