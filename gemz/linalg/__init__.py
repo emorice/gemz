@@ -37,6 +37,10 @@ class ImplicitMatrix:
             return imp(self, args)
         return NotImplemented
 
+    @property
+    def ndim(self):
+        return len(self.shape)
+
     def __matmul__(self, right):
         """
         Self @ right
@@ -144,6 +148,16 @@ def _add(obj, *args, out=None):
         return obj.add(left, out=out)
     return NotImplemented
 
+@ImplicitMatrix.implements(np.ndim)
+def _ndim(obj, args):
+    _ensure_unary(obj, args)
+    return obj.ndim
+
+@ImplicitMatrix.implements(np.shape)
+def _shape(obj, args):
+    _ensure_unary(obj, args)
+    return obj.shape
+
 class ScaledIdentity(ImplicitMatrix):
     """
     Implicit scalar multiple of the identity matrix
@@ -200,6 +214,13 @@ class ScaledIdentity(ImplicitMatrix):
             np.sign(self.scalar) ** self.inner_dim,
             self.inner_dim * np.log(np.abs(self.scalar))
             )
+
+class Identity(ScaledIdentity):
+    """
+    Convenience alias for ScaledIdentity(1.)
+    """
+    def __init__(self, inner_dim):
+        super().__init__(1.0, inner_dim)
 
 class ScaledMatrix(ImplicitMatrix):
     """

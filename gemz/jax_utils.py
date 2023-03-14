@@ -208,7 +208,23 @@ def maximize(native_obj, init, data, bijectors=None, scipy_method=None,
         has_aux=has_aux
         )
 
-class Softmax:
+class Bijector:
+    """
+    Abstract bijector class
+    """
+    def forward(self, free):
+        """
+        Maps free parameters to natural parameters
+        """
+        raise NotImplementedError
+
+    def inverse(self, natural):
+        """
+        Inverse of forward
+        """
+        raise NotImplementedError
+
+class Softmax(Bijector):
     """
     Softmax bijector mapping D logits to D+1 normalized weights in (0, 1).
 
@@ -230,7 +246,23 @@ class Softmax:
         odd_ratios = weights / weight0
         return jnp.log(odd_ratios)
 
-class RegExp:
+class Exp(Bijector):
+    """
+    Exp bijector.
+    """
+    def forward(self, free):
+        """
+        Maps real -> exp
+        """
+        return jnp.exp(free)
+
+    def inverse(self, natural):
+        """
+        Maps postive reals -> log
+        """
+        return jnp.log(natural)
+
+class RegExp(Bijector):
     """
     Regularized exp bijector.
     """
@@ -249,7 +281,7 @@ class RegExp:
         """
         return jnp.log(outputs - self.lower)
 
-class Identity:
+class Identity(Bijector):
     """
     Identity bijector
     """

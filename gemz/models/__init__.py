@@ -20,6 +20,7 @@ from . import (
     svd,
     cv,
     peer,
+    mt_sym,
     )
 
 from .methods import get, get_name
