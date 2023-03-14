@@ -1,8 +1,11 @@
 """
 Base code for array-like duck objects
 """
+from typing import Type
+
 import numpy as np
 
+from .array_api import ArrayAPI
 from .numpy_array_api import NumpyArrayAPI
 
 class VirtualArray:
@@ -12,11 +15,11 @@ class VirtualArray:
     Implements numpy protocol and more numpy-like apis, and dispatch them to a
     set of public and private methods to be implemented by base classes.
     """
-    _implementations = {}
+    _implementations : dict = {}
 
     # Tensor library backend, defaults to numpy but meant to be overriden in
     # subclasses
-    aa = NumpyArrayAPI
+    aa: Type[ArrayAPI] = NumpyArrayAPI
 
     @classmethod
     def implements(cls, func):
@@ -37,9 +40,6 @@ class VirtualArray:
 
     def __array_function__(self, func, _, args, kwargs):
         if func in self._implementations:
-            # Only unary functions are handled for now
-            if len(args) != 1 or kwargs or args[0] is not self:
-                return NotImplemented
             imp = self._implementations[func]
             return imp(self, args)
         return NotImplemented
@@ -161,6 +161,15 @@ def _inv(obj, args):
     """
     _ensure_unary(obj, args)
     return obj.inv()
+
+@VirtualArray.implements(np.linalg.solve)
+def _solve(obj, args):
+    """
+    Implements np.linalg.inv as a `_solve` method call
+    """
+    _obj, *args = args
+    assert _obj is obj
+    return obj._solve(*args)
 
 @VirtualArray.implements(np.linalg.slogdet)
 def _inv(obj, args):

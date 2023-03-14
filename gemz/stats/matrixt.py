@@ -27,6 +27,31 @@ def log_norm_std(dfs, len_left, len_right):
         - jnp.sum(jsc.gammaln(args + 0.5*large))
         )
 
+class Distribution:
+    """
+    Distribution base class and utils
+    """
+
+    def pseudo_logpdf(self, observed):
+        """
+        Pseudo logpdf, i.e. product of the unidimensional conditional log pdfs
+        """
+        return jnp.sum(self.uni_cond(observed)[2])
+
+    def uni_cond(self, observed):
+        """
+        Unidimensional conditionals
+
+        Returns: tuple (means, variances, logpdfs)
+        """
+        raise NotImplementedError
+
+    def learn(self, observed, axis):
+        """
+        More generic alias for post
+        """
+        return self.post(observed, axis)
+
 @dataclass
 class MatrixT:
     """
@@ -198,7 +223,7 @@ class Wishart:
                 )
 
 @dataclass
-class NonCentralMatrixT:
+class NonCentralMatrixT(Distribution):
     """
     Helper to represent a matrix-t with a latent mean as an other matrix-t
     """

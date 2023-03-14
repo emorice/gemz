@@ -41,7 +41,7 @@ model_specs = [
     { 'model': 'svd', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2 },
     { 'model': 'peer', 'n_factors': 2, 'reestimate_precision': True },
-    #{ 'model': 'mt_sym'},
+    { 'model': 'mt_sym'},
     { 'model': 'cv', 'inner': {'model': 'linear_shrinkage' } },
     { 'model': 'cv', 'inner': {'model': 'svd'} },
     { 'model': 'cv', 'inner': {'model': 'svd'}, 'grid_max': 3},

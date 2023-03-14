@@ -6,7 +6,7 @@ from numpy.typing import ArrayLike
 
 from gemz.jax_utils import maximize, Bijector, Exp
 from gemz.stats.matrixt import NonCentralMatrixT
-from gemz.linalg import ScaledIdentity, Identity
+from gemz.jax.linalg import ScaledIdentity
 from . import methods
 
 class Method:
@@ -33,6 +33,8 @@ class Model:
     """
     TBD
     """
+    def pseudo_logpdf(self, observed):
+        raise NotImplementedError
 
 class MaximumPseudoLikelihood(Method):
     """
@@ -92,12 +94,12 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
     parametrization
     """
     @classmethod
-    def make_model(cls, parameters, shape: int) -> Model:
+    def make_model(cls, parameters, shape: tuple[int, int]) -> Model:
         params = parameters
         return NonCentralMatrixT.from_params(
                 dfs=params['dfs'],
                 left=ScaledIdentity(params['scale'], shape[0]),
-                right=Identity(shape[1]),
+                right=ScaledIdentity(1.0, shape[1]),
                 gram_mean_left=params['gram_mean_left'],
                 gram_mean_right=params['gram_mean_right']
                 )
@@ -119,3 +121,12 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
             'gram_mean_left': Exp(),
             'gram_mean_right': Exp(),
             }
+
+    @classmethod
+    def predict_loo(cls, learned, new_observed: ArrayLike):
+        """
+        Legacy wrapper for apply along axis 0
+        """
+        new_dims = new_observed.shape[0]
+        new_gram = ScaledIdentity(0, new_dims)
+        return learned.extend(new_gram=new_gram, axis=1).uni_cond(new_observed)[0]

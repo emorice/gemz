@@ -36,6 +36,14 @@ class ScaledIdentity(ImplicitMatrix):
         """
         return left * self.scalar
 
+    def __sub__(self, right):
+        """
+        self - right
+
+        Fall back to dense array
+        """
+        return self._as_dense() - right
+
     def diagonal(self):
         """
         Diagonal as a scalar. The result has a undefined shape, we rely on
@@ -47,9 +55,12 @@ class ScaledIdentity(ImplicitMatrix):
         """
         Inverse scalar times identity, raises if 0
         """
-        return ScaledIdentity(
+        return self.__class__(
             scalar=1.0 / self.scalar,
             inner_dim=self.inner_dim)
+
+    def _solve(self, rhs):
+        return rhs / self.scalar
 
     def add(self, other, out=None):
         """
@@ -83,20 +94,13 @@ class ScaledIdentity(ImplicitMatrix):
             raise TypeError(f'Cannot broadcast matrix from {self.shape} to {shape}')
 
         scalar = self.broadcast_to(self.scalar, shape[:-2])
-        return ScaledIdentity(scalar, shape[-1])
+        return self.__class__(scalar, shape[-1])
 
     def _as_dense(self):
         return (
             self.broadcast_to(self.scalar, self.shape) *
             self.aa.eye(self.inner_dim)
             )
-
-class Identity(ScaledIdentity):
-    """
-    Convenience alias for ScaledIdentity(1.)
-    """
-    def __init__(self, inner_dim):
-        super().__init__(1.0, inner_dim)
 
 class ScaledMatrix(ImplicitMatrix):
     """
@@ -154,6 +158,9 @@ class ScaledMatrix(ImplicitMatrix):
             s_base * np.sign(self.multiplier) ** dim,
             l_base + dim * np.log(np.abs(self.multiplier))
             )
+
+def Identity(inner_dim):
+    return ScaledIdentity(1.0, inner_dim)
 
 class Diagonal(ImplicitMatrix):
     """
