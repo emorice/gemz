@@ -144,7 +144,7 @@ class LowRankUpdate(ImplicitMatrix):
                 )
         return self._capacitance
 
-    def inv(self):
+    def _inv(self):
         """"
         Representation of inverse through Woodbury identity
         """
@@ -155,7 +155,7 @@ class LowRankUpdate(ImplicitMatrix):
             factor_right=self.factor_right @ self.inv_base,
             )
 
-    def slogdet(self):
+    def _slogdet(self):
         """
         Sign and log-determinant through matrix determninant lemma
         """
@@ -202,7 +202,7 @@ class SymmetricLowRankUpdate(LowRankUpdate):
         """
         super().__init__(base, factor, weight)
 
-    def inv(self):
+    def _inv(self):
         """"
         Representation of inverse through Woodbury identity
 

@@ -128,10 +128,10 @@ def _diagonal(obj, args):
 @VirtualArray.implements(np.linalg.inv)
 def _inv(obj, args):
     """
-    Implements np.linalg.inv as a `inv` method call
+    Implements np.linalg.inv as an `_inv` method call
     """
     _ensure_unary(obj, args)
-    return obj.inv()
+    return obj._inv()
 
 @VirtualArray.implements(np.linalg.solve)
 def _solve(obj, args):
@@ -143,12 +143,12 @@ def _solve(obj, args):
     return obj._solve(*args)
 
 @VirtualArray.implements(np.linalg.slogdet)
-def _inv(obj, args):
+def _slogdet(obj, args):
     """
     Implements np.linalg.sloget as a `slogdet` method call
     """
     _ensure_unary(obj, args)
-    return obj.slogdet()
+    return obj._slogdet()
 
 @VirtualArray.implements(np.matmul)
 def _matmul(obj, *args):

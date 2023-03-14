@@ -60,7 +60,7 @@ class ScaledIdentity(ImplicitMatrix):
         """
         return self.scalar
 
-    def inv(self):
+    def _inv(self):
         """
         Inverse scalar times identity, raises if 0
         """
@@ -71,7 +71,7 @@ class ScaledIdentity(ImplicitMatrix):
     def _solve(self, rhs):
         return rhs / self.scalar
 
-    def slogdet(self):
+    def _slogdet(self):
         """
         Sign and log det of self
         """
@@ -117,7 +117,7 @@ class ScaledMatrix(ImplicitMatrix):
         self.base = base
         self.multiplier = multiplier
 
-    def inv(self):
+    def _inv(self):
         """
         Possibly batched inverse.
         """
@@ -146,7 +146,7 @@ class ScaledMatrix(ImplicitMatrix):
         """
         return self.multiplier[..., None, None] * (left @ self.base)
 
-    def slogdet(self):
+    def _slogdet(self):
         """
         Sign and log det of self
         """
@@ -181,7 +181,7 @@ class Diagonal(ImplicitMatrix):
         """
         return self._diagonal
 
-    def inv(self):
+    def _inv(self):
         """
         Diagonal inverse of diagonal matrix
         """
