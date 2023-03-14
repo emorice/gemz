@@ -13,6 +13,7 @@ import numpy as np
 import jax.numpy as jnp
 
 from .array_api import ArrayAPI
+from .virtual_array import VirtualArray
 
 # Dimension types
 # ================
@@ -31,7 +32,7 @@ NamedDims = tuple[NamedDim, ...]
 # subclass instead
 
 @dataclass
-class BlockMatrix:
+class BlockMatrix(VirtualArray):
     """
     Wrapper around a dict of array-like objects representing a block matrix
     """
@@ -104,6 +105,7 @@ class BlockMatrix:
     # Numpy protocol
     # --------------
 
+    # Todo: move to VirtualArray
     def __array_function__(self, func, types, args, kwargs):
         del types
         # Functions implemented as methods on first argument
@@ -126,6 +128,7 @@ class BlockMatrix:
 
         return NotImplemented
 
+    # Todo: move to VirtualArray
     def __array_ufunc__(self, ufunc, name, *args, **kwargs):
         if name == '__call__':
             if len(args) == 1 and args[0] is self and not kwargs:
@@ -387,6 +390,7 @@ class BlockMatrix:
         """
         Extension of api's broadcast to to handle generalized dims
         """
+        # If named dims, create or transform a block array
         if is_named(dims):
             if isinstance(array, BlockMatrix):
                 return array._broadcast_to(dims)
@@ -394,7 +398,9 @@ class BlockMatrix:
             # is interpreted as an implict block array with one block along each
             # dim.
             return cls.broadcast_to(cls.from_blocks({ (): array}), dims)
-        return cls.aa.broadcast_to(array, dims)
+
+        # Else, delagate to generic virtual array machinery
+        return super().broadcast_to(array, dims)
 
     @classmethod
     def broadcast_arrays(cls, *arrays, exclude=None):
@@ -435,6 +441,12 @@ class BlockMatrix:
 
     def to_dense(self):
         """
+        Legacy alias
+        """
+        return self._as_dense()
+
+    def _as_dense(self):
+        """
         Convert self to dense matrix, replacing missing blocks with dense zeros
         """
         result = self.aa.zeros(self.shape)
@@ -448,14 +460,9 @@ class BlockMatrix:
 
         return result
 
-    @classmethod
-    def as_dense(cls, array):
-        """
-        Convert array to dense if necesary
-        """
-        if isinstance(array, BlockMatrix):
-            return array.to_dense()
-        return array
+    def __array__(self):
+        # Note: always produces a jax array first and converts it back to numpy
+        return np.array(self.to_dense())
 
     @classmethod
     def from_dense(cls, dense, dims: Dims | None = None):

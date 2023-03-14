@@ -34,6 +34,8 @@ dev = [
   "memory_profiler",
   "pandas",
   "plotly",
+  "pylint",
+  "mypy"
 ]
 
 [build-system]

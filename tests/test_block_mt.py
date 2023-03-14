@@ -11,6 +11,7 @@ from numpy.testing import assert_allclose, assert_equal
 
 from gemz.jax.linalg.block import JaxBlockMatrix
 import gemz.stats.matrixt as bmt
+from gemz.linalg import Identity
 
 mkb = JaxBlockMatrix.from_dense
 
@@ -158,6 +159,14 @@ def test_block_index_ellipsis() -> None:
     sub = array[..., 4]
 
     assert_allclose(sub.to_dense(), np_sub)
+
+def test_block_identity() -> None:
+    """
+    Build a block matrix out of virtual identity matrices
+    """
+    mat = JaxBlockMatrix.from_blocks({(0, 0): Identity(2), (1, 1): Identity(1)})
+
+    assert_allclose(np.asarray(mat), np.eye(3))
 
 def test_batch_ncmt() -> None:
     """
