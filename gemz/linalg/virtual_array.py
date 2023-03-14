@@ -44,6 +44,10 @@ class VirtualArray:
             return imp(self, args)
         return NotImplemented
 
+    def __array__(self):
+        # First densify using the object's backend, then convert to numpy
+        return np.array(self._as_dense())
+
     @classmethod
     def as_dense(cls, array):
         """
@@ -135,8 +139,6 @@ class VirtualArray:
         Broadcast implementation
         """
         raise NotImplementedError
-
-
 
 def _ensure_unary(obj, args):
     """

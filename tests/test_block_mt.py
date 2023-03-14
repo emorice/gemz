@@ -11,7 +11,7 @@ from numpy.testing import assert_allclose, assert_equal
 
 from gemz.jax.linalg.block import JaxBlockMatrix
 import gemz.stats.matrixt as bmt
-from gemz.linalg import Identity
+from gemz.linalg import Identity, Diagonal
 
 mkb = JaxBlockMatrix.from_dense
 
@@ -217,3 +217,23 @@ def test_batch_ncmt_uni_cond() -> None:
         # Why isn't this closer ? The sequence of floating point operations
         # should be essentially identical
         assert_allclose(bstat, istat, rtol=5e-6)
+
+def test_ncmt_diag() -> None:
+    """
+    Use a virtual diagonal array as gram parameter for ncmtd
+    """
+    observed = np.array([
+        [0., 1., 2.],
+        [3., 2., -1.],
+        ])
+
+    left = Identity(2)
+    right = Diagonal(np.array([1., 0.5, 2.]))
+    dfs = 1.
+
+    dist = bmt.NonCentralMatrixT.from_params(dfs, left, right, gram_mean_left=1.)
+    ref_dist = bmt.NonCentralMatrixT.from_params(
+            dfs, np.asarray(left), np.asarray(right), gram_mean_left=1.
+            )
+
+    assert_allclose(dist.uni_cond(observed), ref_dist.uni_cond(observed))

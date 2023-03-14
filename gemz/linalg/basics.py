@@ -201,3 +201,22 @@ class Diagonal(ImplicitMatrix):
         """
         return left * self._diagonal[..., None, :]
 
+    def _broadcast_to(self, shape):
+        """
+        Broadcast implementation
+        """
+        if len(shape) < 2 or shape[-1] != shape[-2]:
+            raise TypeError(f'Cannot broadcast to {shape}')
+
+        new_diag_shape = shape[:-1]
+        new_diag = self.broadcast_to(self._diagonal, new_diag_shape)
+        return self.__class__(new_diag)
+
+    def _as_dense(self):
+        return self._diagonal * self.aa.eye(self.shape[-1])
+
+    def __sub__(self, right):
+        """
+        Fallback to dense to compute self - right
+        """
+        return self._as_dense() - right
