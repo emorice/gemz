@@ -39,6 +39,12 @@ class Distribution(Model):
         """
         return jnp.sum(self.uni_cond(observed)[2])
 
+    def rss(self, observed):
+        """
+        Blind residual squared errro
+        """
+        return jnp.sum((observed - self.uni_cond(observed)[0])**2)
+
     def uni_cond(self, observed):
         """
         Unidimensional conditionals
