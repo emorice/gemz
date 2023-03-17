@@ -53,11 +53,11 @@ filterwarnings = [
 ]
 asyncio_mode = "auto"
 addopts = [
-	"--cov=gemz",
-	"--cov-report=html:coverage"
+	"--cov", "--cov-report=html"
 ]
 
 [tool.coverage.run]
+source = [ "gemz" ]
 omit = [
 	"gemz/demo.py",
 	"gemz/data.py",
@@ -65,6 +65,8 @@ omit = [
 	"gemz/plots/*",
 	"gemz/cases/*"
 ]
+branch = true
+
 [tool.coverage.report]
 exclude_lines = [
     "raise NotImplementedError",

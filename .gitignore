@@ -6,4 +6,4 @@ demo/
 .coverage
 *.png
 .mypy_cache
-coverage/
+htmlcov/
