@@ -28,7 +28,8 @@ peer = [
   "pmbio-peer @ git+ssh://git@github.com/emorice/peer.git"
 ]
 test = [
-  "pytest"
+  "pytest",
+  "pytest-cov",
 ]
 dev = [
   "memory_profiler",
@@ -44,3 +45,28 @@ requires = [
   "wheel",
 ]
 build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # comes from flatbuffers compat layer, not even remotely our problem
+    "ignore:the imp module is deprecated in favour of importlib"
+]
+asyncio_mode = "auto"
+addopts = [
+	"--cov=gemz",
+	"--cov-report=html:coverage"
+]
+
+[tool.coverage.run]
+omit = [
+	"gemz/demo.py",
+	"gemz/data.py",
+	"gemz/reporting.py",
+	"gemz/plots/*",
+	"gemz/cases/*"
+]
+[tool.coverage.report]
+exclude_lines = [
+    "raise NotImplementedError",
+    "return NotImplemented",
+]

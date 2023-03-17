@@ -30,4 +30,4 @@ jobs:
           pip install .[test] ./gemz-galp[test]
       - name: Test
         run: |
-          pytest -k 'not nonlinear_shrinkage and not peer' -v
+          pytest -k 'not nonlinear_shrinkage and not peer' -v --no-cov
