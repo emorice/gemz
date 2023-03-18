@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from gemz import models
-from gemz.cases import case
+from gemz.cases import case, Output
 from gemz.reporting import open_report, write_fig
 
 def gen_hypertwist(len1, len2_train, len2_test, small_dims, small_var=0.01, large_var=1., seed=0):
@@ -152,7 +152,7 @@ def plot_pcs(data, subset, resps=None):
         )
 
 @case
-def nonlinear(_, case_name, report_path):
+def nonlinear(output: Output):
     """
     High-dimensional dataset with two distinct sets of linear invariants
     """
@@ -208,43 +208,35 @@ def nonlinear(_, case_name, report_path):
     # Uncomment to try only a subset of models
     # model_defs = { k: d for k, d in model_defs.items() if k == 'igmm' }
 
+    output.add_figure(plot_pcs(train, nonlinearity[0]))
+    output.add_figure(px.line(y=np.linalg.svd(train, compute_uv=False)))
+    output.add_figure(
+            plot_nonlinearity(train, nonlinearity)
+            .update_layout(title="Ground truth twist")
+            )
+
     model_fits = {
         name: models.get(algo).fit(train.T, **options)
         for name, (algo, options) in model_defs.items()
     }
 
-    fig_nl = (
-        plot_nonlinearity(train, nonlinearity)
-        .update_layout(
-            title="Ground truth twist"
-            )
-        )
-
-    figs_nl_model = []
     for model in model_defs:
         nl_model = (
             model_fits[model]['groups'] == 0,
             *nonlinearity[1:]
             )
         resps = model_fits[model].get('responsibilities')
-        figs_nl_model.append(
+        output.add_figure(
             plot_nonlinearity(train, nl_model, resps)
             .update_layout(
                 title=f'{model.capitalize()} twist recovery'
                 )
             )
 
-        figs_nl_model.append(
+        output.add_figure(
             plot_pcs(train, nl_model[0], resps)
             .update_layout(
                 title=f'{model.capitalize()} PCs'
                 )
             )
 
-    with open_report(report_path, case_name) as stream:
-        write_fig(stream,
-            plot_pcs(train, nonlinearity[0]),
-            px.line(y=np.linalg.svd(train, compute_uv=False)),
-            fig_nl,
-            *figs_nl_model
-            )

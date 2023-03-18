@@ -7,7 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 import gemz.models
-from gemz.cases import case
+from gemz.cases import case, Output
 from gemz.reporting import open_report, write_fig
 
 def plot_pc_clusters(data, n_clusters):
@@ -71,7 +71,7 @@ def plot_pc_clusters(data, n_clusters):
     return fig
 
 @case
-def low_high_clustering(_, case_name, report_path):
+def low_high_clustering(output: Output):
     """
     Clustering of points from an essentially low or high dimensional
     distribution
@@ -96,10 +96,8 @@ def low_high_clustering(_, case_name, report_path):
     n_clusters = 33
     fig_low = plot_pc_clusters(low, n_clusters)
     fig_low.update_layout(title='Most information in a few dimensions')
+    output.add_figure(fig_low)
 
     fig_high = plot_pc_clusters(high, n_clusters)
     fig_high.update_layout(title='Information spread across dimensions')
-
-    with open_report(report_path, case_name) as stream:
-        write_fig(stream, fig_low)
-        write_fig(stream, fig_high)
+    output.add_figure(fig_high)

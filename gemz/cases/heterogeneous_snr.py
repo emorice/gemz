@@ -7,7 +7,7 @@ import numpy as np
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 
-from gemz.cases import case
+from gemz.cases import case, Output
 from gemz.cases.linear_reg import gen_hyperv
 from gemz.reporting import open_report, write_fig
 
@@ -178,7 +178,7 @@ def eval_model(model_spec, train, test, subsets):
     return [fit_plot, plot_hist(fits)]
 
 @case
-def heterogeneous_snr(_, case_name, report_path):
+def heterogeneous_snr(output: Output) -> None:
     """
     Regularized high-dimensional models with variation in SNR between variables
     """
@@ -188,7 +188,7 @@ def heterogeneous_snr(_, case_name, report_path):
 
     rng = np.random.default_rng(4589)
 
-    noise_class = rng.choice(2, size=len2).astype(np.bool)
+    noise_class = rng.choice(2, size=len2).astype(bool)
 
     noise_sd = np.where(noise_class, 1.0, 0.1)
 
@@ -204,7 +204,9 @@ def heterogeneous_snr(_, case_name, report_path):
         'pooled': np.full_like(noise_class, True)
         }
 
-    initial_plot = plot_data(train, noise_class)
+    output.add_figure(
+            plot_data(train, noise_class)
+            )
 
     model_specs = [
         {'model': 'cv', 'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'RSS'},
@@ -215,13 +217,11 @@ def heterogeneous_snr(_, case_name, report_path):
         {'model': 'igmm', 'n_groups': 2},
         ]
 
-    with open_report(report_path, case_name) as stream:
-        write_fig(stream, initial_plot)
-
-        for spec in model_specs:
-            figs = eval_model(spec, train, test, subsets)
-            print("<h2>",
-                    models.get_name(spec), ' ; ',
-                    *[f"{k}={v}" for k,v in spec.items() if k != 'model'],
-                    "</h2>", file=stream)
-            write_fig(stream, *figs)
+    for spec in model_specs:
+        for fig in eval_model(spec, train, test, subsets):
+            output.add_figure(fig)
+        # Todo: reinclude
+        #print("<h2>",
+        #        models.get_name(spec), ' ; ',
+        #        *[f"{k}={v}" for k,v in spec.items() if k != 'model'],
+        #        "</h2>", file=stream)

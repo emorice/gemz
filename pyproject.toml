@@ -55,6 +55,9 @@ asyncio_mode = "auto"
 addopts = [
 	"--cov", "--cov-report=html"
 ]
+markers = [
+	"regression: regression tests, skipped by default, select with --regression"
+]
 
 [tool.coverage.run]
 source = [ "gemz" ]

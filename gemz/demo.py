@@ -36,23 +36,22 @@ def status(output_dir):
                 if line.strip()
                 ), end='', sep='')
 
-def run(output_dir, case):
+def run(output_dir: str, case_name: str) -> None:
     """
     Execute a demonstration case to create the case report
     """
     cases = gemz.cases.get_cases()
 
-    if case in cases:
-        logging.info('Running case %s', case)
+    if case_name in cases:
+        logging.info('Running case %s', case_name)
 
-        cases[case](
-            output_dir,
-            case,
-            gemz.cases.get_report_path(output_dir, case)
-            )
-
+        path = gemz.cases.get_report_path(output_dir, case_name)
+        out = gemz.cases.HtmlOutput(path)
+        with out:
+            out.add_title(case_name)
+            cases[case_name](out)
     else:
-        logging.error('No such demonstration case: %s', case)
+        logging.error('No such demonstration case: %s', case_name)
 
 def show(output_dir, case):
     """

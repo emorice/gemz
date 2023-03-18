@@ -7,8 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from gemz import models
-from gemz.cases import case
-from gemz.reporting import write_fig
+from gemz.cases import case, Output
 from gemz.plots import plot_cv
 
 from gemz.cases.low_high_clustering import plot_pc_clusters
@@ -78,7 +77,7 @@ def plot_convergence(spec, fit):
         )
 
 @case
-def linear_reg(_, case_name, report_path):
+def linear_reg(output: Output):
     """
     Regularized and unregularized high-dimensional linear models
     """
@@ -159,7 +158,14 @@ def linear_reg(_, case_name, report_path):
 
     order = np.argsort(covariate)
 
-    fig_test = go.Figure(
+    output.add_figure(
+            plot_pc_clusters(
+                train.T,
+                n_clusters=4,
+                )
+            )
+
+    output.add_figure(go.Figure(
         data=[
             go.Scatter(
                 x=covariate[order],
@@ -181,13 +187,7 @@ def linear_reg(_, case_name, report_path):
             'xaxis': {'title': 'PC1'},
             'yaxis': {'title': 'New dimension'}
             }
-        )
-
-    fig_pcs = plot_pc_clusters(
-        train.T,
-        n_clusters=4,
-        )
-
+        ))
 
     spectrum = models.get('linear').spectrum(train)
 
@@ -211,7 +211,7 @@ def linear_reg(_, case_name, report_path):
 
     log1p = False
 
-    fig_spectrum = go.Figure(
+    output.add_figure(go.Figure(
         data=[
             go.Scatter(
                 y=spec / spec.sum() * spectrum.sum() + 1. * log1p,
@@ -231,23 +231,15 @@ def linear_reg(_, case_name, report_path):
                 'title': 'Eigenvariances' + log1p * ' (log1p)',
                 'type': 'log' if log1p else 'linear'}
             }
-        )
+        ))
 
-    figs_cv = sum((
-            plot_cv(spec, model_fit)
-                for spec, (name, model_fit) in zip(model_specs, model_fits)
-                if name == 'cv'
-                ), start=[])
+    for spec, (name, model_fit) in zip(model_specs, model_fits):
+        if name != 'cv':
+            continue
+        for fig in plot_cv(spec, model_fit):
+            output.add_figure(fig)
 
-    figs_cg = [
-            plot_convergence(spec, model_fit)
-                for spec, (name, model_fit) in zip(model_specs, model_fits)
-                if 'opt' in model_fit
-            ]
-
-    with open(report_path, 'w', encoding='utf8') as stream:
-        stream.write(case_name)
-        write_fig(stream,
-            fig_pcs, fig_test, fig_spectrum,
-            *figs_cv, *figs_cg
-            )
+    for spec, (name, model_fit) in zip(model_specs, model_fits):
+        if 'opt' not in model_fit:
+            continue
+        output.add_figure(plot_convergence(spec, model_fit))
