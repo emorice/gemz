@@ -30,11 +30,11 @@ peer = [
 test = [
   "pytest",
   "pytest-cov",
+  "plotly",
+  "pandas",
 ]
 dev = [
   "memory_profiler",
-  "pandas",
-  "plotly",
   "pylint",
   "mypy"
 ]
