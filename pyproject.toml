@@ -30,6 +30,7 @@ peer = [
 test = [
   "pytest",
   "pytest-cov",
+  "pytest-regressions",
   "plotly",
   "pandas",
 ]

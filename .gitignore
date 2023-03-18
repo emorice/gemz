@@ -7,3 +7,4 @@ demo/
 *.png
 .mypy_cache
 htmlcov/
+tests/test_regressions/*

@@ -14,15 +14,21 @@ class KMeans:
     K-means clustering and predictions
     """
     @staticmethod
-    def fit(data, n_groups):
+    def fit(data, n_groups, random_state=0):
         """
         Compute clusters, cluster means and dispersion on given data
 
         Args:
             data: N1 x N2, with N2 being the large dimension to split into clusters
+            n_groups: number of cluster to make
+            random_state: seed passed to sklearn for initialization
         """
 
-        sk_model = sklearn.cluster.KMeans(n_clusters=n_groups, n_init='auto')
+        sk_model = sklearn.cluster.KMeans(
+                n_clusters=n_groups,
+                n_init='auto',
+                random_state=random_state
+                )
 
         sk_fit = sk_model.fit(data.T)
 
