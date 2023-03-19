@@ -5,9 +5,8 @@ dependencies = [
   "numpy",
   "scipy",
   "scikit-learn",
-  "jax", # breaks distrax
-  "jaxlib", # matches jax
-  "rpy2",
+  "jax",
+  "jaxlib",
   "deprecation",
 ]
 
@@ -26,6 +25,9 @@ packages = [
 [project.optional-dependencies]
 peer = [
   "pmbio-peer @ git+ssh://git@github.com/emorice/peer.git"
+]
+r = [
+  "rpy2"
 ]
 test = [
   "pytest",

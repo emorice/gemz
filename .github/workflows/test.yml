@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip wheel
           git config --global url."https://ssh:${{secrets.GH_PAT}}@github.com/".insteadOf 'ssh://git@github.com/'
           git config --global url."https://git:${{secrets.GH_PAT}}@github.com/".insteadOf 'git@github.com:'
-          pip install .[test] ./gemz-galp[test]
+          pip install .[r,test] ./gemz-galp[test]
       - name: Test
         run: |
           pytest -k 'not nonlinear_shrinkage and not peer' -v --no-cov
