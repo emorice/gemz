@@ -7,7 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from gemz import models
-from gemz.cases import case, Output
+from gemz.cases import case, BaseCase, Output
 from gemz.plots import plot_cv
 
 from gemz.cases.low_high_clustering import plot_pc_clusters
@@ -77,169 +77,172 @@ def plot_convergence(spec, fit):
         )
 
 @case
-def linear_reg(output: Output):
-    """
-    Regularized and unregularized high-dimensional linear models
-    """
+class linear_reg(BaseCase):
+    @classmethod
+    def run(cls, output: Output):
+        """
+        Regularized and unregularized high-dimensional linear models
+        """
 
-    # Data
-    # ====
+        # Data
+        # ====
 
 
-    # len1 = dimension being split by clustering
-    # Collected interesting cases:
-    # 1000, 297
-    # 50, 50
-    # 201, 50
-    # 201, 200 is really weird ??
-    # 201, 196
+        # len1 = dimension being split by clustering
+        # Collected interesting cases:
+        # 1000, 297
+        # 50, 50
+        # 201, 50
+        # 201, 200 is really weird ??
+        # 201, 196
 
-    train, test = gen_hyperv(100, 251, noise_sd=.5)
+        train, test = gen_hyperv(100, 251, noise_sd=.5)
 
-    # Fits
-    # ====
+        # Fits
+        # ====
 
-    model_args = [
-        ('linear',  {}),
-        ('mt_sym', {'centered': (True, True)}),
-        ('cv', {'inner': {'model': 'linear_shrinkage'}}),
-        ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
-        ('lscv_loo', {}),
-        ('lscv_loo', {'loss': 'indep'}),
-        ('lscv_loo', {'loss': 'joint'}),
-        ('kmeans', {'n_groups': 10}),
-        ('nonlinear_shrinkage',  {}),
-        ('wishart',  {}),
-        ('cmk', {'n_groups': 1}),
-        ('cmk', {'n_groups': 20}),
-        ('gmm', {'n_groups': 2}),
-        ('igmm', {'n_groups': 2}),
-        ('svd', {'n_factors': 4}),
-        ('peer', {'n_factors': 4}),
-        ('peer', {'n_factors': 4, 'reestimate_precision': True}),
-        ('cv', {'inner': {'model': 'svd'}}),
-        # Slow
-        # ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
-        # ('cv', {'inner': {'model': 'cmk'}}),
-        # ('cv', {'inner': {'model': 'gmm'}}),
-        # ('cv', {'inner': {'model': 'igmm'}}),
-        # ('cv', {'inner': {'model': 'kmeans'}}),
-        ]
-
-    model_specs = [
-            {
-                'model': name,
-                **args
-                }
-            for name, args in model_args
+        model_args : list[tuple[str, dict]] = [
+            ('linear',  {}),
+            ('mt_sym', {'centered': (True, True)}),
+            ('cv', {'inner': {'model': 'linear_shrinkage'}}),
+            ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
+            ('lscv_loo', {}),
+            ('lscv_loo', {'loss': 'indep'}),
+            ('lscv_loo', {'loss': 'joint'}),
+            ('kmeans', {'n_groups': 10}),
+            ('nonlinear_shrinkage',  {}),
+            ('wishart',  {}),
+            ('cmk', {'n_groups': 1}),
+            ('cmk', {'n_groups': 20}),
+            ('gmm', {'n_groups': 2}),
+            ('igmm', {'n_groups': 2}),
+            ('svd', {'n_factors': 4}),
+            ('peer', {'n_factors': 4}),
+            ('peer', {'n_factors': 4, 'reestimate_precision': True}),
+            ('cv', {'inner': {'model': 'svd'}}),
+            # Slow
+            # ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
+            # ('cv', {'inner': {'model': 'cmk'}}),
+            # ('cv', {'inner': {'model': 'gmm'}}),
+            # ('cv', {'inner': {'model': 'igmm'}}),
+            # ('cv', {'inner': {'model': 'kmeans'}}),
             ]
 
-    model_fits = [
-            (k, models.fit({'model': k, **kwargs}, train))
-        for k, kwargs in model_args
-        ]
-
-    test_idx = 2
-    target = test[test_idx]
-
-    # For a new feature, we can make a basic prediction by predicting the mean
-    # of all (other) samples of the group
-
-    preds = [
-        (k, models.get(k).predict_loo(fit, target[None, :])[0])
-        for k, fit in model_fits
-        ]
-
-    # Plots
-    # =====
-
-    # Plot against first PC
-    covariate = np.linalg.svd(train, full_matrices=False)[-1][0]
-
-    order = np.argsort(covariate)
-
-    output.add_figure(
-            plot_pc_clusters(
-                train.T,
-                n_clusters=4,
-                )
-            )
-
-    output.add_figure(go.Figure(
-        data=[
-            go.Scatter(
-                x=covariate[order],
-                y=test[test_idx][order],
-                mode='markers',
-                name='New feature'
-                )
-        ] + [
-            go.Scatter(
-                x=covariate[order],
-                y=pred[order].flatten(),
-                mode='lines',
-                name=f'{models.get_name(spec)}'
-                )
-            for (k, pred), spec in zip(preds, model_specs)
-            ],
-        layout={
-            'title': 'Predictions of a new dimension',
-            'xaxis': {'title': 'PC1'},
-            'yaxis': {'title': 'New dimension'}
-            }
-        ))
-
-    spectrum = models.get('linear').spectrum(train)
-
-    adj_spectrum = models.get('linear_shrinkage').spectrum(
-        train,
-        next(model['selected']['prior_var']
-            for name, model in model_fits
-            if name == 'cv'
-            if model['inner']['model'] == 'linear_shrinkage'
-            )
-        )
-
-    opt_spectrum = next(model['spectrum'] for name, model in model_fits
-        if name == 'nonlinear_shrinkage')
-
-    wh_fit = models.get('wishart').fit(train)
-    wh_spectrum = (
-        spectrum
-        + np.exp(wh_fit['opt']['opt']['prior_var_ln']) / train.shape[-1]
-        )
-
-    log1p = False
-
-    output.add_figure(go.Figure(
-        data=[
-            go.Scatter(
-                y=spec / spec.sum() * spectrum.sum() + 1. * log1p,
-                mode='lines+markers',
-                name=name,
-                )
-            for spec, name in [
-                (spectrum, 'Covariance spectrum'),
-                (adj_spectrum, 'Linearly regularized covariance spectrum'),
-                (opt_spectrum, 'Non-Linearly regularized covariance spectrum'),
-                (wh_spectrum, 'Lin. reg. covariance spectrum (Wishart EM)')
+        model_specs = [
+                {
+                    'model': name,
+                    **args
+                    }
+                for name, args in model_args
                 ]
-            ],
-        layout={
-            'title': 'Spectra',
-            'yaxis': {
-                'title': 'Eigenvariances' + log1p * ' (log1p)',
-                'type': 'log' if log1p else 'linear'}
-            }
-        ))
 
-    for spec, (name, model_fit) in zip(model_specs, model_fits):
-        if name != 'cv':
-            continue
-        for fig in plot_cv(spec, model_fit):
-            output.add_figure(fig)
+        model_fits = [
+                (k, models.fit({'model': k, **kwargs}, train))
+            for k, kwargs in model_args
+            ]
 
-    for spec, (name, model_fit) in zip(model_specs, model_fits):
-        if 'opt' not in model_fit:
-            continue
-        output.add_figure(plot_convergence(spec, model_fit))
+        test_idx = 2
+        target = test[test_idx]
+
+        # For a new feature, we can make a basic prediction by predicting the mean
+        # of all (other) samples of the group
+
+        preds = [
+            (k, models.get(k).predict_loo(fit, target[None, :])[0])
+            for k, fit in model_fits
+            ]
+
+        # Plots
+        # =====
+
+        # Plot against first PC
+        covariate = np.linalg.svd(train, full_matrices=False)[-1][0]
+
+        order = np.argsort(covariate)
+
+        output.add_figure(
+                plot_pc_clusters(
+                    train.T,
+                    n_clusters=4,
+                    )
+                )
+
+        output.add_figure(go.Figure(
+            data=[
+                go.Scatter(
+                    x=covariate[order],
+                    y=test[test_idx][order],
+                    mode='markers',
+                    name='New feature'
+                    )
+            ] + [
+                go.Scatter(
+                    x=covariate[order],
+                    y=pred[order].flatten(),
+                    mode='lines',
+                    name=f'{models.get_name(spec)}'
+                    )
+                # FIXME: this is the loop we want to factor out
+                for (k, pred), spec in zip(preds, model_specs)
+                ],
+            layout={
+                'title': 'Predictions of a new dimension',
+                'xaxis': {'title': 'PC1'},
+                'yaxis': {'title': 'New dimension'}
+                }
+            ))
+
+        spectrum = models.get('linear').spectrum(train)
+
+        adj_spectrum = models.get('linear_shrinkage').spectrum(
+            train,
+            next(model['selected']['prior_var']
+                for name, model in model_fits
+                if name == 'cv'
+                if model['inner']['model'] == 'linear_shrinkage'
+                )
+            )
+
+        opt_spectrum = next(model['spectrum'] for name, model in model_fits
+            if name == 'nonlinear_shrinkage')
+
+        wh_fit = models.get('wishart').fit(train)
+        wh_spectrum = (
+            spectrum
+            + np.exp(wh_fit['opt']['opt']['prior_var_ln']) / train.shape[-1]
+            )
+
+        log1p = False
+
+        output.add_figure(go.Figure(
+            data=[
+                go.Scatter(
+                    y=spec / spec.sum() * spectrum.sum() + 1. * log1p,
+                    mode='lines+markers',
+                    name=name,
+                    )
+                for spec, name in [
+                    (spectrum, 'Covariance spectrum'),
+                    (adj_spectrum, 'Linearly regularized covariance spectrum'),
+                    (opt_spectrum, 'Non-Linearly regularized covariance spectrum'),
+                    (wh_spectrum, 'Lin. reg. covariance spectrum (Wishart EM)')
+                    ]
+                ],
+            layout={
+                'title': 'Spectra',
+                'yaxis': {
+                    'title': 'Eigenvariances' + log1p * ' (log1p)',
+                    'type': 'log' if log1p else 'linear'}
+                }
+            ))
+
+        for spec, (name, model_fit) in zip(model_specs, model_fits):
+            if name != 'cv':
+                continue
+            for fig in plot_cv(spec, model_fit):
+                output.add_figure(fig)
+
+        for spec, (name, model_fit) in zip(model_specs, model_fits):
+            if 'opt' not in model_fit:
+                continue
+            output.add_figure(plot_convergence(spec, model_fit))

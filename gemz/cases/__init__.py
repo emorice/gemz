@@ -6,12 +6,21 @@ import importlib
 import logging
 import pkgutil
 import os
-from typing import Callable
+from typing import Callable, Type
+from abc import ABC, abstractmethod
 
 from .output import Output
 from .output_html import HtmlOutput
 
-Case = Callable[[Output], None]
+class BaseCase(ABC):
+    @classmethod
+    @abstractmethod
+    def run(cls, output: Output) -> None:
+        """
+        Run the case study
+        """
+
+Case = Callable[[Output], None] | Type[BaseCase]
 
 def case(function: Case) -> Case:
     """
@@ -22,6 +31,14 @@ def case(function: Case) -> Case:
     _cases[key] = function
 
     return function
+
+def run_case(some_case: Case, output: Output) -> None:
+    """Run a case, handling both old-style (functions) and new-style (classes)
+    of cases."""
+    if isinstance(some_case, type) and issubclass(some_case, BaseCase):
+        some_case.run(output)
+    else: # Callable
+        some_case(output)
 
 def get_cases() -> dict[str, Case]:
     """

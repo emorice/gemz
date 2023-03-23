@@ -7,7 +7,7 @@ import json
 import pytest
 
 import gemz.cases
-from gemz.cases import Output
+from gemz.cases import Output, run_case, Case
 
 class RegressionCaseOutput(Output):
     """
@@ -54,10 +54,10 @@ regression = pytest.mark.regression
 @regression
 @pytest.mark.parametrize('case', gemz.cases.get_cases().items(),
                          ids=lambda c: c[0])
-def test_case(case, data_regression):
+def test_case(case: tuple[str, Case], data_regression):
     """
     Run models on linear factor data
     """
     _case_name, case_function = case
     with RegressionCaseOutput(data_regression) as output_checker:
-        case_function(output_checker)
+        run_case(case_function, output_checker)
