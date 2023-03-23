@@ -23,7 +23,7 @@ from . import (
     mt_sym,
     )
 
-from .methods import get, get_name
+from .methods import get, get_name, ModelSpec
 
 from .ops import (
         fit,

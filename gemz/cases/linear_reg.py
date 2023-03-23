@@ -7,7 +7,7 @@ import numpy as np
 import plotly.graph_objects as go
 
 from gemz import models
-from gemz.cases import case, BaseCase, Output
+from gemz.cases import case, Case, Output
 from gemz.plots import plot_cv
 
 from gemz.cases.low_high_clustering import plot_pc_clusters
@@ -77,9 +77,42 @@ def plot_convergence(spec, fit):
         )
 
 @case
-class linear_reg(BaseCase):
-    @classmethod
-    def run(cls, output: Output):
+class LinearReg(Case):
+    """
+    Regularized and unregularized high-dimensional linear models
+    """
+    name = 'linear_reg'
+
+    @property
+    def model_specs(self):
+        return [
+            {'model': 'linear',	},
+            {'model': 'mt_sym',	'centered': (True, True)},
+            {'model': 'cv',	'inner': {'model': 'linear_shrinkage'}},
+            {'model': 'cv',	'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'},
+            {'model': 'lscv_loo',	},
+            {'model': 'lscv_loo',	'loss': 'indep'},
+            {'model': 'lscv_loo',	'loss': 'joint'},
+            {'model': 'kmeans',	'n_groups': 10},
+            {'model': 'nonlinear_shrinkage',	},
+            {'model': 'wishart',	},
+            {'model': 'cmk',	'n_groups': 1},
+            {'model': 'cmk',	'n_groups': 20},
+            {'model': 'gmm',	'n_groups': 2},
+            {'model': 'igmm',	'n_groups': 2},
+            {'model': 'svd',	'n_factors': 4},
+            {'model': 'peer',	'n_factors': 4},
+            {'model': 'peer',	'n_factors': 4, 'reestimate_precision': True},
+            {'model': 'cv',	'inner': {'model': 'svd'}},
+            ]
+            # Slow
+            # {'model': 'cv',	'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)},
+            # {'model': 'cv',	'inner': {'model': 'cmk'}},
+            # {'model': 'cv',	'inner': {'model': 'gmm'}},
+            # {'model': 'cv',	'inner': {'model': 'igmm'}},
+            # {'model': 'cv',	'inner': {'model': 'kmeans'}},
+
+    def __call__(self, output: Output, model_specs=None):
         """
         Regularized and unregularized high-dimensional linear models
         """
@@ -101,45 +134,13 @@ class linear_reg(BaseCase):
         # Fits
         # ====
 
-        model_args : list[tuple[str, dict]] = [
-            ('linear',  {}),
-            ('mt_sym', {'centered': (True, True)}),
-            ('cv', {'inner': {'model': 'linear_shrinkage'}}),
-            ('cv', {'inner': {'model': 'linear_shrinkage'}, 'loss_name': 'GEOM'}),
-            ('lscv_loo', {}),
-            ('lscv_loo', {'loss': 'indep'}),
-            ('lscv_loo', {'loss': 'joint'}),
-            ('kmeans', {'n_groups': 10}),
-            ('nonlinear_shrinkage',  {}),
-            ('wishart',  {}),
-            ('cmk', {'n_groups': 1}),
-            ('cmk', {'n_groups': 20}),
-            ('gmm', {'n_groups': 2}),
-            ('igmm', {'n_groups': 2}),
-            ('svd', {'n_factors': 4}),
-            ('peer', {'n_factors': 4}),
-            ('peer', {'n_factors': 4, 'reestimate_precision': True}),
-            ('cv', {'inner': {'model': 'svd'}}),
-            # Slow
-            # ('cv', {'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)}),
-            # ('cv', {'inner': {'model': 'cmk'}}),
-            # ('cv', {'inner': {'model': 'gmm'}}),
-            # ('cv', {'inner': {'model': 'igmm'}}),
-            # ('cv', {'inner': {'model': 'kmeans'}}),
-            ]
-
-        model_specs = [
-                {
-                    'model': name,
-                    **args
-                    }
-                for name, args in model_args
-                ]
+        if model_specs is None:
+            model_specs = self.model_specs
 
         model_fits = [
-                (k, models.fit({'model': k, **kwargs}, train))
-            for k, kwargs in model_args
-            ]
+                (models.get_name(spec), models.fit(spec, train))
+                for spec in model_specs
+                ]
 
         test_idx = 2
         target = test[test_idx]
@@ -148,8 +149,8 @@ class linear_reg(BaseCase):
         # of all (other) samples of the group
 
         preds = [
-            (k, models.get(k).predict_loo(fit, target[None, :])[0])
-            for k, fit in model_fits
+            (name, models.predict_loo(spec, fit, target[None, :])[0])
+            for spec, (name, fit) in zip(model_specs, model_fits)
             ]
 
         # Plots
@@ -180,10 +181,10 @@ class linear_reg(BaseCase):
                     x=covariate[order],
                     y=pred[order].flatten(),
                     mode='lines',
-                    name=f'{models.get_name(spec)}'
+                    name=name,
                     )
                 # FIXME: this is the loop we want to factor out
-                for (k, pred), spec in zip(preds, model_specs)
+                for (name, pred) in preds
                 ],
             layout={
                 'title': 'Predictions of a new dimension',
@@ -194,23 +195,21 @@ class linear_reg(BaseCase):
 
         spectrum = models.get('linear').spectrum(train)
 
-        adj_spectrum = models.get('linear_shrinkage').spectrum(
-            train,
-            next(model['selected']['prior_var']
-                for name, model in model_fits
-                if name == 'cv'
-                if model['inner']['model'] == 'linear_shrinkage'
-                )
-            )
-
-        opt_spectrum = next(model['spectrum'] for name, model in model_fits
-            if name == 'nonlinear_shrinkage')
-
-        wh_fit = models.get('wishart').fit(train)
-        wh_spectrum = (
-            spectrum
-            + np.exp(wh_fit['opt']['opt']['prior_var_ln']) / train.shape[-1]
-            )
+        adj_spectrum = None
+        opt_spectrum = None
+        wh_spectrum = None
+        for name, model in model_fits:
+            if name == 'cv' and model['inner']['model'] == 'linear_shrinkage':
+                adj_spectrum = models.get('linear_shrinkage').spectrum(
+                    train, model['selected']['prior_var']
+                    )
+            elif name == 'nonlinear_shrinkage':
+                opt_spectrum = model['spectrum']
+            elif name == 'wishart':
+                wh_spectrum = (
+                    spectrum
+                    + np.exp(model['opt']['opt']['prior_var_ln']) / train.shape[-1]
+                    )
 
         log1p = False
 
@@ -227,6 +226,7 @@ class linear_reg(BaseCase):
                     (opt_spectrum, 'Non-Linearly regularized covariance spectrum'),
                     (wh_spectrum, 'Lin. reg. covariance spectrum (Wishart EM)')
                     ]
+                if spec is not None
                 ],
             layout={
                 'title': 'Spectra',

@@ -3,16 +3,25 @@ Unified model interface
 """
 
 import sys
+from typing import TypedDict, Any
 
-_METHODS = {}
+class ModelSpec(TypedDict):
+    """
+    Dictionnary containing the full specification of a model, in a way meant to
+    be serialized, stored, hashed, etc. as needed.
+    """
+    model: str # model type identifier
 
-def get(name):
+# To be narrowed
+_METHODS : dict[str, Any] = {}
+
+def get(name: str):
     """
     Returns a model by name
     """
     return _METHODS[name]
 
-def add(name):
+def add(name: str):
     """
     Register a model class by name
     """
@@ -21,13 +30,13 @@ def add(name):
         return cls
     return _set
 
-def add_module(name, module_name):
+def add_module(name: str, module_name) -> None:
     """
     Register a model module by name
     """
     _METHODS[name] = sys.modules[module_name]
 
-def get_name(spec):
+def get_name(spec: ModelSpec) -> str:
     """
     Return descriptive string from the spec
     """

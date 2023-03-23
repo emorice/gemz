@@ -9,36 +9,76 @@ import os
 from typing import Callable, Type
 from abc import ABC, abstractmethod
 
+from gemz.models import ModelSpec
+
 from .output import Output
 from .output_html import HtmlOutput
 
-class BaseCase(ABC):
-    @classmethod
+class Case(ABC):
+    """
+    A case study meant to test and demonstrate how models behave on a specific
+    dataset
+    """
+    name: str = '<case_name>'
+
     @abstractmethod
-    def run(cls, output: Output) -> None:
+    def __call__(self, output: Output, model_specs: list[ModelSpec] | None = None) -> None:
         """
-        Run the case study
+        Run the case study.
+
+        By default all model_specs are used, but you can use the model_specs
+        parameter to only run subsets of models or try new models not included
+        in the default list.
         """
 
-Case = Callable[[Output], None] | Type[BaseCase]
+    @property
+    @abstractmethod
+    def model_specs(self) -> list[ModelSpec]:
+        """
+        Return a deafult list of model specs tested by the case
+        """
 
-def case(function: Case) -> Case:
+_CaseFunction = Callable[[Output], None]
+
+class CaseFunction(Case):
+    """
+    Wraps a function in a Case instance for compat.
+    """
+    def __init__(self, function: _CaseFunction):
+        self._function = function
+        self.__name__ = function.__name__
+
+    def __call__(self, output: Output, model_specs: list[ModelSpec] | None = None) -> None:
+        if model_specs not in (self.model_specs, None):
+            raise NotImplementedError
+        return self._function(output)
+
+    @property
+    def model_specs(self) -> list[ModelSpec]:
+        """
+        Return a default list of model specs tested by the case
+        """
+        # Symbolic model names ignored
+        return [{'model': 'all'}]
+
+CaseDef = _CaseFunction | Type[Case]
+
+def case(case_def: CaseDef) -> CaseDef:
     """
     Decorator to register a demo case
+
+    If a callable, kept as is.
     """
 
-    key = function.__name__
-    _cases[key] = function
+    if isinstance(case_def, type):
+        # Instantiate class, purely because it is much more convenient to work
+        # with trivial instances than classes
+        _cases[case_def.name] = case_def()
+    else: # Function
+        case_name = case_def.__name__
+        _cases[case_name] = CaseFunction(case_def)
 
-    return function
-
-def run_case(some_case: Case, output: Output) -> None:
-    """Run a case, handling both old-style (functions) and new-style (classes)
-    of cases."""
-    if isinstance(some_case, type) and issubclass(some_case, BaseCase):
-        some_case.run(output)
-    else: # Callable
-        some_case(output)
+    return case_def
 
 def get_cases() -> dict[str, Case]:
     """

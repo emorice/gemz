@@ -3,11 +3,14 @@ Output should be consistent between runs
 """
 
 import json
+from typing import Iterator, Any
 
 import pytest
 
 import gemz.cases
-from gemz.cases import Output, run_case, Case
+import gemz.models
+from gemz.models import ModelSpec
+from gemz.cases import Output, Case
 
 class RegressionCaseOutput(Output):
     """
@@ -42,22 +45,36 @@ class RegressionCaseOutput(Output):
         pure_dict = json.loads(figure.to_json())
         self.data['figures'].append(pure_dict)
 
-    def __exit__(self, *args):
+    def __exit__(self, exc_type, _exc_value, _traceback):
         """
         Checks regressions on closing
         """
-        self.data_regression.check(self.data)
+        if exc_type is None:
+            # Do not check data on error, because this would improperly create a
+            # -- likely invalid ! -- regression file even if the test did not run
+            # til the end
+            self.data_regression.check(self.data)
         self.entered = False
 
 regression = pytest.mark.regression
 
+def pytest_cases() -> Iterator[Any]:
+    """
+    Iterator over case studies
+    """
+    for name, case in gemz.cases.get_cases().items():
+        for model_spec in case.model_specs:
+            if model_spec['model'] == 'all': # old style
+                yield pytest.param(case, model_spec, id=f'{name}')
+            else:
+                model_name = gemz.models.get_name(model_spec)
+                yield pytest.param(case, model_spec, id=f'{name} x {model_name}')
+
 @regression
-@pytest.mark.parametrize('case', gemz.cases.get_cases().items(),
-                         ids=lambda c: c[0])
-def test_case(case: tuple[str, Case], data_regression):
+@pytest.mark.parametrize('case, model_spec', pytest_cases())
+def test_case(case: Case, model_spec: ModelSpec, data_regression):
     """
     Run models on linear factor data
     """
-    _case_name, case_function = case
     with RegressionCaseOutput(data_regression) as output_checker:
-        run_case(case_function, output_checker)
+        case(output_checker, [model_spec])
