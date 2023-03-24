@@ -47,7 +47,10 @@ def _model(case_name, model_name):
 
     path = (
             'tests/test_regressions/' + 
-            f'test_case[{case_name} x {model_name}].yml'.translate(
+            (f'test_case[{case_name} x {model_name}].yml'
+                if model_name != 'all'
+                else f'test_case[{case_name}].yml'
+                ).translate(
                 str.maketrans('[] /', '____')
                 )
             )
