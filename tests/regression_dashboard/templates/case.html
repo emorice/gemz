@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %} {{ case }}{% endblock %}
+
+{% block main %}
+<div>
+	{% for model, spec in models %}
+  <div>
+    <h2>
+	<button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#{{model}}">Spec</button>
+	<a href="/model/{{case}}/{{model}}" class="link-dark">{{ model }}</a>
+    </h2>
+    <div id="{{model}}" class="accordion-collapse collapse">
+      <div class="accordion-body">
+	      <code style="white-space: pre-wrap">{{spec|e}}</code>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -7,9 +7,8 @@ import plotly
 import plotly.graph_objects as go
 import plotly.io as pio
 
-def plotly_init():
-    pio.templates.default = go.layout.Template(layout={
-        'width': 600, 'height': 600, 'autosize': False,
+template = go.layout.Template(layout={
+        'width': 1000, 'height': 600, 'autosize': False,
         **{
             f'{a}axis': {
                 'showline': True,
@@ -24,6 +23,8 @@ def plotly_init():
             'contour': [{'colorbar': {'exponentformat': 'power'}, 'opacity': 0.97}]
             }
     )
+def plotly_init():
+    pio.templates.default = template
 
 def write(fig, name):
     os.makedirs('figs', exist_ok=True)

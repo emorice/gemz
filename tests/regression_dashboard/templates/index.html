@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %} List of regression cases {% endblock %}
+
+{% block main %}
+<ul>
+	{% for case in cases %}
+	<li><a href="/case/{{case}}">{{ case }}</a></li>
+	{% endfor %}
+</ul>
+{% endblock %}

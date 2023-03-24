@@ -63,11 +63,10 @@ def pytest_cases() -> Iterator[Any]:
     Iterator over case studies
     """
     for name, case in gemz.cases.get_cases().items():
-        for model_spec in case.model_specs:
+        for model_name, model_spec in zip(case.model_unique_names, case.model_specs):
             if model_spec['model'] == 'all': # old style
                 yield pytest.param(case, model_spec, id=f'{name}')
             else:
-                model_name = gemz.models.get_name(model_spec)
                 yield pytest.param(case, model_spec, id=f'{name} x {model_name}')
 
 @regression

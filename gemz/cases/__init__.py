@@ -8,8 +8,9 @@ import pkgutil
 import os
 from typing import Callable, Type
 from abc import ABC, abstractmethod
+from collections import defaultdict
 
-from gemz.models import ModelSpec
+from gemz.models import ModelSpec, get_name
 
 from .output import Output
 from .output_html import HtmlOutput
@@ -38,6 +39,25 @@ class Case(ABC):
         Return a deafult list of model specs tested by the case
         """
 
+    @property
+    def model_unique_names(self):
+        """
+        Unique model names
+        """
+        duplicates = defaultdict(int)
+        for spec in self.model_specs:
+            duplicates[get_name(spec)] += 1
+        ids = defaultdict(int)
+        unique_names = []
+        for spec in self.model_specs:
+            name = get_name(spec)
+            unique_names.append(
+                    name + f'_{ids[name]}' if duplicates[name] > 1
+                    else name
+                    )
+            ids[name] += 1
+        return unique_names
+
 _CaseFunction = Callable[[Output], None]
 
 class CaseFunction(Case):
@@ -60,6 +80,10 @@ class CaseFunction(Case):
         """
         # Symbolic model names ignored
         return [{'model': 'all'}]
+
+    @property
+    def model_unique_names(self):
+        return ['all']
 
 CaseDef = _CaseFunction | Type[Case]
 
