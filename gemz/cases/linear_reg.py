@@ -237,7 +237,7 @@ class LinearReg(Case):
             ))
 
         for spec, (name, model_fit) in zip(model_specs, model_fits):
-            if name != 'cv':
+            if spec['model'] != 'cv':
                 continue
             for fig in plot_cv(spec, model_fit):
                 output.add_figure(fig)
