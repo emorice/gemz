@@ -15,6 +15,8 @@ from gemz.models import ModelSpec, get_name
 from .output import Output
 from .output_html import HtmlOutput
 
+_cases : dict[str, 'Case'] = {}
+
 class Case(ABC):
     """
     A case study meant to test and demonstrate how models behave on a specific
@@ -58,9 +60,18 @@ class Case(ABC):
             ids[name] += 1
         return unique_names
 
+    def __init_subclass__(cls, /, abstract_case=False, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if abstract_case:
+            return
+        if cls.name in _cases:
+            raise ValueError(f'{cls.name} already registered, give the Case a'
+                    ' new unique name attribute')
+        _cases[cls.name] = cls()
+
 _CaseFunction = Callable[[Output], None]
 
-class CaseFunction(Case):
+class CaseFunction(Case, abstract_case=True):
     """
     Wraps a function in a Case instance for compat.
     """
@@ -94,13 +105,10 @@ def case(case_def: CaseDef) -> CaseDef:
     If a callable, kept as is.
     """
 
-    if isinstance(case_def, type):
-        # Instantiate class, purely because it is much more convenient to work
-        # with trivial instances than classes
-        _cases[case_def.name] = case_def()
-    else: # Function
-        case_name = case_def.__name__
-        _cases[case_name] = CaseFunction(case_def)
+    assert not isinstance(case_def, type)
+
+    case_name = case_def.__name__
+    _cases[case_name] = CaseFunction(case_def)
 
     return case_def
 
@@ -126,8 +134,6 @@ def get_report_path(output_dir: str, name: str) -> str:
         name + ext
         )
 
-
-_cases : dict[str, Case] = {}
 
 _self_module = importlib.import_module(__name__)
 for module_info in pkgutil.walk_packages(

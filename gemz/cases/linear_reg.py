@@ -76,7 +76,6 @@ def plot_convergence(spec, fit):
             }
         )
 
-@case
 class LinearReg(Case):
     """
     Regularized and unregularized high-dimensional linear models
