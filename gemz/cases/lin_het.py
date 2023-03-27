@@ -2,6 +2,8 @@
 Low dimensional linearly distributed data with background noise
 """
 
+import numpy as np
+
 from gemz.cases import Case
 
 class LinHet(Case):
@@ -15,3 +17,9 @@ class LinHet(Case):
         return [
                 {'model': 'linear'}
                 ]
+
+    def gen_data(self, output):
+        return { 'train': np.zeros((1,1)), 'test': np.zeros((1,1)) }
+
+    def _add_figures(self, output, data, spec, fit, preds):
+        pass

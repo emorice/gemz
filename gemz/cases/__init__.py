@@ -6,16 +6,23 @@ import importlib
 import logging
 import pkgutil
 import os
-from typing import Callable, Type
+from typing import Callable, Type, TypedDict
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
+from numpy.typing import ArrayLike
+
+import gemz.models
 from gemz.models import ModelSpec, get_name
 
 from .output import Output
 from .output_html import HtmlOutput
 
 _cases : dict[str, 'Case'] = {}
+
+class CaseData(TypedDict):
+    train: ArrayLike
+    test: ArrayLike
 
 class Case(ABC):
     """
@@ -24,7 +31,6 @@ class Case(ABC):
     """
     name: str = '<case_name>'
 
-    @abstractmethod
     def __call__(self, output: Output, model_specs: list[ModelSpec] | None = None) -> None:
         """
         Run the case study.
@@ -33,12 +39,33 @@ class Case(ABC):
         parameter to only run subsets of models or try new models not included
         in the default list.
         """
+        if model_specs is None:
+            model_specs = self.model_specs
+
+        data = self.gen_data(output)
+
+        for spec in model_specs:
+            fit = gemz.models.fit(spec, data['train'])
+            preds = gemz.models.predict_loo(spec, fit, data['test'])
+            self._add_figures(output, data, spec, fit, preds)
+
+    def gen_data(self, output: Output) -> CaseData:
+        """
+        Data generation
+        """
+        raise NotImplementedError
+
+    def _add_figures(self, output: Output, data: CaseData, spec, fit, preds) -> None:
+        """
+        Regression figures generation
+        """
+        raise NotImplementedError
 
     @property
     @abstractmethod
     def model_specs(self) -> list[ModelSpec]:
         """
-        Return a deafult list of model specs tested by the case
+        Return a default list of model specs tested by the case
         """
 
     @property

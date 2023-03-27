@@ -111,10 +111,7 @@ class LinearReg(Case):
             # {'model': 'cv',	'inner': {'model': 'igmm'}},
             # {'model': 'cv',	'inner': {'model': 'kmeans'}},
 
-    def __call__(self, output: Output, model_specs=None):
-        """
-        Regularized and unregularized high-dimensional linear models
-        """
+    def gen_data(self, output: Output):
 
         # Data
         # ====
@@ -129,37 +126,11 @@ class LinearReg(Case):
         # 201, 196
 
         train, test = gen_hyperv(100, 251, noise_sd=.5)
-
-        # Fits
-        # ====
-
-        if model_specs is None:
-            model_specs = self.model_specs
-
-        model_fits = [
-                (models.get_name(spec), models.fit(spec, train))
-                for spec in model_specs
-                ]
-
         test_idx = 2
         target = test[test_idx]
-
-        # For a new feature, we can make a basic prediction by predicting the mean
-        # of all (other) samples of the group
-
-        preds = [
-            (name, models.predict_loo(spec, fit, target[None, :])[0])
-            for spec, (name, fit) in zip(model_specs, model_fits)
-            ]
-
-        # Plots
-        # =====
-
-        # Plot against first PC
         covariate = np.linalg.svd(train, full_matrices=False)[-1][0]
 
-        order = np.argsort(covariate)
-
+        # Plot against first PC
         output.add_figure(
                 plot_pc_clusters(
                     train.T,
@@ -167,23 +138,61 @@ class LinearReg(Case):
                     )
                 )
 
+        return {
+            'train': train,
+            'test': target[None, :],
+            'covariate': covariate, # PC1
+            'order': np.argsort(covariate),
+            }
+
+
+    def _add_figures(self, output: Output, data, spec, fit, preds):
+        """
+        Regularized and unregularized high-dimensional linear models
+        """
+
+        # Fits
+        # ====
+
+        #model_fits = [
+        #        (models.get_name(spec), models.fit(spec, train))
+        #        for spec in model_specs
+        #        ]
+
+
+        # For a new feature, we can make a basic prediction by predicting the mean
+        # of all (other) samples of the group
+
+        # preds = [
+        #    (name, models.predict_loo(spec, fit, target[None, :])[0])
+        #    for spec, (name, fit) in zip(model_specs, model_fits)
+        #    ]
+
+        # Plots
+        # =====
+        covariate = data['covariate']
+        order = data['order']
+        train = data['train']
+
+        test = data['test'][0]
+        preds = preds[0]
+
+        name = models.get_name(spec)
+
         output.add_figure(go.Figure(
             data=[
                 go.Scatter(
                     x=covariate[order],
-                    y=test[test_idx][order],
+                    y=test[order],
                     mode='markers',
                     name='New feature'
-                    )
-            ] + [
+                    ),
                 go.Scatter(
                     x=covariate[order],
-                    y=pred[order].flatten(),
+                    y=preds[order].flatten(),
                     mode='lines',
                     name=name,
                     )
-                # FIXME: this is the loop we want to factor out
-                for (name, pred) in preds
                 ],
             layout={
                 'title': 'Predictions of a new dimension',
@@ -197,18 +206,17 @@ class LinearReg(Case):
         adj_spectrum = None
         opt_spectrum = None
         wh_spectrum = None
-        for name, model in model_fits:
-            if name == 'cv' and model['inner']['model'] == 'linear_shrinkage':
-                adj_spectrum = models.get('linear_shrinkage').spectrum(
-                    train, model['selected']['prior_var']
-                    )
-            elif name == 'nonlinear_shrinkage':
-                opt_spectrum = model['spectrum']
-            elif name == 'wishart':
-                wh_spectrum = (
-                    spectrum
-                    + np.exp(model['opt']['opt']['prior_var_ln']) / train.shape[-1]
-                    )
+        if spec['model'] == 'cv' and spec['inner']['model'] == 'linear_shrinkage':
+            adj_spectrum = models.get('linear_shrinkage').spectrum(
+                train, fit['selected']['prior_var']
+                )
+        elif name == 'nonlinear_shrinkage':
+            opt_spectrum = fit['spectrum']
+        elif name == 'wishart':
+            wh_spectrum = (
+                spectrum
+                + np.exp(fit['opt']['opt']['prior_var_ln']) / train.shape[-1]
+                )
 
         log1p = False
 
@@ -235,13 +243,9 @@ class LinearReg(Case):
                 }
             ))
 
-        for spec, (name, model_fit) in zip(model_specs, model_fits):
-            if spec['model'] != 'cv':
-                continue
-            for fig in plot_cv(spec, model_fit):
+        if spec['model'] == 'cv':
+            for fig in plot_cv(spec, fit):
                 output.add_figure(fig)
 
-        for spec, (name, model_fit) in zip(model_specs, model_fits):
-            if 'opt' not in model_fit:
-                continue
-            output.add_figure(plot_convergence(spec, model_fit))
+        if 'opt' in fit:
+            output.add_figure(plot_convergence(spec, fit))
