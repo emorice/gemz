@@ -6,7 +6,7 @@ import importlib
 import logging
 import pkgutil
 import os
-from typing import Callable, Type, TypedDict
+from typing import Callable, Type, TypedDict, Any
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
@@ -23,6 +23,7 @@ _cases : dict[str, 'Case'] = {}
 class CaseData(TypedDict):
     train: ArrayLike
     test: ArrayLike
+
 
 class Case(ABC):
     """
@@ -45,9 +46,26 @@ class Case(ABC):
         data = self.gen_data(output)
 
         for spec in model_specs:
-            fit = gemz.models.fit(spec, data['train'])
-            preds = gemz.models.predict_loo(spec, fit, data['test'])
+            fit, preds = self.run_model(spec, data)
             self._add_figures(output, data, spec, fit, preds)
+
+    def run_model(self, spec: ModelSpec, data) -> tuple[Any, Any]:
+        """
+        Build model from spec, apply it to data and generate test plots.
+
+        Returns:
+            Two loosely defined objects, the "model fit", which is expected to
+            contain data of a different type from one model to an other
+            (typically parameter values, optimization traces...), and the "model
+            prediction", which is the output of the model that is intended to be
+            standardized and comparable from one model to an other.
+
+            The actual types of these objects therefore depends on the model
+            used and task at hand.
+        """
+        fit = gemz.models.fit(spec, data['train'])
+        preds = gemz.models.predict_loo(spec, fit, data['test'])
+        return fit, preds
 
     def gen_data(self, output: Output) -> CaseData:
         """
