@@ -6,6 +6,12 @@ import numpy as np
 
 from gemz import linalg
 from . import methods
+from .methods import ModelSpec
+from gemz.model import Model, Conditioner
+
+
+# Interface V1
+# ============
 
 methods.add_module('linear', __name__)
 
@@ -66,6 +72,23 @@ def spectrum(data):
         singular_values ** 2 / len2,
         np.zeros(len2 - len1)
         ))
+
+# Interface V2
+# ============
+
+def make_model(spec: ModelSpec, conditioner: Conditioner):
+    """
+    Interface entry point
+    """
+    return LinearModel(spec, conditioner)
+
+class LinearModel(Model):
+    """
+    Linear model, unregularized
+    """
+
+    def mean(self, *data, **kwdata):
+        return 0.
 
 # Older reference implementations
 # ===============================
