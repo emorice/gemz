@@ -5,9 +5,10 @@ Simple linear predictions.
 import numpy as np
 
 from gemz import linalg
+from gemz.model import Model, Conditioner
+
 from . import methods
 from .methods import ModelSpec
-from gemz.model import Model, Conditioner
 
 
 # Interface V1
@@ -87,8 +88,11 @@ class LinearModel(Model):
     Linear model, unregularized
     """
 
-    def mean(self, *data, **kwdata):
-        return 0.
+    def mean(self, data, **kwdata):
+        complement = self.conditioner.complement().select(data)
+        row_like = self.conditioner.complement(axis=1).select(data)
+        col_like = self.conditioner.complement(axis=0).select(data)
+        return row_like @ np.linalg.pinv(complement) @ col_like
 
 # Older reference implementations
 # ===============================
