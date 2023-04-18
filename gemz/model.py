@@ -93,6 +93,10 @@ class Conditioner:
     def select(self, data):
         """
         Subset data
+
+        For now, this is implemented with binary masks. This allows the
+        operation to be completely generic but also memory-inefficient for
+        subsets that are simple slices.
         """
         masks = tuple(ind.to_mask(length) for ind, length in zip(self.indexes,
             np.shape(data)))

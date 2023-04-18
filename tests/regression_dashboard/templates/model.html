@@ -2,17 +2,18 @@
 
 {% block title %}{{case}} / {{model}}{% endblock %}}
 {% block navlinks %}
-					<li class="nav-item dropdown">
-					<a class="nav-link dropdown-toggle" href="/" data-bs-toggle="dropdown">All models </a>
-					<ul class="dropdown-menu">
-						{% for model in models %}
-						<li><a class="dropdown-item" href="/model/{{case}}/{{model}}">{{model}}</a></li>
-						{% endfor %}
-					</ul>
-				</li>
+<li class="nav-item dropdown">
+	<a class="nav-link dropdown-toggle" href="/" data-bs-toggle="dropdown">All models </a>
+	<ul class="dropdown-menu">
+		{% for model in models %}
+		<li><a class="dropdown-item" href="/model/{{case}}/{{model}}">{{model}}</a></li>
+		{% endfor %}
+	</ul>
+</li>
 {% endblock %}}
 
 {% block main %}
+	<code style="white-space: pre-wrap">{{spec|e}}</code>
 {% for fig_html in figures %}
 {{ fig_html | safe}}
 {% endfor %}

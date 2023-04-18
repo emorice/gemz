@@ -24,7 +24,6 @@ class CaseData(TypedDict):
     train: ArrayLike
     test: ArrayLike
 
-
 class Case(ABC):
     """
     A case study meant to test and demonstrate how models behave on a specific
@@ -87,21 +86,21 @@ class Case(ABC):
         """
 
     @property
-    def model_unique_names(self):
+    def model_unique_names(self) -> dict[str, ModelSpec]:
         """
         Unique model names
         """
-        duplicates = defaultdict(int)
+        duplicates: dict[str, int] = defaultdict(int)
         for spec in self.model_specs:
             duplicates[get_name(spec)] += 1
-        ids = defaultdict(int)
-        unique_names = []
+        ids : dict[str, int] = defaultdict(int)
+        unique_names = {}
         for spec in self.model_specs:
             name = get_name(spec)
-            unique_names.append(
+            unique_names[
                     name + f'_{ids[name]}' if duplicates[name] > 1
                     else name
-                    )
+                    ] = spec
             ids[name] += 1
         return unique_names
 

@@ -33,17 +33,17 @@ def _case(case_name):
     if case is None:
         abort(404)
 
-    model_specs = case.model_specs
     return render_template('case.html', case=case_name,
             models=[
                 (name, json.dumps(spec, indent=4))
-                for name, spec in zip(case.model_unique_names, model_specs)
+                for name, spec in case.model_unique_names.items()
                 ],
             cases=list(cases))
 
 @app.route('/model/<case_name>/<path:model_name>')
 def _model(case_name, model_name):
     cases = get_cases()
+    spec = cases[case_name].model_unique_names[model_name]
 
     path = (
             'tests/test_regressions/' + 
@@ -64,9 +64,9 @@ def _model(case_name, model_name):
                     .update_layout(template=plotly_template)
                     ),
                 full_html=False, include_plotlyjs='cdn')
-            for fig_dict in report['figures'] 
+            for fig_dict in report['figures']
             ]
 
     return render_template('model.html', case=case_name, model=model_name,
-            cases=list(cases), figures=figs,
+            cases=list(cases), spec=json.dumps(spec, indent=4), figures=figs,
             models=cases[case_name].model_unique_names)
