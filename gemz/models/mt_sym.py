@@ -10,7 +10,7 @@ from numpy.typing import ArrayLike
 from gemz.jax_utils import maximize, Bijector, Exp
 from gemz.stats.matrixt import NonCentralMatrixT
 from gemz.jax.linalg import ScaledIdentity
-from gemz.stats import Model
+from gemz.model import ModelSpec, Conditioner, Model
 from . import methods
 
 class Method:
@@ -54,7 +54,7 @@ class MaximumPseudoLikelihood(Method):
 
     @classmethod
     def make_model(cls, parameters: dict[str, ArrayLike],
-            options: dict, shape: tuple[int, ...]) -> Model:
+            options: dict, shape: tuple[int, ...]):
         """
         Build model from parameters
         """
@@ -97,7 +97,7 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
     parametrization
     """
     @classmethod
-    def make_model(cls, parameters, options, shape: tuple[int, ...]) -> Model:
+    def make_model(cls, parameters, options, shape: tuple[int, ...]):
         params = parameters
         return NonCentralMatrixT.from_params(
                 dfs=params['dfs'],
@@ -138,3 +138,12 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
         new_dims = new_observed.shape[0]
         new_gram = ScaledIdentity(1., new_dims)
         return learned['learned'].extend(new_gram=new_gram, axis=1).uni_cond(new_observed)[0]
+
+# Interface V2
+
+class SymmetricMatrixT2(Model):
+    def mean(self, data):
+        return np.zeros_like(self.conditioner.select(data))
+
+def make_model(spec: ModelSpec, conditioner: Conditioner):
+    return SymmetricMatrixT2(spec, conditioner)

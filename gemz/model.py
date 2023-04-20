@@ -106,6 +106,14 @@ class Conditioner:
 
 # Model
 
+MODULES = {
+    'linear': 'gemz.models.linear',
+    'mt_sym': 'gemz.models.mt_sym',
+    }
+"""
+Dictionary of modules defining the corresponding named model for lazy loading
+"""
+
 class Model:
     """
     Abstract model interface
@@ -123,9 +131,8 @@ class Model:
         """
         if 'model' not in spec:
             raise ValueError('Invalid spec: spec must contain a "model" key')
-        if spec['model'] == 'linear':
-            module_name = 'gemz.models.linear'
-        else:
+        module_name = MODULES.get(spec['model'])
+        if not module_name:
             raise NotImplementedError(f'No such model: {spec["model"]}')
 
         module = importlib.import_module(module_name)

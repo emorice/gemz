@@ -24,7 +24,8 @@ class LinHet(Case):
     @property
     def model_specs(self):
         return [
-                {'model': 'linear'}
+                {'model': 'linear'},
+                {'model': 'mt_sym'}
                 ]
 
     def gen_data(self, output: Output):
