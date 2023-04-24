@@ -53,6 +53,15 @@ class SliceIndex(Index):
             return index_like
         raise NotImplementedError(index_like)
 
+LOO = type('LOO', (), {})()
+"""
+Special indexing constant
+
+When used to condition a distribution, indicates that the distribution should be
+conditioned on all but each index of the considered axis in turn, yielding a
+family of conditional distributions
+"""
+
 @dataclass
 class NegIndex(Index):
     """
@@ -173,3 +182,29 @@ class ConditionMaker:
         """
         return self.model.from_conditionner(self.model,
                 Conditioner.from_indexes(keys))
+
+class FitPredictCompat:
+    """
+    Compatibility layer with old fit-predict interface
+    """
+    @classmethod
+    def fit(cls, spec, data):
+        """
+        Just give back args unmodified
+        """
+        return {
+                'spec': spec,
+                'data': data
+                }
+
+    @classmethod
+    def predict_loo(cls, fitted, new_data):
+        """
+        Concatenate data, build model and compute
+        """
+        data = np.vstack((fitted['data'], new_data))
+        return (
+            Model.from_spec(fitted['spec'])
+            .conditional[fitted['data'].shape[0]:, LOO]
+            .mean(data)
+            )
