@@ -10,7 +10,7 @@ from numpy.typing import ArrayLike
 from gemz.jax_utils import maximize, Bijector, Exp
 from gemz.stats.matrixt import NonCentralMatrixT
 from gemz.jax.linalg import ScaledIdentity
-from gemz.model import ModelSpec, Conditioner, Model
+from gemz.model import ModelSpec, Model, PointDistribution
 from . import methods
 
 class Method:
@@ -141,9 +141,13 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
 
 # Interface V2
 
-class SymmetricMatrixT2(Model):
-    def mean(self, data):
-        return np.zeros_like(self.conditioner.select(data))
+class StdMatrixT(Model):
+    def _condition(self, unobserved_indexes, data):
+        rows, cols = unobserved_indexes
+        comp = data[~rows, ~cols]
+        reg_pinv = np.linalg.solve(comp @ comp.T + np.eye(comp.shape[0]), comp).T
+        return PointDistribution(
+                data[rows, ~cols] @ reg_pinv @ data[~rows, cols]
+                )
 
-def make_model(spec: ModelSpec, conditioner: Conditioner):
-    return SymmetricMatrixT2(spec, conditioner)
+make_model = StdMatrixT

@@ -44,7 +44,11 @@ class LinHet(Case):
         return data
 
     def run_model(self, spec, data):
-        preds = Model.from_spec(spec).conditional[1, self.high_train:].mean(data)
+        preds = (
+                Model.from_spec(spec)
+                .condition[1, self.high_train:](data)
+                .mean
+                )
         return None, preds
 
     def _add_figures(self, output: Output, data, spec: ModelSpec, fit, preds):

@@ -1,8 +1,10 @@
 """
 Abstract model interface
 """
-from dataclasses import dataclass
+
 import importlib
+from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
@@ -18,6 +20,9 @@ class Index:
         Convert self to binary mask
         """
         raise NotImplementedError
+
+    def __invert__(self):
+        return InvIndex(self)
 
 @dataclass
 class SliceIndex(Index):
@@ -39,79 +44,72 @@ class SliceIndex(Index):
 
         return (indexes >= start) & (indexes < stop)
 
-    @classmethod
-    def from_any(cls, index_like):
-        """
-        Convert from any index-like object commonly used
-        """
-        if isinstance(index_like, slice):
-            return cls(index_like)
-        if isinstance(index_like, int):
-            if index_like >= 0:
-                return cls(slice(index_like, index_like+1))
-        if isinstance(index_like, Index):
-            return index_like
-        raise NotImplementedError(index_like)
+def as_index(index_like) -> Index:
+    """
+    Wrap index_like object into an index
+    """
+    if isinstance(index_like, Index):
+        return index_like
 
-LOO = type('LOO', (), {})()
-"""
-Special indexing constant
+    if isinstance(index_like, slice):
+        return SliceIndex(index_like)
+    if isinstance(index_like, int):
+        if index_like >= 0:
+            return SliceIndex(slice(index_like, index_like+1))
 
-When used to condition a distribution, indicates that the distribution should be
-conditioned on all but each index of the considered axis in turn, yielding a
-family of conditional distributions
-"""
+    raise NotImplementedError(index_like)
+
+class EachIndex(Index):
+    """
+    Special indexing constant
+
+    When used to condition a distribution, indicates that the distribution should be
+    conditioned on all but each index of the considered axis in turn, yielding a
+    family of conditional distributions
+    """
 
 @dataclass
-class NegIndex(Index):
+class InvIndex(Index):
     """
-    Logical negation of an other index
+    Logical inverse (complement) of an other index
     """
     index: Index
 
     def to_mask(self, length):
         return ~self.index.to_mask(length)
 
+    def __invert__(self):
+        return self.index
+
+class TensorContainer:
+    """
+    Container object meant to work with indexes
+    """
+    def __getitem__(self, indexes: tuple[Index, ...]):
+        raise NotImplementedError
+
 @dataclass
-class Conditioner:
+class SingleTensorContainer(TensorContainer):
     """
-    Specification of a conditional pattern
+    Container for a single Tensor-like object, extends fancy indexing to work
+    with Index objects
     """
-    indexes: tuple[Index, ...]
+    tensor: Any
 
-    @classmethod
-    def from_indexes(cls, indexes: tuple):
-        """
-        Normalize indexes to slices
-        """
-        return cls(tuple(SliceIndex.from_any(ind)
-                for ind in indexes
-                ))
+    def __getitem__(self, indexes):
+        masks = tuple(
+                ind.to_mask(length)
+                for ind, length in zip(indexes, np.shape(self.tensor))
+                )
+        return self.tensor[np.ix_(*masks)]
 
-    def complement(self, axis=None):
-        """
-        Generate new conditionner with slices complemented.
-        Reverses all axes by default
-        """
-        return self.from_indexes(tuple(
-            NegIndex(ind) if axis in (i, None)
-            else ind
-            for i, ind in enumerate(self.indexes)
-            ))
-
-    def select(self, data):
-        """
-        Subset data
-
-        For now, this is implemented with binary masks. This allows the
-        operation to be completely generic but also memory-inefficient for
-        subsets that are simple slices.
-        """
-        masks = tuple(ind.to_mask(length) for ind, length in zip(self.indexes,
-            np.shape(data)))
-        ans = data[np.ix_(*masks)]
-        print(ans)
-        return ans
+def as_tensor_container(tensor_like):
+    """
+    Wrap object into a tensor container
+    """
+    if isinstance(tensor_like, TensorContainer):
+        return tensor_like
+    return  SingleTensorContainer(tensor_like)
 
 # Model
 
@@ -125,14 +123,13 @@ Dictionary of modules defining the corresponding named model for lazy loading
 
 class Model:
     """
-    Abstract model interface
+    Unified model interface
     """
-    def __init__(self, spec: ModelSpec, conditioner: Conditioner|None = None):
+    def __init__(self, spec: ModelSpec):
         self.spec = spec
-        self.conditioner = conditioner
 
     @classmethod
-    def from_spec(cls, spec: ModelSpec):
+    def from_spec(cls, spec: ModelSpec) -> 'Model':
         """
         Instantiate model from a specification document
 
@@ -146,26 +143,19 @@ class Model:
 
         module = importlib.import_module(module_name)
 
-        return module.make_model(spec, None)
-
-    @classmethod
-    def from_conditionner(cls, spec: ModelSpec, unobserved: Conditioner):
-        """
-        Instantiate a model from a specification document and a model conditioner
-        """
-        return cls(spec, unobserved)
+        return module.make_model(spec)
 
     @property
-    def conditional(self):
+    def condition(self):
         """
-        Return an indexable object for convenient specification of conditional
+        Return an indexable and callable object for convenient specification of conditional
         tasks
         """
         return ConditionMaker(self)
 
-    def mean(self, *data, **kwdata):
+    def _condition(self, unobserved_indexes, data):
         """
-        Mean of unobserved data given observed data and parameters
+        Model-specific implementation of conditionals
         """
         raise NotImplementedError
 
@@ -176,12 +166,32 @@ class ConditionMaker:
     """
     model: Model
 
-    def __getitem__(self, keys):
+    def __getitem__(self, unobserved_indexes):
         """
-        Returns a conditionned copy of the original model
+        Convenience syntax to condition on slices
         """
-        return self.model.from_conditionner(self.model,
-                Conditioner.from_indexes(keys))
+        def condition_bound(data):
+            return self(unobserved_indexes, data)
+        return condition_bound
+
+    def __call__(self, unobserved_indexes, data):
+        """
+        Calling the condition property acts as if condition was a regular
+        method
+        """
+        # TODO: wrap
+        return self.model._condition(
+                tuple(as_index(index_like) for index_like in unobserved_indexes),
+                as_tensor_container(data)
+                )
+
+@dataclass
+class PointDistribution:
+    """
+    Trivial distribution encoding the position of a point without any uncertainty or
+    probabilistic information
+    """
+    mean: Any
 
 class FitPredictCompat:
     """

@@ -5,7 +5,7 @@ Simple linear predictions.
 import numpy as np
 
 from gemz import linalg
-from gemz.model import Model, Conditioner
+from gemz.model import Model, PointDistribution
 
 from . import methods
 from .methods import ModelSpec
@@ -77,22 +77,17 @@ def spectrum(data):
 # Interface V2
 # ============
 
-def make_model(spec: ModelSpec, conditioner: Conditioner):
-    """
-    Interface entry point
-    """
-    return LinearModel(spec, conditioner)
-
 class LinearModel(Model):
     """
-    Linear model, unregularized
+    Linear model, unregularized, without uncertainties
     """
+    def _condition(self, unobserved_indexes, data):
+        rows, cols = unobserved_indexes
+        mean = (data[rows, ~cols] @ np.linalg.pinv(data[~rows, ~cols])
+                @ data[~rows, cols])
+        return PointDistribution(mean)
 
-    def mean(self, data, **kwdata):
-        complement = self.conditioner.complement().select(data)
-        row_like = self.conditioner.complement(axis=1).select(data)
-        col_like = self.conditioner.complement(axis=0).select(data)
-        return row_like @ np.linalg.pinv(complement) @ col_like
+make_model = LinearModel
 
 # Older reference implementations
 # ===============================
