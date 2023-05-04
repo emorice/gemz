@@ -2,24 +2,43 @@
 Low dimensional linearly distributed data with background noise
 """
 
+from typing import Iterator, Any
+from itertools import product
+
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-from gemz.cases import Case, Output
+from gemz.cases import BaseCase, PerModelCase, Output
 from gemz.models import ModelSpec
 from gemz import Model
 
-class LinHet(Case):
+class LinHet(PerModelCase):
     """
     Low dimensional linearly distributed data with background noise
     """
-    name = 'lin_het'
+    name = 'flex'
 
     def __init__(self):
         self.low_dim = 2
-        self.high_dim = 100
+        self.high_dim = 101
         self.high_train = 50
+
+        self.params = {
+            'dims': {
+                'low_dim': 2,
+                #'high_dim': 100,
+                },
+            'heterogeneity': {
+                'homo': False,
+                #'het': True
+                },
+            'nonlinearity': {
+                'linear': False,
+                #'nonlinear': True
+                },
+            'model': self.model_unique_names
+            }
 
     @property
     def model_specs(self):
@@ -27,6 +46,24 @@ class LinHet(Case):
                 {'model': 'linear'},
                 {'model': 'mt_sym'}
                 ]
+
+
+    def get_params(self) -> Iterator[tuple[str, Any]]:
+        """
+        Get the collections of case parameters  to try and the corresponding
+        unique readable string.
+
+        Default is to iterate over unique model specs.
+        """
+        param_triplets = (
+                [ (param_name, value_printable, value) 
+                    for value_printable, value in
+                    values.items()]
+                for param_name, values in self.params.items()
+                )
+        for triplets in product(*param_triplets):
+            printable = ' x '.join(triplet[1] for triplet in triplets)
+            yield f'{self.name} {printable}', triplets
 
     def gen_data(self, output: Output):
         spectrum = np.array([1., .1])

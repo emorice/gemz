@@ -47,7 +47,37 @@ class BaseCase(Generic[CaseParams]):
         """
         raise NotImplementedError
 
-class Case(BaseCase[list[ModelSpec]], abstract_case=True):
+class PerModelCase(BaseCase[CaseParams], abstract_case=True):
+    """
+    Case parametrized by models
+    """
+    @property
+    def model_specs(self) -> list[ModelSpec]:
+        """
+        Return a default list of model specs tested by the case
+        """
+        raise NotImplementedError
+
+    @property
+    def model_unique_names(self) -> dict[str, ModelSpec]:
+        """
+        Unique model names
+        """
+        duplicates: dict[str, int] = defaultdict(int)
+        for spec in self.model_specs:
+            duplicates[get_name(spec)] += 1
+        ids : dict[str, int] = defaultdict(int)
+        unique_names = {}
+        for spec in self.model_specs:
+            name = get_name(spec)
+            unique_names[
+                    name + f'_{ids[name]}' if duplicates[name] > 1
+                    else name
+                    ] = spec
+            ids[name] += 1
+        return unique_names
+
+class Case(PerModelCase[list[ModelSpec]], abstract_case=True):
     """
     A case study meant to test and demonstrate how models behave on a specific
     dataset
@@ -111,31 +141,6 @@ class Case(BaseCase[list[ModelSpec]], abstract_case=True):
         """
         raise NotImplementedError
 
-    @property
-    def model_specs(self) -> list[ModelSpec]:
-        """
-        Return a default list of model specs tested by the case
-        """
-        raise NotImplementedError
-
-    @property
-    def model_unique_names(self) -> dict[str, ModelSpec]:
-        """
-        Unique model names
-        """
-        duplicates: dict[str, int] = defaultdict(int)
-        for spec in self.model_specs:
-            duplicates[get_name(spec)] += 1
-        ids : dict[str, int] = defaultdict(int)
-        unique_names = {}
-        for spec in self.model_specs:
-            name = get_name(spec)
-            unique_names[
-                    name + f'_{ids[name]}' if duplicates[name] > 1
-                    else name
-                    ] = spec
-            ids[name] += 1
-        return unique_names
 
 _CaseFunction = Callable[[Output], None]
 
@@ -161,18 +166,6 @@ class CaseFunction(BaseCase[None], abstract_case=True):
         if params is not None:
             raise NotImplementedError
         return self._function(output)
-
-    @property
-    def model_specs(self) -> list[ModelSpec]:
-        """
-        Return a default list of model specs tested by the case
-        """
-        # Symbolic model names ignored
-        return [{'model': 'all'}]
-
-    @property
-    def model_unique_names(self):
-        return ['all']
 
 CaseDef = _CaseFunction | Type[Case]
 
