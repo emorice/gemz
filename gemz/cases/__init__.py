@@ -6,8 +6,7 @@ import importlib
 import logging
 import pkgutil
 import os
-from typing import Callable, Type, TypedDict, Any
-from abc import ABC, abstractmethod
+from typing import Callable, Type, TypedDict, Any, Iterator, Generic, TypeVar
 from collections import defaultdict
 
 from numpy.typing import ArrayLike
@@ -18,20 +17,42 @@ from gemz.models import ModelSpec, get_name
 from .output import Output
 from .output_html import HtmlOutput
 
-_cases : dict[str, 'Case'] = {}
+_cases : dict[str, 'BaseCase'] = {}
 
-class CaseData(TypedDict):
-    train: ArrayLike
-    test: ArrayLike
+CaseParams = TypeVar('CaseParams')
 
-class Case(ABC):
+class BaseCase(Generic[CaseParams]):
+    """
+    Base class for the case mechanism
+    """
+    name: str = ''
+
+    def __call__(self, output: Output, case_params: CaseParams) -> None:
+        raise NotImplementedError
+
+    def __init_subclass__(cls, /, abstract_case=False, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if abstract_case:
+            return
+
+        if not cls.name or cls.name in _cases:
+            raise ValueError(f'{cls.name} already registered, give the Case a'
+                    ' new unique name attribute')
+        _cases[cls.name] = cls()
+
+    def get_params(self) -> Iterator[tuple[str, CaseParams]]:
+        """
+        Get the collections of case parameters  to try and the corresponding
+        unique readable string.
+        """
+        raise NotImplementedError
+
+class Case(BaseCase[list[ModelSpec]], abstract_case=True):
     """
     A case study meant to test and demonstrate how models behave on a specific
     dataset
     """
-    name: str = '<case_name>'
-
-    def __call__(self, output: Output, model_specs: list[ModelSpec] | None = None) -> None:
+    def __call__(self, output: Output, case_params: list[ModelSpec] | None = None) -> None:
         """
         Run the case study.
 
@@ -39,14 +60,26 @@ class Case(ABC):
         parameter to only run subsets of models or try new models not included
         in the default list.
         """
-        if model_specs is None:
+        if case_params is None:
             model_specs = self.model_specs
+        else:
+            model_specs = case_params
 
         data = self.gen_data(output)
 
         for spec in model_specs:
             fit, preds = self.run_model(spec, data)
             self._add_figures(output, data, spec, fit, preds)
+
+    def get_params(self) -> Iterator[tuple[str, Any]]:
+        """
+        Get the collections of case parameters  to try and the corresponding
+        unique readable string.
+
+        Default is to iterate over unique model specs.
+        """
+        for model_name, model_spec in self.model_unique_names.items():
+            yield f'{self.name} x {model_name}', [model_spec]
 
     def run_model(self, spec: ModelSpec, data) -> tuple[Any, Any]:
         """
@@ -66,24 +99,24 @@ class Case(ABC):
         preds = gemz.models.predict_loo(spec, fit, data['test'])
         return fit, preds
 
-    def gen_data(self, output: Output) -> CaseData:
+    def gen_data(self, output: Output):
         """
         Data generation
         """
         raise NotImplementedError
 
-    def _add_figures(self, output: Output, data: CaseData, spec, fit, preds) -> None:
+    def _add_figures(self, output: Output, data, spec, fit, preds) -> None:
         """
         Regression figures generation
         """
         raise NotImplementedError
 
     @property
-    @abstractmethod
     def model_specs(self) -> list[ModelSpec]:
         """
         Return a default list of model specs tested by the case
         """
+        raise NotImplementedError
 
     @property
     def model_unique_names(self) -> dict[str, ModelSpec]:
@@ -104,27 +137,28 @@ class Case(ABC):
             ids[name] += 1
         return unique_names
 
-    def __init_subclass__(cls, /, abstract_case=False, **kwargs):
-        super().__init_subclass__(**kwargs)
-        if abstract_case:
-            return
-        if cls.name in _cases:
-            raise ValueError(f'{cls.name} already registered, give the Case a'
-                    ' new unique name attribute')
-        _cases[cls.name] = cls()
-
 _CaseFunction = Callable[[Output], None]
 
-class CaseFunction(Case, abstract_case=True):
+class CaseFunction(BaseCase[None], abstract_case=True):
     """
     Wraps a function in a Case instance for compat.
     """
     def __init__(self, function: _CaseFunction):
         self._function = function
-        self.__name__ = function.__name__
+        self.name = function.__name__
 
-    def __call__(self, output: Output, model_specs: list[ModelSpec] | None = None) -> None:
-        if model_specs not in (self.model_specs, None):
+    def get_params(self) -> Iterator[tuple[str, None]]:
+        """
+        Get the collections of case parameters to try and the corresponding
+        unique readable string.
+
+        In this case this is a single empty parameter sets since case functions
+        are not parametrizable.
+        """
+        yield self.name, None
+
+    def __call__(self, output: Output, params: None = None) -> None:
+        if params is not None:
             raise NotImplementedError
         return self._function(output)
 
@@ -156,7 +190,7 @@ def case(case_def: CaseDef) -> CaseDef:
 
     return case_def
 
-def get_cases() -> dict[str, Case]:
+def get_cases() -> dict[str, BaseCase]:
     """
     Get the dictionary of existing case entry points
     """

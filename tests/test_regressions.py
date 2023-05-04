@@ -62,18 +62,15 @@ def pytest_cases() -> Iterator[Any]:
     """
     Iterator over case studies
     """
-    for name, case in gemz.cases.get_cases().items():
-        for model_name, model_spec in zip(case.model_unique_names, case.model_specs):
-            if model_spec['model'] == 'all': # old style
-                yield pytest.param(case, model_spec, id=f'{name}')
-            else:
-                yield pytest.param(case, model_spec, id=f'{name} x {model_name}')
+    for _name, case in gemz.cases.get_cases().items():
+        for case_id, case_params in case.get_params():
+            yield pytest.param(case, case_params, id=case_id)
 
 @regression
-@pytest.mark.parametrize('case, model_spec', pytest_cases())
-def test_case(case: Case, model_spec: ModelSpec, data_regression):
+@pytest.mark.parametrize('case, params', pytest_cases())
+def test_case(case: Case, params, data_regression):
     """
     Run models on linear factor data
     """
     with RegressionCaseOutput(data_regression) as output_checker:
-        case(output_checker, [model_spec])
+        case(output_checker, params)
