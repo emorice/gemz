@@ -37,7 +37,13 @@ class LinHet(PerModelCase):
                 'linear': False,
                 #'nonlinear': True
                 },
-            'model': self.model_unique_names
+            'cond0': {
+                'block': 'block',
+                },
+            'cond1': {
+                'block': 'block',
+                },
+            'model': self.model_unique_names,
             }
 
     @property
@@ -65,7 +71,18 @@ class LinHet(PerModelCase):
             printable = ' x '.join(triplet[1] for triplet in triplets)
             yield f'{self.name} {printable}', triplets
 
-    def gen_data(self, output: Output):
+
+    def __call__(self, output: Output, case_params) -> None:
+
+        case_data = self.gen_data(output, case_params)
+
+        # TODO: run model
+        raise NotImplementedError(case_params)
+
+    def gen_data(self, output: Output, case_params):
+
+        # TODO: honor case_params
+
         spectrum = np.array([1., .1])
 
         rng = np.random.default_rng(0)
