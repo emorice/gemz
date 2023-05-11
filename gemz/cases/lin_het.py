@@ -62,7 +62,7 @@ class LinHet(PerModelCase):
         Default is to iterate over unique model specs.
         """
         param_triplets = (
-                [ (param_name, value_printable, value) 
+                [ (param_name, value_printable, value)
                     for value_printable, value in
                     values.items()]
                 for param_name, values in self.params.items()
@@ -73,15 +73,33 @@ class LinHet(PerModelCase):
 
 
     def __call__(self, output: Output, case_params) -> None:
+        _params_printable = { key: name for key, name, _ in case_params }
+        params = { key: val for key, _, val in case_params }
 
         case_data = self.gen_data(output, case_params)
 
-        # TODO: run model
-        raise NotImplementedError(case_params)
+        spec = params['model']
+        out = {}
+
+        conditional =  (
+            Model.from_spec(spec)
+            .condition[1, self.high_train:](case_data)
+            )
+        out['conditional'] = conditional
+
+        out['means'] = conditional.mean
+        if hasattr(conditional, 'vars'):
+            out['vars'] = conditional.vars
+        else:
+            out['vars'] = None
+
+        self._add_figures(output, case_data, case_params, out)
 
     def gen_data(self, output: Output, case_params):
-
-        # TODO: honor case_params
+        """
+        Generate a deterministic toy data set conforming to case_params
+        """
+        # TODO: actually honor case_params
 
         spectrum = np.array([1., .1])
 
@@ -97,20 +115,12 @@ class LinHet(PerModelCase):
 
         return data
 
-    def run_model(self, spec, data):
-        preds = (
-                Model.from_spec(spec)
-                .condition[1, self.high_train:](data)
-                .mean
-                )
-        return None, preds
-
-    def _add_figures(self, output: Output, data, spec: ModelSpec, fit, preds):
+    def _add_figures(self, output: Output, data, params, model_out):
         output.add_figure(
                 go.Figure(data=[
                     go.Scatter(x=data[0, self.high_train:], y=data[1, self.high_train:],
                         mode='markers', name='data'),
-                    go.Scatter(x=data[0, self.high_train:], y=preds[0],
+                    go.Scatter(x=data[0, self.high_train:], y=model_out['means'][0],
                         mode='markers', name='predictions')
                     ])
                 )
