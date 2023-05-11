@@ -15,7 +15,10 @@
 {% endblock %}}
 
 {% block main %}
-	<code style="white-space: pre-wrap">{{spec|e}}</code>
+	<button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#spec">Spec</button>
+	<div id="spec" class="accordion-collapse collapse">
+		<code style="white-space: pre-wrap">{{spec|e}}</code>
+	</div>
 {% for fig_html in figures %}
 {{ fig_html | safe}}
 {% endfor %}

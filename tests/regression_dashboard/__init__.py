@@ -77,16 +77,17 @@ def _model(case_name, case_id_enc):
     case_id = None
 
     # FIXME: should be stored and loaded from the file
+    # FIXME 2: that doesn't work with all Case subclasses
     for pot_case_id, pot_case_params in case.get_params():
         if encode_case_id(pot_case_id) == case_id_enc:
             case_id = pot_case_id
             case_params = pot_case_params
 
+    # FIXME: we want to print the same thing than in '_case' here
     # spec = cases[case_name].model_unique_names[model_name]
 
-
     return render_template('model.html', case_id=case_id,
-            cases=list(cases), #spec=json.dumps(spec, indent=4),
+            cases=list(cases), spec=json.dumps(case_params, indent=4),
             figures=figs,
             #models=cases[case_name].model_unique_names
             )
