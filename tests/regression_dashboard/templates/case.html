@@ -4,15 +4,17 @@
 
 {% block main %}
 <div>
-	{% for case_id, case_id_enc, case_params in subcases %}
+	{% for scase in subcases %}
   <div>
     <h2>
-	<button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#{{case_id_enc}}">Spec</button>
-	<a href="/model/{{case}}/{{case_id_enc}}" class="link-dark">{{ case_id }}</a>
+	<button class="btn btn-outline-secondary btn-sm" type="button"
+		data-bs-toggle="collapse" data-bs-target="#{{scase['id_enc']}}">Spec</button>
+	<a href="/model/{{case}}/{{scase['id_enc']}}" class="link-dark">{{
+		scase['id'] }}</a>
     </h2>
-    <div id="{{case_id_enc}}" class="accordion-collapse collapse">
+    <div id="{{scase['id_enc']}}" class="accordion-collapse collapse">
       <div class="accordion-body">
-	      <code style="white-space: pre-wrap">{{case_params|e}}</code>
+	      <code style="white-space: pre-wrap">{{scase['spec']|e}}</code>
       </div>
     </div>
   </div>

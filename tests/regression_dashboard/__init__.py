@@ -28,6 +28,15 @@ def encode_case_id(case_id):
     """
     return case_id.replace(' ', '_').replace('/', '_')
 
+def list_subcases(case):
+    return [{
+        'id': case_id,
+        'id_enc': encode_case_id(case_id),
+        'spec': json.dumps(case_params, indent=4),
+        }
+        for case_id, case_params in case.get_params()
+        ]
+
 @app.route('/case/<case_name>')
 def _case(case_name):
     """
@@ -40,10 +49,7 @@ def _case(case_name):
         abort(404)
 
     return render_template('case.html', case=case_name,
-            subcases=[
-                (case_id, encode_case_id(case_id), json.dumps(case_params, indent=4))
-                for case_id, case_params in case.get_params()
-                ],
+            subcases=list_subcases(case),
             cases=list(cases))
 
 @app.route('/model/<case_name>/<path:case_id_enc>')
@@ -86,8 +92,8 @@ def _model(case_name, case_id_enc):
     # FIXME: we want to print the same thing than in '_case' here
     # spec = cases[case_name].model_unique_names[model_name]
 
-    return render_template('model.html', case_id=case_id,
+    return render_template('model.html', case_id=case_id, case_name=case_name,
             cases=list(cases), spec=json.dumps(case_params, indent=4),
             figures=figs,
-            #models=cases[case_name].model_unique_names
+            subcases=list_subcases(case),
             )
