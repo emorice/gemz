@@ -9,9 +9,9 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-from gemz.cases import BaseCase, PerModelCase, Output
-from gemz.models import ModelSpec
+from gemz.cases import PerModelCase, Output
 from gemz import Model
+from gemz.model import EachIndex
 
 class LinHet(PerModelCase):
     """
@@ -42,6 +42,7 @@ class LinHet(PerModelCase):
                 },
             'cond1': {
                 'block': 'block',
+                'loo': 'loo',
                 },
             'model': self.model_unique_names,
             }
@@ -77,13 +78,28 @@ class LinHet(PerModelCase):
         params = { key: val for key, _, val in case_params }
 
         case_data = self.gen_data(output, case_params)
+        len0, len1 = np.shape(case_data)
 
         spec = params['model']
         out = {}
 
+        if params['cond0'] == 'block':
+            cond0 = slice(len0 // 2, None)
+        elif params['cond0'] == 'loo':
+            cond0 = EachIndex
+        else:
+            raise NotImplementedError('cond0', params['cond0'])
+
+        if params['cond1'] == 'block':
+            cond1 = slice(len1 // 2, None)
+        elif params['cond1'] == 'loo':
+            cond1 = EachIndex
+        else:
+            raise NotImplementedError('cond1', params['cond1'])
+
         conditional =  (
             Model.from_spec(spec)
-            .condition[1, self.high_train:](case_data)
+            .condition[cond0, cond1](case_data)
             )
         out['conditional'] = conditional
 
