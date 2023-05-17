@@ -6,7 +6,7 @@ High-level routines not tied to a specific model
 
 import numpy as np
 
-from test_models import data
+from test_models import data, unsplit_data
 
 from gemz import models
 
