@@ -100,8 +100,8 @@ class SingleTensorContainer(TensorContainer):
 
     def __getitem__(self, indexes):
         masks = tuple(
-                ind.to_mask(length)
-                for ind, length in zip(indexes, np.shape(self.tensor))
+                as_index(ind_like).to_mask(length)
+                for ind_like, length in zip(indexes, np.shape(self.tensor))
                 )
         return self.tensor[np.ix_(*masks)]
 
@@ -148,7 +148,7 @@ class Model:
         return module.make_model(spec)
 
     @property
-    def condition(self):
+    def conditional(self):
         """
         Return an indexable and callable object for convenient specification of conditional
         tasks
@@ -158,6 +158,48 @@ class Model:
     def _condition(self, unobserved_indexes, data):
         """
         Model-specific implementation of conditionals
+
+        This attempts to use pattern-specific implementations if available, and
+        raises if they are not. If a subclass has a generic implementation, it
+        should either try it before calling super or catch the
+        NotImplementedError raised by super.
+        """
+        if len(unobserved_indexes) == 2:
+            ind0, ind1 = unobserved_indexes
+            if ind0 is EachIndex:
+                if ind1 is EachIndex:
+                    return self._condition_loo_loo(unobserved_indexes, data)
+                return self._condition_loo_block(unobserved_indexes, data)
+            if ind1 is EachIndex:
+                return self._condition_block_loo(unobserved_indexes, data)
+            return self._condition_block_block(unobserved_indexes, data)
+        raise NotImplementedError
+
+    def _condition_loo_loo(self, unobserved_indexes, data):
+        """
+        Specialized conditionner for LOO conditioning on both axes of a matrix
+        distribution
+        """
+        raise NotImplementedError
+
+    def _condition_block_loo(self, unobserved_indexes, data):
+        """
+        Specialized conditionner for LOO conditioning on the second axis of a
+        matrix distribution
+        """
+        raise NotImplementedError
+
+    def _condition_loo_block(self, unobserved_indexes, data):
+        """
+        Specialized conditionner for LOO conditioning on the first axis of a
+        matrix distribution
+        """
+        raise NotImplementedError
+
+    def _condition_block_block(self, unobserved_indexes, data):
+        """
+        Specialized conditionner for non-loo conditioning of a
+        matrix distribution
         """
         raise NotImplementedError
 

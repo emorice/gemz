@@ -10,20 +10,29 @@ import pytest
 import numpy as np
 
 import gemz
+from gemz.model import Model, EachIndex
 
 # pylint: disable=redefined-outer-name
 
 @pytest.fixture
-def data():
+def unsplit_data():
     """
     Rank one matrix with some added noise
     """
     # 11 obs 20 vars train, 15 obs 20 vars test
     shape = (11 + 15, 20)
-    return np.split(
+
+    return (
         np.ones(shape) +
-        np.random.default_rng(0).normal(size=shape),
-        [11])
+        np.random.default_rng(0).normal(size=shape)
+        )
+
+@pytest.fixture
+def data(unsplit_data):
+    """
+    Same data but already split into two train and test arrays along axis 0
+    """
+    return np.split(unsplit_data, [11])
 
 model_specs = [
     { 'model': 'linear' },
@@ -71,3 +80,27 @@ def test_fit_predict_null(data, model_spec):
     predictions = gemz.models.predict_loo(model_spec, fit, test)
 
     assert predictions.shape == test.shape
+
+@pytest.mark.parametrize('model_spec', model_specs[:1], ids=model_id)
+def test_block_loo(unsplit_data, model_spec):
+    """
+    Block-loo conditional matches naive iterated block-block
+    """
+    data = unsplit_data
+    len0, len1 = np.shape(data)
+
+    len_obs0 = len0 // 2
+
+    model = gemz.model.Model.from_spec(model_spec)
+
+    block_means = np.zeros((len0 - len_obs0, len1))
+
+    for jcol in range(len1):
+        block_means[:, [jcol]] = model.conditional[len_obs0:, jcol](data).mean
+
+    loo_means = model.conditional[len_obs0:, EachIndex](data).mean
+
+    np.testing.assert_allclose(block_means, loo_means)
+    for stat in ['min', 'median', 'mean', 'max']:
+        print('abs', stat, getattr(np, stat)(np.abs(block_means - loo_means)))
+        print('rel', stat, getattr(np, stat)(np.abs(block_means - loo_means) * 2. / np.abs(block_means + loo_means)))

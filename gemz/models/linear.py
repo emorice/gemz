@@ -81,11 +81,30 @@ class LinearModel(Model):
     """
     Linear model, unregularized, without uncertainties
     """
-    def _condition(self, unobserved_indexes, data):
+    def _condition_block_block(self, unobserved_indexes, data):
         rows, cols = unobserved_indexes
         mean = (data[rows, ~cols] @ np.linalg.pinv(data[~rows, ~cols])
                 @ data[~rows, cols])
         return PointDistribution(mean)
+
+    def _condition_block_loo(self, unobserved_indexes, data):
+        # Naming: n: observed rows, m: new rows, p: columns
+        rows, _cols = unobserved_indexes
+        data_np = data[~rows, :]
+        data_mp = data[rows, :]
+
+        pinv_pn = np.linalg.pinv(data_np)
+        nerr_p = np.sum(pinv_pn * data_np.T, -1)
+        scale_p = 1. / (1. - nerr_p)
+
+        mean_mp = (
+            (data_mp @ data_np.T) @ pinv_pn.T
+            - data_mp * nerr_p
+            ) * scale_p
+
+        # Fixme: this isn't actually a mp-dimensional distribution, it's p
+        # distinct m-dimensional distributions corresponding to p conditionals
+        return PointDistribution(mean_mp)
 
 make_model = LinearModel
 
