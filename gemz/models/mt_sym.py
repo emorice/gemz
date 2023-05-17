@@ -142,7 +142,7 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
 # Interface V2
 
 class StdMatrixT(Model):
-    def _condition(self, unobserved_indexes, data):
+    def _condition_block_block(self, unobserved_indexes, data):
         rows, cols = unobserved_indexes
         comp = data[~rows, ~cols]
         reg_pinv = np.linalg.solve(comp @ comp.T + np.eye(comp.shape[0]), comp).T

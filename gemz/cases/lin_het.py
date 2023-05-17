@@ -10,8 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from gemz.cases import PerModelCase, Output
-from gemz import Model
-from gemz.model import EachIndex
+from gemz.model import EachIndex, Model
 
 class LinHet(PerModelCase):
     """
@@ -99,7 +98,7 @@ class LinHet(PerModelCase):
 
         conditional =  (
             Model.from_spec(spec)
-            .condition[cond0, cond1](case_data)
+            .conditional[cond0, cond1](case_data)
             )
         out['conditional'] = conditional
 
