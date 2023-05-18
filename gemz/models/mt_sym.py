@@ -13,6 +13,8 @@ from gemz.jax.linalg import ScaledIdentity
 from gemz.model import ModelSpec, Model, PointDistribution
 from . import methods
 
+from .linear import block_loo_mean
+
 class Method:
     """
     Prototype interface for methods
@@ -141,6 +143,13 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
 
 # Interface V2
 
+def std_ginv(matrix):
+    """
+    Regularized pseudo inverse
+    """
+    low_inv = np.linalg.inv(matrix @ matrix.T + np.eye(np.shape(matrix)[0]))
+    return matrix.T @ low_inv
+
 class StdMatrixT(Model):
     def _condition_block_block(self, unobserved_indexes, data):
         rows, cols = unobserved_indexes
@@ -149,5 +158,7 @@ class StdMatrixT(Model):
         return PointDistribution(
                 data[rows, ~cols] @ reg_pinv @ data[~rows, cols]
                 )
+    def _condition_block_loo(self, unobserved_indexes, data):
+        return block_loo_mean(unobserved_indexes, data, std_ginv)
 
 make_model = StdMatrixT
