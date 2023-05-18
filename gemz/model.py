@@ -44,7 +44,22 @@ class SliceIndex(Index):
 
         return (indexes >= start) & (indexes < stop)
 
-def as_index(index_like) -> Index:
+class _EachIndexT(Index):
+    """
+    Special indexing constant type meant to be used as singleton
+
+    When used to condition a distribution, indicates that the distribution should be
+    conditioned on all but each index of the considered axis in turn, yielding a
+    family of conditional distributions
+    """
+    def __repr__(self):
+        return 'EachIndex'
+
+EachIndex = _EachIndexT()
+
+IndexLike = Index | slice | int
+
+def as_index(index_like: IndexLike) -> Index:
     """
     Wrap index_like object into an index
     """
@@ -58,17 +73,6 @@ def as_index(index_like) -> Index:
             return SliceIndex(slice(index_like, index_like+1))
 
     raise NotImplementedError(index_like)
-
-class _EachIndexT(Index):
-    """
-    Special indexing constant type mean to be used as singleton
-
-    When used to condition a distribution, indicates that the distribution should be
-    conditioned on all but each index of the considered axis in turn, yielding a
-    family of conditional distributions
-    """
-
-EachIndex = _EachIndexT()
 
 @dataclass
 class InvIndex(Index):

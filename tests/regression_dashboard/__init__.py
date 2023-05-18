@@ -28,11 +28,18 @@ def encode_case_id(case_id):
     """
     return case_id.replace(' ', '_').replace('/', '_')
 
+def dump_pydoc(doc):
+    """
+    Pre-formatted json dump of an object with fallbakc to python repr for
+    non-json types
+    """
+    return json.dumps(doc, indent=4, default=repr)
+
 def list_subcases(case):
     return [{
         'id': case_id,
         'id_enc': encode_case_id(case_id),
-        'spec': json.dumps(case_params, indent=4),
+        'spec': dump_pydoc(case_params),
         }
         for case_id, case_params in case.get_params()
         ]
@@ -93,7 +100,8 @@ def _model(case_name, case_id_enc):
     # spec = cases[case_name].model_unique_names[model_name]
 
     return render_template('model.html', case_id=case_id, case_name=case_name,
-            cases=list(cases), spec=json.dumps(case_params, indent=4),
+            cases=list(cases),
+            spec=dump_pydoc(case_params),
             figures=figs,
             subcases=list_subcases(case),
             )

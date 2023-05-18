@@ -10,7 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from gemz.cases import PerModelCase, Output
-from gemz.model import EachIndex, Model
+from gemz.model import EachIndex, Model, IndexLike
 
 class LinHet(PerModelCase):
     """
@@ -37,11 +37,11 @@ class LinHet(PerModelCase):
                 #'nonlinear': True
                 },
             'cond0': {
-                'block': 'block',
+                'block': self.make_index('block', self.low_dim)
                 },
             'cond1': {
-                'block': 'block',
-                'loo': 'loo',
+                'block': self.make_index('block', self.high_dim),
+                'loo'  : self.make_index('loo', self.high_dim),
                 },
             'model': self.model_unique_names,
             }
@@ -72,29 +72,28 @@ class LinHet(PerModelCase):
             yield f'{self.name} {printable}', triplets
 
 
+    def make_index(self, param: str, length: int) -> IndexLike:
+        """
+        Create an index-like object matching the param string: either a slice
+        to the second half of the axis if 'block' or EachIndex for 'loo'
+        """
+        if param == 'block':
+            return slice(length // 2, None)
+        if param == 'loo':
+            return EachIndex
+        raise NotImplementedError(param)
+
     def __call__(self, output: Output, case_params) -> None:
         _params_printable = { key: name for key, name, _ in case_params }
         params = { key: val for key, _, val in case_params }
 
         case_data = self.gen_data(output, case_params)
-        len0, len1 = np.shape(case_data)
 
         spec = params['model']
         out = {}
 
-        if params['cond0'] == 'block':
-            cond0 = slice(len0 // 2, None)
-        elif params['cond0'] == 'loo':
-            cond0 = EachIndex
-        else:
-            raise NotImplementedError('cond0', params['cond0'])
-
-        if params['cond1'] == 'block':
-            cond1 = slice(len1 // 2, None)
-        elif params['cond1'] == 'loo':
-            cond1 = EachIndex
-        else:
-            raise NotImplementedError('cond1', params['cond1'])
+        cond0 = params['cond0']
+        cond1 = params['cond1']
 
         conditional =  (
             Model.from_spec(spec)
@@ -130,12 +129,31 @@ class LinHet(PerModelCase):
 
         return data
 
-    def _add_figures(self, output: Output, data, params, model_out):
+    def make_union_slice(self, index: IndexLike):
+        """
+        Convert index to a slice covering all values appearing in index
+        """
+        if isinstance(index, slice):
+            return index
+        if index is EachIndex:
+            return slice(None)
+        raise NotImplementedError
+
+    def _add_figures(self, output: Output, data, case_params, model_out):
+        # todo: dedup
+        params = { key: val for key, _, val in case_params }
+
+        is_test_col = self.make_union_slice(params['cond1'])
+
+        truth_x = data[0, is_test_col]
+        truth_y = data[1, is_test_col]
+
+        # means is a 1 x n_test_columns matrix
+        pred_y = model_out['means'][0]
+
         output.add_figure(
                 go.Figure(data=[
-                    go.Scatter(x=data[0, self.high_train:], y=data[1, self.high_train:],
-                        mode='markers', name='data'),
-                    go.Scatter(x=data[0, self.high_train:], y=model_out['means'][0],
-                        mode='markers', name='predictions')
+                    go.Scatter(x=truth_x, y=truth_y, mode='markers', name='data'),
+                    go.Scatter(x=truth_x, y=pred_y, mode='markers', name='predictions')
                     ])
                 )
