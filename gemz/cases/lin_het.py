@@ -28,6 +28,10 @@ class LinHet(PerModelCase):
                 'low_dim': 2,
                 #'high_dim': 100,
                 },
+            'centered': {
+                'centered': True,
+                'noncentered': False,
+                },
             'heterogeneity': {
                 'homo': False,
                 #'het': True
@@ -113,6 +117,9 @@ class LinHet(PerModelCase):
         """
         Generate a deterministic toy data set conforming to case_params
         """
+        # todo: dedup
+        params = { key: val for key, _, val in case_params }
+
         # TODO: actually honor case_params
 
         spectrum = np.array([1., .1])
@@ -124,6 +131,9 @@ class LinHet(PerModelCase):
         innovations = rng.normal(size=(self.low_dim, self.high_dim))
 
         data = ((ortho * spectrum) @ ortho.T) @ innovations
+
+        if not params['centered']:
+            data += rng.normal(size=(self.low_dim, 1))
 
         output.add_figure(px.scatter(x=data[0], y=data[1]))
 
