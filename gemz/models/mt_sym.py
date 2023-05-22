@@ -13,7 +13,7 @@ from gemz.jax.linalg import ScaledIdentity
 from gemz.model import ModelSpec, Model, PointDistribution
 from . import methods
 
-from .linear import block_loo_mean
+from .linear import block_loo_mean, add_constant
 
 class Method:
     """
@@ -161,4 +161,4 @@ class StdMatrixT(Model):
     def _condition_block_loo(self, unobserved_indexes, data):
         return block_loo_mean(unobserved_indexes, data, std_ginv)
 
-make_model = StdMatrixT
+make_model = add_constant(StdMatrixT)
