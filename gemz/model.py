@@ -87,6 +87,18 @@ class InvIndex(Index):
     def __invert__(self):
         return self.index
 
+@dataclass
+class IndexTuple(Index):
+    """
+    Tuple of other indexes, meant to index logically stacked tensors
+    """
+    indexes: tuple[Index, ...]
+
+    def __invert__(self):
+        return IndexTuple(tuple(
+            ~index for index in self.indexes
+            ))
+
 class TensorContainer:
     """
     Container object meant to work with indexes
@@ -108,6 +120,28 @@ class SingleTensorContainer(TensorContainer):
                 for ind_like, length in zip(indexes, np.shape(self.tensor))
                 )
         return self.tensor[np.ix_(*masks)]
+
+    @property
+    def shape(self):
+        return self.tensor.shape
+
+@dataclass
+class VstackTensorContainer(TensorContainer):
+    """
+    Container representing several other containers, vertically stacked
+    """
+    containers: tuple[TensorContainer]
+
+    def __getitem__(self, indexes):
+        if len(indexes) != 2:
+            raise NotImplementedError
+        rows, cols = indexes
+        if not isinstance(rows, IndexTuple):
+            raise ValueError('Row index for vertical tensor stack must be '
+                'IndexTuple, got ' + repr(rows))
+        arrays = [ container[cont_rows, cols]
+                for container, cont_rows in zip(self.containers, rows.indexes) ]
+        return np.vstack(arrays)
 
 def as_tensor_container(tensor_like):
     """

@@ -5,7 +5,10 @@ Simple linear predictions.
 import numpy as np
 
 from gemz import linalg
-from gemz.model import Model, PointDistribution
+from gemz.model import (
+        Model, PointDistribution, VstackTensorContainer,
+        as_tensor_container, IndexTuple, as_index
+        )
 
 from . import methods
 from .methods import ModelSpec
@@ -112,7 +115,33 @@ class LinearModel(Model):
     def _condition_block_loo(self, unobserved_indexes, data):
         return block_loo_mean(unobserved_indexes, data, np.linalg.pinv)
 
-make_model = LinearModel
+class AddedConstantModel(Model):
+    """
+    Wraps an other model, adding a constant row to the data and conditionning
+    automatically on it
+    """
+    def __init__(self, spec, inner_model):
+        self.inner_model = inner_model
+        super().__init__(spec)
+
+    def _condition(self, unobserved_indexes, data):
+        _n_rows, n_cols = data.shape
+        augmented_data = VstackTensorContainer((
+            as_tensor_container(np.ones((1, n_cols))), data
+            ))
+        rows, cols = unobserved_indexes
+        augmented_rows = IndexTuple((as_index(slice(0, 0)), rows))
+        return self.inner_model._condition(
+                (augmented_rows, cols),
+                augmented_data)
+
+def add_constant(model_class):
+    def _make(spec):
+        inner = model_class(spec)
+        return AddedConstantModel(spec, inner)
+    return _make
+
+make_model = add_constant(LinearModel)
 
 # Older reference implementations
 # ===============================
