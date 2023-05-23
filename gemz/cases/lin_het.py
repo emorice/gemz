@@ -38,7 +38,7 @@ class LinHet(PerModelCase):
                 },
             'nonlinearity': {
                 'linear': False,
-                #'nonlinear': True
+                'nonlinear': True
                 },
             'cond0': {
                 'block': self.make_index('block', self.low_dim)
@@ -122,15 +122,24 @@ class LinHet(PerModelCase):
 
         # TODO: actually honor case_params
 
+        if params['nonlinearity']:
+            num_classes = 2
+        else:
+            num_classes = 1
+
         spectrum = np.array([1., .1])
 
         rng = np.random.default_rng(0)
 
-        ortho, _ = np.linalg.qr(rng.normal(size=(self.low_dim, self.low_dim)))
+        classes_p = rng.choice(num_classes, size=self.high_dim)
 
-        innovations = rng.normal(size=(self.low_dim, self.high_dim))
+        ortho_knn, _ = np.linalg.qr(rng.normal(size=(num_classes, self.low_dim, self.low_dim)))
 
-        data = ((ortho * spectrum) @ ortho.T) @ innovations
+        innovations_np = rng.normal(size=(self.low_dim, self.high_dim))
+
+        data_knp = ((ortho_knn * spectrum) @ np.swapaxes(ortho_knn, -1, -2)) @ innovations_np
+
+        data = np.take_along_axis(data_knp, classes_p[None, None, :], 0)[0]
 
         if not params['centered']:
             data += rng.normal(size=(self.low_dim, 1))
