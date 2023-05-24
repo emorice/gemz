@@ -6,7 +6,7 @@
 	<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">All subcases</a>
 	<ul class="dropdown-menu">
 		{% for case in subcases %}
-		<li><a class="dropdown-item"
+		<li><a class="dropdown-item {% if case['active'] %} active {% endif %}"
 				href="/model/{{case_name}}/{{case['id_enc']}}">{{case['id']}}</a></li>
 		{% endfor %}
 	</ul>

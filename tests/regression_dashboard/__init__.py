@@ -35,11 +35,12 @@ def dump_pydoc(doc):
     """
     return json.dumps(doc, indent=4, default=repr)
 
-def list_subcases(case):
+def list_subcases(case, active_case_id=None):
     return [{
         'id': case_id,
         'id_enc': encode_case_id(case_id),
         'spec': dump_pydoc(case_params),
+        'active': case_id == active_case_id
         }
         for case_id, case_params in case.get_params()
         ]
@@ -103,5 +104,5 @@ def _model(case_name, case_id_enc):
             cases=list(cases),
             spec=dump_pydoc(case_params),
             figures=figs,
-            subcases=list_subcases(case),
+            subcases=list_subcases(case, case_id),
             )
