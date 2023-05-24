@@ -118,7 +118,7 @@ class LinHet(PerModelCase):
         Generate a deterministic toy data set conforming to case_params
         """
         # todo: dedup
-        params = { key: val for key, _, val in case_params }
+        params = { key: val for key, _printable, val in case_params }
 
         # TODO: actually honor case_params
 
@@ -131,22 +131,28 @@ class LinHet(PerModelCase):
 
         rng = np.random.default_rng(0)
 
+        # Affect random classes
         classes_p = rng.choice(num_classes, size=self.high_dim)
 
+        # Draw covariance and mean for each class
         ortho_knn, _ = np.linalg.qr(rng.normal(size=(num_classes, self.low_dim, self.low_dim)))
+
+        if not params['centered']:
+            means_kn1 = rng.normal(size=(num_classes, self.low_dim, 1))
+        else:
+            means_kn1 = np.zeros((1, 1, 1))
 
         innovations_np = rng.normal(size=(self.low_dim, self.high_dim))
 
-        data_knp = ((ortho_knn * spectrum) @ np.swapaxes(ortho_knn, -1, -2)) @ innovations_np
+        innovations_knp = innovations_np + 3.* means_kn1
 
-        data = np.take_along_axis(data_knp, classes_p[None, None, :], 0)[0]
+        data_knp = ((ortho_knn * spectrum) @ np.swapaxes(ortho_knn, -1, -2)) @ innovations_knp
 
-        if not params['centered']:
-            data += rng.normal(size=(self.low_dim, 1))
+        data_np = np.take_along_axis(data_knp, classes_p[None, None, :], 0)[0]
 
-        output.add_figure(px.scatter(x=data[0], y=data[1]))
+        output.add_figure(px.scatter(x=data_np[0], y=data_np[1]))
 
-        return data
+        return data_np
 
     def make_union_slice(self, index: IndexLike):
         """
