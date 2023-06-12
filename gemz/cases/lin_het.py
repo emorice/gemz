@@ -185,7 +185,21 @@ class LinHet(PerModelCase):
                     go.Scatter(x=truth_x, y=pred_y, mode='markers', name='predictions')
                     ],
                     layout={
-                        'title': 'Predicted mean and ground truth'
+                        'title': 'Predicted mean and ground truth',
+                        'yaxis.title': 'Predicted value',
+                        'xaxis.title': 'First predictor'
+                        })
+                )
+
+        output.add_figure(
+                go.Figure(data=[
+                    go.Scatter(x=truth_y, y=truth_y, name='Expected'),
+                    go.Scatter(x=truth_y, y=pred_y, mode='markers', name='Predicted'),
+                    ],
+                    layout={
+                        'title': 'Predicted mean vs ground truth',
+                        'xaxis.title': 'Orignal values',
+                        'yaxis.title': 'Predicted values'
                         })
                 )
 
