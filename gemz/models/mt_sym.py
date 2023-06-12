@@ -10,10 +10,10 @@ from numpy.typing import ArrayLike
 from gemz.jax_utils import maximize, Bijector, Exp
 from gemz.stats.matrixt import NonCentralMatrixT
 from gemz.jax.linalg import ScaledIdentity
-from gemz.model import ModelSpec, Model, PointDistribution
+from gemz.model import Model, Distribution
 from . import methods
 
-from .linear import block_loo_mean, add_constant
+from .linear import block_loo, add_constant
 
 class Method:
     """
@@ -155,10 +155,10 @@ class StdMatrixT(Model):
         rows, cols = unobserved_indexes
         comp = data[~rows, ~cols]
         reg_pinv = np.linalg.solve(comp @ comp.T + np.eye(comp.shape[0]), comp).T
-        return PointDistribution(
+        return Distribution(
                 data[rows, ~cols] @ reg_pinv @ data[~rows, cols]
                 )
     def _condition_block_loo(self, unobserved_indexes, data):
-        return block_loo_mean(unobserved_indexes, data, std_ginv)
+        return block_loo(unobserved_indexes, data, 1, std_ginv)
 
 make_model = add_constant(StdMatrixT)

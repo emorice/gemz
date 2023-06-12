@@ -268,12 +268,37 @@ class ConditionMaker:
                 )
 
 @dataclass
-class PointDistribution:
+class Distribution:
     """
-    Trivial distribution encoding the position of a point without any uncertainty or
-    probabilistic information
+    Probabilistic information about a variable
+
+    Attributes:
+        mean: expected value of the variable
+        observed: actual observed value. This is of course not always known, but
+            it is convenient to have a field to store the observed value for the
+            cases where it is known.
+        var: to be defined/renamed
     """
     mean: Any
+    observed: Any = None
+    sf_radial_observed: Any = None
+
+    def sf_radial(self, observed=None):
+        """
+        Survival function function.
+        """
+        if observed is None:
+            return self.sf_radial_observed
+        raise NotImplementedError
+
+    def as_dict(self):
+        """
+        Dictionary of constant attributes
+        """
+        return {
+            'mean': self.mean,
+            'sf_radial': self.sf_radial_observed
+            }
 
 class FitPredictCompat:
     """

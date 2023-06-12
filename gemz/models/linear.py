@@ -3,10 +3,11 @@ Simple linear predictions.
 """
 
 import numpy as np
+import scipy.special as sc
 
 from gemz import linalg
 from gemz.model import (
-        Model, PointDistribution, VstackTensorContainer,
+        Model, Distribution, VstackTensorContainer,
         as_tensor_container, IndexTuple, as_index
         )
 
@@ -80,9 +81,12 @@ def spectrum(data):
 # Interface V2
 # ============
 
-def block_loo_mean(indexes, data, ginv_function):
+def block_loo(indexes, data, dfs, ginv_function):
     """
-    Generic implementation of block-loo conditional mean
+    Generic implementation of block-loo conditional statistics
+
+    Arguments:
+        dfs: prior degrees of freedom
     """
     # Naming: n: observed rows, m: new rows, p: columns
     rows, _cols = indexes
@@ -90,17 +94,39 @@ def block_loo_mean(indexes, data, ginv_function):
     data_mp = data[rows, :]
 
     ginv_pn = ginv_function(data_np)
-    nerr_p = np.sum(ginv_pn * data_np.T, -1)
-    scale_p = 1. / (1. - nerr_p)
+    # The standardized RSS using a non-blind covariance
+    # Because of the leakage, it can't go over 1
+    obs_leaky_rss_p = np.sum(ginv_pn * data_np.T, -1)
+
+    # The blind rss, plus 1
+    onep_rss_p = 1. / (1. - obs_leaky_rss_p)
 
     mean_mp = (
         (data_mp @ data_np.T) @ ginv_pn.T
-        - data_mp * nerr_p
-        ) * scale_p
+        - data_mp * obs_leaky_rss_p
+        ) * onep_rss_p
 
+
+
+    n_obs_rows, n_cols = np.shape(data_np)
+    n_new_rows, _ = np.shape(data_mp)
+
+    data_ap = np.vstack((data_np, data_mp))
+    ginv_pa = ginv_function(data_ap)
+    joint_leaky_rss_p = np.sum(ginv_pa * data_ap.T, -1)
+
+    sf_beta_quantile_p = (1. - joint_leaky_rss_p) / (1. - obs_leaky_rss_p)
+    sf_p = sc.betainc(
+            .5 * (dfs + n_obs_rows + n_cols - 1),
+            .5 * n_new_rows,
+            sf_beta_quantile_p
+            )
     # Fixme: this isn't actually a mp-dimensional distribution, it's p
     # distinct m-dimensional distributions corresponding to p conditionals
-    return PointDistribution(mean_mp)
+    return Distribution(
+            mean=mean_mp,
+            sf_radial_observed=sf_p,
+            )
 
 class LinearModel(Model):
     """
@@ -110,17 +136,17 @@ class LinearModel(Model):
         rows, cols = unobserved_indexes
         mean = (data[rows, ~cols] @ np.linalg.pinv(data[~rows, ~cols])
                 @ data[~rows, cols])
-        return PointDistribution(mean)
+        return Distribution(mean)
 
     def _condition_block_loo(self, unobserved_indexes, data):
-        return block_loo_mean(unobserved_indexes, data, np.linalg.pinv)
+        return block_loo(unobserved_indexes, data, 0, np.linalg.pinv)
 
 class AddedConstantModel(Model):
     """
     Wraps an other model, adding a constant row to the data and conditionning
     automatically on it
     """
-    def __init__(self, spec, inner_model):
+    def __init__(self, spec: ModelSpec, inner_model: Model):
         self.inner_model = inner_model
         super().__init__(spec)
 
