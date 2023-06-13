@@ -81,7 +81,13 @@ def test_fit_predict_null(data, model_spec):
 
     assert predictions.shape == test.shape
 
-@pytest.mark.parametrize('model_spec', [model_specs[0], model_specs[15]], ids=model_id)
+# Some specs are shared but the models have fundamentally different interfaces
+model_specs_v2 = [
+    { 'model': 'linear' },
+    { 'model': 'mt_std' },
+    { 'model': 'mt_sym', 'scale': 10. },
+    ]
+@pytest.mark.parametrize('model_spec', model_specs_v2, ids=model_id)
 def test_block_loo(unsplit_data, model_spec):
     """
     Block-loo conditional matches naive iterated block-block
