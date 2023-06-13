@@ -17,9 +17,9 @@ _METHODS : dict[str, Any] = {}
 
 def get(name: str):
     """
-    Returns a model by name
+    Returns a model by name or None on unregistered model
     """
-    return _METHODS[name]
+    return _METHODS.get(name)
 
 def add(name: str):
     """

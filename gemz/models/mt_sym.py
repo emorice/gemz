@@ -10,10 +10,10 @@ from numpy.typing import ArrayLike
 from gemz.jax_utils import maximize, Bijector, Exp
 from gemz.stats.matrixt import NonCentralMatrixT
 from gemz.jax.linalg import ScaledIdentity
-from gemz.model import Model, Distribution
+from gemz.model import Model, ModelSpec, Distribution
 from . import methods
 
-from .linear import block_loo, add_constant
+from .linear import block_loo, add_constant, ScaledModel, AddedConstantModel
 
 class Method:
     """
@@ -161,4 +161,22 @@ class StdMatrixT(Model):
     def _condition_block_loo(self, unobserved_indexes, data):
         return block_loo(unobserved_indexes, data, 1, std_ginv)
 
-make_model = add_constant(StdMatrixT)
+make_shifted_mt = add_constant(StdMatrixT)
+
+def make_model(spec: ModelSpec):
+    """
+    Create a variant of a matrix-t model according to spec
+    """
+    if spec['model'] == 'mt_std':
+        return make_shifted_mt(spec)
+    if spec['model'] == 'mt_sym':
+        return ScaledModel(
+                spec=spec,
+                inner_model=AddedConstantModel(
+                    spec=spec,
+                    inner_model=StdMatrixT(spec)
+                    ),
+                scale=spec['scale']
+                )
+
+    raise ValueError(f'No such model {spec["model"]}')

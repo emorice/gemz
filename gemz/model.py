@@ -125,6 +125,10 @@ class SingleTensorContainer(TensorContainer):
     def shape(self):
         return self.tensor.shape
 
+    def __mul__(self, other):
+        return SingleTensorContainer(self.tensor * other)
+
+
 @dataclass
 class VstackTensorContainer(TensorContainer):
     """
@@ -155,6 +159,7 @@ def as_tensor_container(tensor_like):
 
 MODULES = {
     'linear': 'gemz.models.linear',
+    'mt_std': 'gemz.models.mt_sym',
     'mt_sym': 'gemz.models.mt_sym',
     }
 """

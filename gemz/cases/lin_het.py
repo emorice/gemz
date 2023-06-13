@@ -53,7 +53,8 @@ class LinHet(PerModelCase):
     def model_specs(self):
         return [
                 {'model': 'linear'},
-                {'model': 'mt_sym'}
+                {'model': 'mt_std'},
+                {'model': 'mt_sym', 'scale': 10.},
                 ]
 
 

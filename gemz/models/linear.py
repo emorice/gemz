@@ -161,6 +161,30 @@ class AddedConstantModel(Model):
                 (augmented_rows, cols),
                 augmented_data)
 
+class ScaledModel(Model):
+    """
+    Wraps an other model, scaling the data
+
+    The logic is that if the wrapped model is some "standard" model, the scaled
+    model should be appropriate for model with scale "scale". Thus, input data
+    is divided by the scale to get the inner model data, and inner model
+    predictions, conversely, get multiplied by the scale.
+    """
+    def __init__(self, spec: ModelSpec, inner_model: Model, scale: float):
+        self.inner_model = inner_model
+        self.scale = scale
+        self.inv_scale = 1.0 / scale
+        super().__init__(spec)
+
+    def _condition(self, unobserved_indexes, data):
+        cond = self.inner_model._condition(unobserved_indexes, data * self.inv_scale)
+        return Distribution(
+                # Scaled
+                mean=cond.mean * self.scale,
+                # Unchanged under scaling
+                sf_radial_observed=cond.sf_radial_observed
+                )
+
 def add_constant(model_class):
     def _make(spec):
         inner = model_class(spec)
