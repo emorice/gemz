@@ -144,12 +144,14 @@ class SymmetricMatrixT(MaximumPseudoLikelihood):
 
 # Interface V2
 
-def std_ginv(matrix):
+def std_ginv_logdet(matrix):
     """
-    Regularized pseudo inverse
+    Regularized pseudo inverse and det
     """
-    low_inv = np.linalg.inv(matrix @ matrix.T + np.eye(np.shape(matrix)[0]))
-    return matrix.T @ low_inv
+    reg_gram = matrix @ matrix.T + np.eye(np.shape(matrix)[0])
+    low_inv = np.linalg.inv(reg_gram)
+    _, logdet = np.linalg.slogdet(reg_gram)
+    return low_inv @ matrix, logdet
 
 class StdMatrixT(Model):
     """
@@ -159,11 +161,13 @@ class StdMatrixT(Model):
         rows, cols = unobserved_indexes
         comp = data[~rows, ~cols]
         reg_pinv = np.linalg.solve(comp @ comp.T + np.eye(comp.shape[0]), comp).T
+        mean = data[rows, ~cols] @ reg_pinv @ data[~rows, cols]
         return Distribution(
-                data[rows, ~cols] @ reg_pinv @ data[~rows, cols]
+                mean=mean,
+                total_dims=mean.size
                 )
     def _condition_block_loo(self, unobserved_indexes, data):
-        return block_loo(unobserved_indexes, data, 1, std_ginv)
+        return block_loo(unobserved_indexes, data, 1, std_ginv_logdet)
 
 def make_model(spec: ModelSpec):
     """

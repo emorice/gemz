@@ -283,10 +283,15 @@ class Distribution:
             it is convenient to have a field to store the observed value for the
             cases where it is known.
         var: to be defined/renamed
+        total_dims: product of the dimensions spanned by the distribution
     """
     mean: Any
     observed: Any = None
     sf_radial_observed: Any = None
+    # We use nan such that applying transformation formulas to pdf needs not
+    # differentiating None / non-None case
+    logpdf_observed: Any = np.nan
+    total_dims: Any = None
 
     def sf_radial(self, observed=None):
         """
@@ -296,13 +301,22 @@ class Distribution:
             return self.sf_radial_observed
         raise NotImplementedError
 
+    def logpdf(self, observed=None):
+        """
+        Log density function
+        """
+        if observed is None:
+            return self.logpdf_observed
+        raise NotImplementedError
+
     def as_dict(self):
         """
         Dictionary of constant attributes
         """
         return {
             'mean': self.mean,
-            'sf_radial': self.sf_radial_observed
+            'sf_radial': self.sf_radial_observed,
+            'logpdf': self.logpdf_observed,
             }
 
 class FitPredictCompat:

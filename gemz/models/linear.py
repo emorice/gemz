@@ -82,6 +82,28 @@ def spectrum(data):
 # Interface V2
 # ============
 
+def pinv_logdet(array):
+    """
+    Transposed pseudo inverse and square determinant of a rectangular matrix
+    """
+    # Adapted from the numpy implementation of pinv
+
+    rcond = np.array(1e-15)
+    u, s, vt = np.linalg.svd(array, full_matrices=False)
+
+    # discard small singular values
+    cutoff = rcond[..., np.newaxis] * np.amax(s, axis=-1, keepdims=True)
+    large = s > cutoff
+
+    logdet = 2.* np.sum(np.log(s[large]))
+
+    s = np.divide(1, s, where=large, out=s)
+    s[~large] = 0
+
+    pinvt = np.matmul(u * s[..., None, :], vt)
+
+    return pinvt, logdet
+
 def block_loo(indexes, data, dfs, ginv_function):
     """
     Generic implementation of block-loo conditional statistics
@@ -94,16 +116,17 @@ def block_loo(indexes, data, dfs, ginv_function):
     data_np = data[~rows, :]
     data_mp = data[rows, :]
 
-    ginv_pn = ginv_function(data_np)
+    ginv_np, logdet_obs = ginv_function(data_np)
     # The standardized RSS using a non-blind covariance
     # Because of the leakage, it can't go over 1
-    obs_leaky_rss_p = np.sum(ginv_pn * data_np.T, -1)
+    obs_leaky_rss_p = np.sum(ginv_np * data_np, 0)
 
     # The blind rss, plus 1
     onep_rss_p = 1. / (1. - obs_leaky_rss_p)
 
+    # Mean
     mean_mp = (
-        (data_mp @ data_np.T) @ ginv_pn.T
+        (data_mp @ data_np.T) @ ginv_np
         - data_mp * obs_leaky_rss_p
         ) * onep_rss_p
 
@@ -112,9 +135,11 @@ def block_loo(indexes, data, dfs, ginv_function):
     n_obs_rows, n_cols = np.shape(data_np)
     n_new_rows, _ = np.shape(data_mp)
 
+    # SF
+
     data_ap = np.vstack((data_np, data_mp))
-    ginv_pa = ginv_function(data_ap)
-    joint_leaky_rss_p = np.sum(ginv_pa * data_ap.T, -1)
+    ginv_ap, logdet_joint = ginv_function(data_ap)
+    joint_leaky_rss_p = np.sum(ginv_ap * data_ap, 0)
 
     sf_beta_quantile_p = (1. - joint_leaky_rss_p) / (1. - obs_leaky_rss_p)
     sf_p = sc.betainc(
@@ -122,11 +147,27 @@ def block_loo(indexes, data, dfs, ginv_function):
             .5 * n_new_rows,
             sf_beta_quantile_p
             )
+
+    # PDF
+    # FIXME: this does not include the standard constant (which changes with dfs
+    # and shape)
+    n_rows = n_obs_rows + n_new_rows
+    logpdf_p = 0.5 * (
+            + logdet_obs
+            - logdet_joint
+            + (dfs + n_rows + n_cols - 2) * np.log1p(- joint_leaky_rss_p)
+            - (dfs + n_obs_rows + n_cols - 2) * np.log1p(- obs_leaky_rss_p)
+            )
+
     # Fixme: this isn't actually a mp-dimensional distribution, it's p
-    # distinct m-dimensional distributions corresponding to p conditionals
+    # distinct m-dimensional distributions corresponding to p conditionals,
+    # but the Distribution object currently does a poor job of representing that
     return Distribution(
             mean=mean_mp,
             sf_radial_observed=sf_p,
+            logpdf_observed=logpdf_p,
+            # NOT times n_cols, this is a batch of vectors distributions
+            total_dims=n_new_rows,
             )
 
 class LinearModel(Model):
@@ -137,10 +178,10 @@ class LinearModel(Model):
         rows, cols = unobserved_indexes
         mean = (data[rows, ~cols] @ np.linalg.pinv(data[~rows, ~cols])
                 @ data[~rows, cols])
-        return Distribution(mean)
+        return Distribution(mean, total_dims=mean.size)
 
     def _condition_block_loo(self, unobserved_indexes, data):
-        return block_loo(unobserved_indexes, data, 0, np.linalg.pinv)
+        return block_loo(unobserved_indexes, data, 0, pinv_logdet)
 
 def make_model(spec: ModelSpec):
     assert spec == {'model': 'linear'}

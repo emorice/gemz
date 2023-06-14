@@ -56,7 +56,11 @@ class ScaledModel(Model):
                 # Scaled
                 mean=cond.mean * scale,
                 # Unchanged under scaling
-                sf_radial_observed=cond.sf_radial_observed
+                sf_radial_observed=cond.sf_radial_observed,
+                # Change of variable
+                logpdf_observed=cond.logpdf_observed - cond.total_dims * np.log(scale),
+                # Unchanged
+                total_dims=cond.total_dims
                 )
 
     def get_unbound_params(self):
@@ -73,7 +77,7 @@ def logpdf(model, unobserved, data, **params):
     """
     Functional sum of conditional logpdfs
     """
-    return model.conditional[unobserved](data, **params).logpdf().sum()
+    return model.conditional[unobserved](data, **params).logpdf_observed.sum()
 
 class PlugInModel(Model):
     """

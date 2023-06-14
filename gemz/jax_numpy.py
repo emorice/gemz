@@ -96,6 +96,12 @@ class JaxObject:
         """
         return self.wrapped.shape
 
+    def sum(self, *args, **kwargs):
+        """
+        Sum method
+        """
+        return maybe_wrap(self.wrapped.sum(*args, **kwargs))
+
     def __repr__(self):
         return (
             'JaxObject('
