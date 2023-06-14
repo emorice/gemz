@@ -137,7 +137,8 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
 
     # Ensure arrays
     init = { k: jnp.array(v) for k,v in init.items() }
-    data = { k: jnp.array(v) for k,v in data.items() }
+    # other args could be any type ?
+    #data = { k: jnp.array(v) for k,v in data.items() }
 
     if bijectors is None:
         bijectors = {}

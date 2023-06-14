@@ -13,7 +13,8 @@ from gemz.jax.linalg import ScaledIdentity
 from gemz.model import Model, ModelSpec, Distribution
 from . import methods
 
-from .linear import block_loo, add_constant, ScaledModel, AddedConstantModel
+from .linear import block_loo
+from .transformations import PlugInModel, ScaledModel, AddedConstantModel
 
 class Method:
     """
@@ -151,6 +152,9 @@ def std_ginv(matrix):
     return matrix.T @ low_inv
 
 class StdMatrixT(Model):
+    """
+    Standard matrix-t
+    """
     def _condition_block_block(self, unobserved_indexes, data):
         rows, cols = unobserved_indexes
         comp = data[~rows, ~cols]
@@ -161,22 +165,19 @@ class StdMatrixT(Model):
     def _condition_block_loo(self, unobserved_indexes, data):
         return block_loo(unobserved_indexes, data, 1, std_ginv)
 
-make_shifted_mt = add_constant(StdMatrixT)
-
 def make_model(spec: ModelSpec):
     """
     Create a variant of a matrix-t model according to spec
     """
+    shifted = AddedConstantModel(StdMatrixT())
     if spec['model'] == 'mt_std':
-        return make_shifted_mt(spec)
+        return shifted
     if spec['model'] == 'mt_sym':
-        return ScaledModel(
-                spec=spec,
-                inner_model=AddedConstantModel(
-                    spec=spec,
-                    inner_model=StdMatrixT(spec)
-                    ),
-                scale=spec['scale']
-                )
+        scale = spec.get('scale')
+        if scale == 'auto':
+            return PlugInModel(
+                    inner=ScaledModel(shifted)
+                    )
+        return ScaledModel(shifted, scale=scale)
 
     raise ValueError(f'No such model {spec["model"]}')

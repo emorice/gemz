@@ -13,6 +13,7 @@ from gemz.model import (
 
 from . import methods
 from .methods import ModelSpec
+from .transformations import AddedConstantModel
 
 
 # Interface V1
@@ -141,57 +142,10 @@ class LinearModel(Model):
     def _condition_block_loo(self, unobserved_indexes, data):
         return block_loo(unobserved_indexes, data, 0, np.linalg.pinv)
 
-class AddedConstantModel(Model):
-    """
-    Wraps an other model, adding a constant row to the data and conditionning
-    automatically on it
-    """
-    def __init__(self, spec: ModelSpec, inner_model: Model):
-        self.inner_model = inner_model
-        super().__init__(spec)
+def make_model(spec: ModelSpec):
+    assert spec == {'model': 'linear'}
+    return AddedConstantModel(LinearModel())
 
-    def _condition(self, unobserved_indexes, data):
-        _n_rows, n_cols = data.shape
-        augmented_data = VstackTensorContainer((
-            as_tensor_container(np.ones((1, n_cols))), data
-            ))
-        rows, cols = unobserved_indexes
-        augmented_rows = IndexTuple((as_index(slice(0, 0)), rows))
-        return self.inner_model._condition(
-                (augmented_rows, cols),
-                augmented_data)
-
-class ScaledModel(Model):
-    """
-    Wraps an other model, scaling the data
-
-    The logic is that if the wrapped model is some "standard" model, the scaled
-    model should be appropriate for model with scale "scale". Thus, input data
-    is divided by the scale to get the inner model data, and inner model
-    predictions, conversely, get multiplied by the scale.
-    """
-    def __init__(self, spec: ModelSpec, inner_model: Model, scale: float):
-        self.inner_model = inner_model
-        self.scale = scale
-        self.inv_scale = 1.0 / scale
-        super().__init__(spec)
-
-    def _condition(self, unobserved_indexes, data):
-        cond = self.inner_model._condition(unobserved_indexes, data * self.inv_scale)
-        return Distribution(
-                # Scaled
-                mean=cond.mean * self.scale,
-                # Unchanged under scaling
-                sf_radial_observed=cond.sf_radial_observed
-                )
-
-def add_constant(model_class):
-    def _make(spec):
-        inner = model_class(spec)
-        return AddedConstantModel(spec, inner)
-    return _make
-
-make_model = add_constant(LinearModel)
 
 # Older reference implementations
 # ===============================

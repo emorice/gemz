@@ -128,6 +128,8 @@ class SingleTensorContainer(TensorContainer):
     def __mul__(self, other):
         return SingleTensorContainer(self.tensor * other)
 
+    def __truediv__(self, other):
+        return SingleTensorContainer(self.tensor / other)
 
 @dataclass
 class VstackTensorContainer(TensorContainer):
@@ -170,9 +172,6 @@ class Model:
     """
     Unified model interface
     """
-    def __init__(self, spec: ModelSpec):
-        self.spec = spec
-
     @classmethod
     def from_spec(cls, spec: ModelSpec) -> 'Model':
         """
@@ -257,11 +256,11 @@ class ConditionMaker:
         """
         Convenience syntax to condition on slices
         """
-        def condition_bound(data):
-            return self(unobserved_indexes, data)
+        def condition_bound(data, **params):
+            return self(unobserved_indexes, data, **params)
         return condition_bound
 
-    def __call__(self, unobserved_indexes, data):
+    def __call__(self, unobserved_indexes, data, **params):
         """
         Calling the condition property acts as if condition was a regular
         method
@@ -269,7 +268,8 @@ class ConditionMaker:
         # TODO: wrap
         return self.model._condition(
                 tuple(as_index(index_like) for index_like in unobserved_indexes),
-                as_tensor_container(data)
+                as_tensor_container(data),
+                **params
                 )
 
 @dataclass

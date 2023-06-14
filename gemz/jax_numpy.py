@@ -9,8 +9,10 @@ calls.
 
 from functools import partial
 
+import numpy as np
 import jax
 import jax.numpy as jnp
+import jax.scipy.special as jsc
 
 from jax import custom_jvp
 
@@ -45,10 +47,23 @@ class JaxObject:
         if method != "__call__":
             raise NotImplementedError
         ufunc_name = ufunc.__name__
-        return unjaxify(getattr(jnp, ufunc_name))(*args)
+
+        jax_ufunc = getattr(jnp, ufunc_name, None)
+        if jax_ufunc is None: # Try in scipy.special
+            jax_ufunc = getattr(jsc, ufunc_name, None)
+        if jax_ufunc is None:
+            raise NotImplementedError(ufunc_name)
+
+        return unjaxify(jax_ufunc)(*args)
 
     def __array_function__(self, func, _, args, kwargs):
         np_module = func.__module__
+
+        # Special implementations
+        if func is np.vstack:
+            return vstack(*args, **kwargs)
+
+        # Automatic wrapping
         if np_module == 'numpy':
             jax_module = jnp
         elif np_module == 'numpy.linalg':
@@ -101,6 +116,15 @@ class JaxObject:
                     _arrays)
 
         return _imap(*arrays)
+
+def vstack(arrays, **kwargs):
+    """
+    Unjaxified version of jnp.vstack.
+
+    Cannot be handled by @unjaxify because the arrays are nested inside the
+    first argument
+    """
+    return maybe_wrap(jnp.vstack([maybe_unwrap(a) for a in arrays], **kwargs))
 
 @partial(custom_jvp, nondiff_argnums=(0,))
 def _eager_map(function, arrays):

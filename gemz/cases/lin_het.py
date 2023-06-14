@@ -54,7 +54,7 @@ class LinHet(PerModelCase):
         return [
                 {'model': 'linear'},
                 {'model': 'mt_std'},
-                {'model': 'mt_sym', 'scale': 10.},
+                {'model': 'mt_sym', 'scale': 'auto'},
                 ]
 
 
