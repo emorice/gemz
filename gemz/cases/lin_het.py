@@ -9,6 +9,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
+from gemz import diagnostics
 from gemz.cases import PerModelCase, Output
 from gemz.model import EachIndex, Model, IndexLike
 
@@ -112,6 +113,11 @@ class LinHet(PerModelCase):
         out = conditional.as_dict()
 
         self._add_figures(output, case_data, case_params, out)
+
+        # Diagnostic plots
+        output.add_figures(
+            conditional.export_diagnostics(diagnostics.Plotly)
+            )
 
     def gen_data(self, output: Output, case_params):
         """

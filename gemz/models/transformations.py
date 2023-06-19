@@ -2,6 +2,8 @@
 Models wrapping an other model
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from gemz import jax_utils
@@ -125,4 +127,26 @@ class PlugInModel(Model):
 
         opt_params = max_results['opt']
 
-        return self.inner._condition(unobserved_indexes, data, **opt_params)
+        return PlugInDistribution(
+                inner=self.inner._condition(unobserved_indexes, data,
+                    **opt_params),
+                opt_results=max_results,
+                objective_name='Negative pseudo log likelihood'
+                )
+
+
+@dataclass
+class PlugInDistribution:
+    inner: Distribution
+    opt_results: dict
+    objective_name: str
+
+    def as_dict(self):
+        return self.inner.as_dict()
+
+    def export_diagnostics(self, backend):
+        return [
+                backend.optimization_trace(
+                    self.opt_results['hist'], self.objective_name
+                    )
+                ]

@@ -20,3 +20,7 @@ class Output(ABC):
         """
         Add a figure to the output
         """
+
+    def add_figures(self, figures):
+        for fig in figures:
+            self.add_figure(fig)

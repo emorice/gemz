@@ -319,6 +319,9 @@ class Distribution:
             'logpdf': self.logpdf_observed,
             }
 
+    def export_diagnostics(self, backend):
+        return []
+
 class FitPredictCompat:
     """
     Compatibility layer with old fit-predict interface

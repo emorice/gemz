@@ -20,6 +20,7 @@ packages = [
   "gemz.jax.linalg",
   "gemz.stats",
   "gemz.models",
+  "gemz.diagnostics",
 ]
 
 [project.optional-dependencies]
