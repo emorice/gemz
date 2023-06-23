@@ -185,7 +185,7 @@ class LinearModel(Model):
 
 def make_model(spec: ModelSpec):
     assert spec == {'model': 'linear'}
-    return AddedConstantModel(LinearModel())
+    return AddedConstantModel(LinearModel(), offset=1.0)
 
 
 # Older reference implementations

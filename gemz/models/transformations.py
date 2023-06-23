@@ -19,10 +19,17 @@ class AddedConstantModel(TransformedModel):
     Wraps an other model, adding a constant row to the data and conditionning
     automatically on it
     """
-    def _condition(self, unobserved_indexes, data):
+    def __init__(self, inner: Model, **params):
+        super().__init__(inner)
+        self.add_param('offset', jax_utils.RegExp(), 1.0)
+        self.bind_params(**params)
+
+    def _condition(self, unobserved_indexes, data, **params):
+        offset = self.get_params(**params)['offset']
+
         _n_rows, n_cols = data.shape
         augmented_data = VstackTensorContainer((
-            as_tensor_container(np.ones((1, n_cols))), data
+            as_tensor_container(offset * np.ones((1, n_cols))), data
             ))
         rows, cols = unobserved_indexes
         augmented_rows = IndexTuple((as_index(slice(0, 0)), rows))
@@ -44,11 +51,8 @@ class ScaledModel(TransformedModel):
         self.add_param('scale', jax_utils.RegExp(), 1.0)
         self.bind_params(**params)
 
-    def _condition(self, unobserved_indexes, data, scale = None):
-        if scale is None:
-            scale = self.values['scale']
-        if scale is None:
-            raise TypeError('Missing scale')
+    def _condition(self, unobserved_indexes, data, **params):
+        scale = self.get_params(**params)['scale']
 
         cond = self.inner._condition(unobserved_indexes, data / scale)
 

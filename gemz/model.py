@@ -263,10 +263,17 @@ class Model:
         """
         Store value of parameters that have been registered first
         """
-        for key, value in params.items():
-            if key not in self.parameters:
-                raise TypeError(f'No such parameter: {key}')
-            self.values[key] = value
+        self.ensure_declared(params)
+        self.values |= params
+
+    def ensure_declared(self, param_names):
+        """
+        Raise if param_names contains an undeclared parameter
+        """
+        for name in param_names:
+            if name not in self.parameters:
+                raise TypeError(f'No such parameter: {name}'
+                        + f'(valid parameters: {self.parameters})')
 
     def get_unbound_params(self):
         """
@@ -279,6 +286,18 @@ class Model:
                 bijs[name] = self.bijectors[name]
                 inits[name] = self.init[name]
         return inits, bijs
+
+    def get_params(self, **params):
+        """
+        Merge given params with bound values, raising on both missing and extra
+        params
+        """
+        self.ensure_declared(params)
+        merged = self.values | params
+        for name in self.parameters:
+            if name not in merged:
+                raise TypeError(f'Missing parameter: {name}')
+        return merged
 
 
 class TransformedModel(Model):

@@ -173,7 +173,7 @@ def make_model(spec: ModelSpec):
     """
     Create a variant of a matrix-t model according to spec
     """
-    shifted = AddedConstantModel(StdMatrixT())
+    shifted = AddedConstantModel(StdMatrixT(), offset=1.0)
     if spec['model'] == 'mt_std':
         return shifted
     if spec['model'] == 'mt_sym':
