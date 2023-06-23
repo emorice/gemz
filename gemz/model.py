@@ -245,6 +245,59 @@ class Model:
         """
         raise NotImplementedError
 
+    def __init__(self):
+        self.parameters = []
+        self.bijectors = {}
+        self.init = {}
+        self.values = {}
+
+    def add_param(self, name, bijector=None, init=None):
+        """
+        Register a model parameter
+        """
+        self.parameters.append(name)
+        self.bijectors[name] = bijector
+        self.init[name] = init
+
+    def bind_params(self, **params):
+        """
+        Store value of parameters that have been registered first
+        """
+        for key, value in params.items():
+            if key not in self.parameters:
+                raise TypeError(f'No such parameter: {key}')
+            self.values[key] = value
+
+    def get_unbound_params(self):
+        """
+        Get bijectors and initial values for all declared parameters that haven't
+        been bound yet
+        """
+        bijs, inits = {}, {}
+        for name in self.parameters:
+            if name not in self.values:
+                bijs[name] = self.bijectors[name]
+                inits[name] = self.init[name]
+        return inits, bijs
+
+
+class TransformedModel(Model):
+    """
+    Any model that wraps an other model.
+
+    This mixin takes care of propagating parameters up and down the model stack
+    """
+    def __init__(self, inner: Model):
+        self.inner = inner
+        super().__init__()
+
+    def get_unbound_params(self):
+        # Fixme: decorate names to avoid clashes
+        return tuple( cur | inner for cur, inner in
+                zip(super().get_unbound_params(),
+                    self.inner.get_unbound_params())
+                )
+
 @dataclass
 class ConditionMaker:
     """

@@ -10,18 +10,15 @@ from gemz import jax_utils
 from gemz.jax_numpy import jaxify
 
 from gemz.model import (
-        Model, VstackTensorContainer, as_tensor_container,
+        Model, TransformedModel, VstackTensorContainer, as_tensor_container,
         IndexTuple, as_index, Distribution, EachIndex
         )
 
-class AddedConstantModel(Model):
+class AddedConstantModel(TransformedModel):
     """
     Wraps an other model, adding a constant row to the data and conditionning
     automatically on it
     """
-    def __init__(self, inner: Model):
-        self.inner = inner
-
     def _condition(self, unobserved_indexes, data):
         _n_rows, n_cols = data.shape
         augmented_data = VstackTensorContainer((
@@ -33,7 +30,7 @@ class AddedConstantModel(Model):
                 (augmented_rows, cols),
                 augmented_data)
 
-class ScaledModel(Model):
+class ScaledModel(TransformedModel):
     """
     Wraps an other model, scaling the data
 
@@ -42,13 +39,14 @@ class ScaledModel(Model):
     is divided by the scale to get the inner model data, and inner model
     predictions, conversely, get multiplied by the scale.
     """
-    def __init__(self, inner: Model, scale = None):
-        self.inner = inner
-        self.scale = scale
+    def __init__(self, inner: Model, **params):
+        super().__init__(inner)
+        self.add_param('scale', jax_utils.RegExp(), 1.0)
+        self.bind_params(**params)
 
     def _condition(self, unobserved_indexes, data, scale = None):
         if scale is None:
-            scale = self.scale
+            scale = self.values['scale']
         if scale is None:
             raise TypeError('Missing scale')
 
@@ -65,15 +63,6 @@ class ScaledModel(Model):
                 total_dims=cond.total_dims
                 )
 
-    def get_unbound_params(self):
-        # TODO: propagate inner params
-        if self.scale is None:
-            return (
-                    { 'scale': 1.0 },
-                    { 'scale': jax_utils.RegExp() }
-                    )
-        return {}, {}
-
 @jaxify
 def logpdf(model, unobserved, data, **params):
     """
@@ -81,13 +70,10 @@ def logpdf(model, unobserved, data, **params):
     """
     return model.conditional[unobserved](data, **params).logpdf_observed.sum()
 
-class PlugInModel(Model):
+class PlugInModel(TransformedModel):
     """
     Wraps an other model, optimizing out any unbound parameters
     """
-    def __init__(self, inner: Model):
-        self.inner = inner
-
     def _condition(self, unobserved_indexes, data):
         params_init, params_bijectors = self.inner.get_unbound_params()
 
