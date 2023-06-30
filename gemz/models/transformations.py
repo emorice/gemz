@@ -25,7 +25,8 @@ class AddedConstantModel(TransformedModel):
         self.bind_params(**params)
 
     def _condition(self, unobserved_indexes, data, **params):
-        offset = self.get_params(**params)['offset']
+        this_params, inner_params = self._split_params(params)
+        offset = self.get_params(**this_params)['offset']
 
         _n_rows, n_cols = data.shape
         augmented_data = VstackTensorContainer((
@@ -35,7 +36,7 @@ class AddedConstantModel(TransformedModel):
         augmented_rows = IndexTuple((as_index(slice(0, 0)), rows))
         return self.inner._condition(
                 (augmented_rows, cols),
-                augmented_data)
+                augmented_data, **inner_params)
 
 class ScaledModel(TransformedModel):
     """
@@ -148,3 +149,7 @@ class PlugInDistribution:
                     self.opt_results['opt'],
                     )
                 ]
+
+    @property
+    def mean(self):
+        return self.inner.mean

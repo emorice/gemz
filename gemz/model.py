@@ -197,7 +197,7 @@ class Model:
         """
         return ConditionMaker(self)
 
-    def _condition(self, unobserved_indexes, data):
+    def _condition(self, unobserved_indexes, data, **params):
         """
         Model-specific implementation of conditionals
 
@@ -210,35 +210,39 @@ class Model:
             ind0, ind1 = unobserved_indexes
             if ind0 is EachIndex:
                 if ind1 is EachIndex:
-                    return self._condition_loo_loo(unobserved_indexes, data)
-                return self._condition_loo_block(unobserved_indexes, data)
+                    return self._condition_loo_loo(unobserved_indexes, data,
+                            **params)
+                return self._condition_loo_block(unobserved_indexes, data,
+                        **params)
             if ind1 is EachIndex:
-                return self._condition_block_loo(unobserved_indexes, data)
-            return self._condition_block_block(unobserved_indexes, data)
+                return self._condition_block_loo(unobserved_indexes, data,
+                        **params)
+            return self._condition_block_block(unobserved_indexes, data,
+                    **params)
         raise NotImplementedError
 
-    def _condition_loo_loo(self, unobserved_indexes, data):
+    def _condition_loo_loo(self, unobserved_indexes, data, **params):
         """
         Specialized conditionner for LOO conditioning on both axes of a matrix
         distribution
         """
         raise NotImplementedError
 
-    def _condition_block_loo(self, unobserved_indexes, data):
+    def _condition_block_loo(self, unobserved_indexes, data, **params):
         """
         Specialized conditionner for LOO conditioning on the second axis of a
         matrix distribution
         """
         raise NotImplementedError
 
-    def _condition_loo_block(self, unobserved_indexes, data):
+    def _condition_loo_block(self, unobserved_indexes, data, **params):
         """
         Specialized conditionner for LOO conditioning on the first axis of a
         matrix distribution
         """
         raise NotImplementedError
 
-    def _condition_block_block(self, unobserved_indexes, data):
+    def _condition_block_block(self, unobserved_indexes, data, **params):
         """
         Specialized conditionner for non-loo conditioning of a
         matrix distribution

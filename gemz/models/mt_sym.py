@@ -157,7 +157,12 @@ class StdMatrixT(Model):
     """
     Standard matrix-t
     """
-    def _condition_block_block(self, unobserved_indexes, data):
+    def __init__(self, **params):
+        super().__init__()
+        self.add_param('dfs', Exp(), 1.0)
+        self.bind_params(**params)
+
+    def _condition_block_block(self, unobserved_indexes, data, **params):
         rows, cols = unobserved_indexes
         comp = data[~rows, ~cols]
         reg_pinv = np.linalg.solve(comp @ comp.T + np.eye(comp.shape[0]), comp).T
@@ -166,20 +171,21 @@ class StdMatrixT(Model):
                 mean=mean,
                 total_dims=mean.size
                 )
-    def _condition_block_loo(self, unobserved_indexes, data):
-        return block_loo(unobserved_indexes, data, 1, std_ginv_logdet)
+    def _condition_block_loo(self, unobserved_indexes, data, **params):
+        dfs = self.get_params(**params)['dfs']
+        return block_loo(unobserved_indexes, data, dfs, std_ginv_logdet)
 
 def make_model(spec: ModelSpec):
     """
     Create a variant of a matrix-t model according to spec
     """
     if spec['model'] == 'mt_std':
-        return AddedConstantModel(StdMatrixT(), offset=1.0)
+        return AddedConstantModel(StdMatrixT(dfs=1.0), offset=1.0)
     if spec['model'] == 'mt_sym':
         return PlugInModel(
                 ScaledModel(
                     AddedConstantModel(
-                        StdMatrixT()
+                        StdMatrixT(dfs=1.0) # FIXME: unfix
                         )
                     )
                 )
