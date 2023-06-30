@@ -121,6 +121,7 @@ class PlugInModel(TransformedModel):
                 inner=self.inner._condition(unobserved_indexes, data,
                     **opt_params),
                 opt_results=max_results,
+                opt_init=params_init,
                 objective_name='Negative pseudo log likelihood'
                 )
 
@@ -129,6 +130,7 @@ class PlugInModel(TransformedModel):
 class PlugInDistribution:
     inner: Distribution
     opt_results: dict
+    opt_init: dict
     objective_name: str
 
     def as_dict(self):
@@ -138,5 +140,9 @@ class PlugInDistribution:
         return [
                 backend.optimization_trace(
                     self.opt_results['hist'], self.objective_name
+                    ),
+                *backend.optimized_parameters(
+                    self.opt_init,
+                    self.opt_results['opt'],
                     )
                 ]
