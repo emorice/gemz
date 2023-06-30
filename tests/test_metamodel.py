@@ -36,4 +36,7 @@ def test_cv_residualize():
 
     res = models.cv_residualize(mspec, data)
 
+    for stat in ['min', 'median', 'mean', 'max']:
+        print(stat, getattr(np, stat)(np.abs(res)))
+
     assert np.allclose(res, np.zeros(data.shape))
