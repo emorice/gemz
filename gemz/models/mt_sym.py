@@ -173,15 +173,14 @@ def make_model(spec: ModelSpec):
     """
     Create a variant of a matrix-t model according to spec
     """
-    shifted = AddedConstantModel(StdMatrixT(), offset=1.0)
     if spec['model'] == 'mt_std':
-        return shifted
+        return AddedConstantModel(StdMatrixT(), offset=1.0)
     if spec['model'] == 'mt_sym':
-        scale = spec.get('scale')
-        if scale == 'auto':
-            return PlugInModel(
-                    inner=ScaledModel(shifted)
+        return PlugInModel(
+                ScaledModel(
+                    AddedConstantModel(
+                        StdMatrixT()
+                        )
                     )
-        return ScaledModel(shifted, scale=scale)
-
+                )
     raise ValueError(f'No such model {spec["model"]}')

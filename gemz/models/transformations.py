@@ -52,9 +52,11 @@ class ScaledModel(TransformedModel):
         self.bind_params(**params)
 
     def _condition(self, unobserved_indexes, data, **params):
-        scale = self.get_params(**params)['scale']
+        this_params, inner_params = self._split_params(params)
+        scale = self.get_params(**this_params)['scale']
 
-        cond = self.inner._condition(unobserved_indexes, data / scale)
+        cond = self.inner._condition(unobserved_indexes, data / scale,
+                **inner_params)
 
         return Distribution(
                 # Scaled

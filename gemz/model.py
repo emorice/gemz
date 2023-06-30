@@ -273,7 +273,7 @@ class Model:
         for name in param_names:
             if name not in self.parameters:
                 raise TypeError(f'No such parameter: {name}'
-                        + f'(valid parameters: {self.parameters})')
+                        + f' (valid parameters: {self.parameters})')
 
     def get_unbound_params(self):
         """
@@ -299,7 +299,6 @@ class Model:
                 raise TypeError(f'Missing parameter: {name}')
         return merged
 
-
 class TransformedModel(Model):
     """
     Any model that wraps an other model.
@@ -316,6 +315,28 @@ class TransformedModel(Model):
                 zip(super().get_unbound_params(),
                     self.inner.get_unbound_params())
                 )
+
+    def _split_params(self, params):
+        """
+        Split a dictionnary of parameters in two, separating this object's
+        parameters from the inner model's parameters
+        """
+        # Fixme: decorate names to avoid clashes
+        this_params, inner_params = {}, {}
+        for name, value in params.items():
+            if name in self.parameters:
+                this_params[name] = value
+            else:
+                inner_params[name] = value
+        return this_params, inner_params
+
+    def bind_params(self, **params):
+        """
+        Store parameter values in either this model or a wrapped model
+        """
+        this_params, inner_params = self._split_params(params)
+        super().bind_params(**this_params)
+        self.inner.bind_params(**inner_params)
 
 @dataclass
 class ConditionMaker:

@@ -7,6 +7,10 @@ import plotly.graph_objects as go
 class Plotly:
     @classmethod
     def optimization_trace(cls, values, name):
+        """
+        A figure showing the evolution of an objective function over
+        iterations.
+        """
         return go.Figure([
             go.Scatter(
                 x=np.arange(len(values)),
@@ -21,6 +25,11 @@ class Plotly:
 
     @classmethod
     def optimized_parameters(cls, init, final):
+        """
+        A list of figures, one per named (group of) parameters of the model.
+        Shows what the final values are after optimization, with the initial
+        values for reference.
+        """
         return [
                 go.Figure([
                     go.Bar(
