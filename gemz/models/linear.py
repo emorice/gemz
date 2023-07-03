@@ -126,6 +126,21 @@ def block_loo(indexes, data, dfs, ginv_function):
             data_np, data_mp, ginv_function, dfs
             )
 
+def log_norm_std(dfs, len_left, len_right):
+    """
+    Log normalization constant of a standard matrix-t
+    """
+    small = min(len_left, len_right)
+    large = max(len_left, len_right)
+
+    args = 0.5 * (dfs + np.arange(small))
+
+    return (
+        np.sum(sc.gammaln(args))
+        + 0.5 * small * large * np.log(np.pi)
+        - np.sum(sc.gammaln(args + 0.5*large))
+        )
+
 class FindMeANameDistribution(Distribution):
     def __init__(self, data_np, data_mp, ginv_function, dfs):
 
@@ -186,6 +201,10 @@ class FindMeANameDistribution(Distribution):
                 - self.logdet_joint
                 + (self.dfs + self.n_rows + self.n_cols - 2) * np.log1p(- self.joint_leaky_rss_p)
                 - (self.dfs + self.n_obs_rows + self.n_cols - 2) * np.log1p(- self.obs_leaky_rss_p)
+                - log_norm_std(
+                    self.dfs + self.n_obs_rows + self.n_cols - 1,
+                    self.n_new_rows, 1
+                    )
                 )
         # NOT times n_cols, this is a batch of vectors distributions
         return logpdf_p

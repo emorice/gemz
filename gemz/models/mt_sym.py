@@ -185,7 +185,7 @@ def make_model(spec: ModelSpec):
         return PlugInModel(
                 ScaledModel(
                     AddedConstantModel(
-                        StdMatrixT(dfs=1.0)
+                        StdMatrixT()
                         )
                     )
                 )
