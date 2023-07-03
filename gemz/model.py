@@ -382,7 +382,7 @@ class Distribution:
         var: to be defined/renamed
         total_dims: product of the dimensions spanned by the distribution
     """
-    mean: Any
+    mean: Any = None
     observed: Any = None
     sf_radial_observed: Any = None
     # We use nan such that applying transformation formulas to pdf needs not

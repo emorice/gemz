@@ -2,6 +2,9 @@
 Simple linear predictions.
 """
 
+from dataclasses import dataclass
+from typing import Any
+
 import numpy as np
 import scipy.special as sc
 
@@ -116,59 +119,76 @@ def block_loo(indexes, data, dfs, ginv_function):
     data_np = data[~rows, :]
     data_mp = data[rows, :]
 
-    ginv_np, logdet_obs = ginv_function(data_np)
-    # The standardized RSS using a non-blind covariance
-    # Because of the leakage, it can't go over 1
-    obs_leaky_rss_p = np.sum(ginv_np * data_np, 0)
-
-    # The blind rss, plus 1
-    onep_rss_p = 1. / (1. - obs_leaky_rss_p)
-
-    # Mean
-    mean_mp = (
-        (data_mp @ data_np.T) @ ginv_np
-        - data_mp * obs_leaky_rss_p
-        ) * onep_rss_p
-
-
-
-    n_obs_rows, n_cols = np.shape(data_np)
-    n_new_rows, _ = np.shape(data_mp)
-
-    # SF
-
-    data_ap = np.vstack((data_np, data_mp))
-    ginv_ap, logdet_joint = ginv_function(data_ap)
-    joint_leaky_rss_p = np.sum(ginv_ap * data_ap, 0)
-
-    sf_beta_quantile_p = (1. - joint_leaky_rss_p) / (1. - obs_leaky_rss_p)
-    sf_p = sc.betainc(
-            .5 * (dfs + n_obs_rows + n_cols - 1),
-            .5 * n_new_rows,
-            sf_beta_quantile_p
-            )
-
-    # PDF
-    # FIXME: this does not include the standard constant (which changes with dfs
-    # and shape)
-    n_rows = n_obs_rows + n_new_rows
-    logpdf_p = 0.5 * (
-            + logdet_obs
-            - logdet_joint
-            + (dfs + n_rows + n_cols - 2) * np.log1p(- joint_leaky_rss_p)
-            - (dfs + n_obs_rows + n_cols - 2) * np.log1p(- obs_leaky_rss_p)
-            )
-
     # Fixme: this isn't actually a mp-dimensional distribution, it's p
     # distinct m-dimensional distributions corresponding to p conditionals,
     # but the Distribution object currently does a poor job of representing that
-    return Distribution(
-            mean=mean_mp,
-            sf_radial_observed=sf_p,
-            logpdf_observed=logpdf_p,
-            # NOT times n_cols, this is a batch of vectors distributions
-            total_dims=n_new_rows,
+    return FindMeANameDistribution(
+            data_np, data_mp, ginv_function, dfs
             )
+
+class FindMeANameDistribution(Distribution):
+    def __init__(self, data_np, data_mp, ginv_function, dfs):
+
+        # Data
+        self.data_np = data_np
+        self.data_mp = data_mp
+
+        # Shapes
+        self.n_obs_rows, self.n_cols = np.shape(data_np)
+        self.n_new_rows, _ = np.shape(data_mp)
+        self.n_rows = self.n_obs_rows + self.n_new_rows
+        self.total_dims = self.n_new_rows
+        self.dfs = dfs
+
+        # Precomputation on observed data
+        self.ginv_np, self.logdet_obs = ginv_function(data_np)
+        # The standardized RSS using a non-blind covariance
+        # Because of the leakage, it can't go over 1
+        self.obs_leaky_rss_p = np.sum(self.ginv_np * data_np, 0)
+
+        # Precomputation on all (joint) data
+        data_ap = np.vstack((data_np, data_mp))
+        ginv_ap, self.logdet_joint = ginv_function(data_ap)
+        self.joint_leaky_rss_p = np.sum(ginv_ap * data_ap, 0)
+
+    @property
+    def mean(self):
+        # The blind rss, plus 1
+        onep_rss_p = 1. / (1. - self.obs_leaky_rss_p)
+
+        mean_mp = (
+            (self.data_mp @ self.data_np.T) @ self.ginv_np
+            - self.data_mp * self.obs_leaky_rss_p
+            ) * onep_rss_p
+        return mean_mp
+
+    @property
+    def sf_radial_observed(self):
+        """
+        Lazy computation of survival function
+        """
+        # This avoids the use of non-differentiable primitives in the
+        # precomputation part
+        sf_beta_quantile_p = (1. - self.joint_leaky_rss_p) / (1. - self.obs_leaky_rss_p)
+        sf_p = sc.betainc(
+                .5 * (self.dfs + self.n_obs_rows + self.n_cols - 1),
+                .5 * self.n_new_rows,
+                sf_beta_quantile_p
+                )
+        return sf_p
+
+    @property
+    def logpdf_observed(self):
+        # FIXME: this does not include the standard constant (which changes with dfs
+        # and shape)
+        logpdf_p = 0.5 * (
+                + self.logdet_obs
+                - self.logdet_joint
+                + (self.dfs + self.n_rows + self.n_cols - 2) * np.log1p(- self.joint_leaky_rss_p)
+                - (self.dfs + self.n_obs_rows + self.n_cols - 2) * np.log1p(- self.obs_leaky_rss_p)
+                )
+        # NOT times n_cols, this is a batch of vectors distributions
+        return logpdf_p
 
 class LinearModel(Model):
     """

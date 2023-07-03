@@ -59,16 +59,30 @@ class ScaledModel(TransformedModel):
         cond = self.inner._condition(unobserved_indexes, data / scale,
                 **inner_params)
 
-        return Distribution(
-                # Scaled
-                mean=cond.mean * scale,
-                # Unchanged under scaling
-                sf_radial_observed=cond.sf_radial_observed,
-                # Change of variable
-                logpdf_observed=cond.logpdf_observed - cond.total_dims * np.log(scale),
-                # Unchanged
-                total_dims=cond.total_dims
-                )
+        return ScaledDistribution(cond, scale)
+
+class ScaledDistribution(Distribution):
+    def __init__(self, inner, scale):
+        self.inner = inner
+        self.scale = scale
+
+        # Unchanged
+        self.total_dims = inner.total_dims
+
+    @property
+    def mean(self):
+        # Scaled
+        return self.inner.mean * self.scale
+
+    @property
+    def sf_radial_observed(self):
+        # Unchanged under scaling
+        return self.inner.sf_radial_observed
+
+    @property
+    def logpdf_observed(self):
+        # Change of variable
+        return self.inner.logpdf_observed - self.inner.total_dims * np.log(self.scale)
 
 @jaxify
 def logpdf(model, unobserved, data, **params):
