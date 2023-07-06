@@ -2,16 +2,18 @@
 
 {% block title %}{{case_id}}{% endblock %}}
 {% block navlinks %}
+{% for case_param in case_params %}
 <li class="nav-item dropdown">
-	<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">All subcases</a>
+	<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown">{{case_param['name']}}: {{case_param['active']}}</a>
 	<ul class="dropdown-menu">
-		{% for case in subcases %}
-		<li><a class="dropdown-item {% if case['active'] %} active {% endif %}"
-				href="/model/{{case_name}}/{{case['id_enc']}}">{{case['id']}}</a></li>
+		{% for subcase in case_param['related'] %}
+		<li><a class="dropdown-item {% if subcase['active'] %} active {% endif %}"
+				href="{{subcase['url']}}">{{subcase['value']}}</a></li>
 		{% endfor %}
 	</ul>
 </li>
-{% endblock %}}
+{% endfor %}
+{% endblock %}
 
 {% block main %}
 	<button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#spec">Spec</button>

@@ -8,6 +8,7 @@ import pkgutil
 import os
 from typing import Callable, Type, TypedDict, Any, Iterator, Generic, TypeVar
 from collections import defaultdict
+from itertools import product
 
 from numpy.typing import ArrayLike
 
@@ -24,6 +25,15 @@ CaseParams = TypeVar('CaseParams')
 class BaseCase(Generic[CaseParams]):
     """
     Base class for the case mechanism
+
+    Due to to the prototyping process, this ended up with two interfaces to
+    manipulate case paramaters:
+     * get_params list combination of parmaeters to try in the test harness
+     * parameters, get_param_combinations, get_display_id list combination of
+     parameters to browse the result.
+
+    The main difference is that the first deals with native python objects to
+    pass to the model, while the others mostly export strings for interfaces.
     """
     name: str = ''
 
@@ -40,10 +50,48 @@ class BaseCase(Generic[CaseParams]):
                     ' new unique name attribute')
         _cases[cls.name] = cls()
 
+    @property
+    def parameters(self):
+        """
+        Return a dictionary of valid parameter names for the case, mapped to
+        list of corresponding printable values.
+        """
+        return {}
+
+    def get_param_combinations(self):
+        """
+        Cartesian product of the values in parameters
+        """
+        param_matrix = [
+                [ {
+                    'name': param_name,
+                    'display_name': param_def['display_name'],
+                    'value': value
+                    }
+                    for value in param_def['values']
+                    ]
+                for param_name, param_def in self.parameters.items()
+                ]
+        for combination in product(*param_matrix):
+            yield combination, self.get_display_id({
+                param['name']: param['value']
+                for param in combination
+                })
+
+    def get_display_id(self, params):
+        """
+        Generate a consistent, unambiguous, printable string for each
+        combination of parameters
+        """
+        return ' x '.join(params[name] for name in self.parameters)
+
     def get_params(self) -> Iterator[tuple[str, CaseParams]]:
         """
         Get the collections of case parameters  to try and the corresponding
         unique readable string.
+
+        Note: this should be more properly called get_params_ *combinations*,
+        we'll fix that eventually
         """
         raise NotImplementedError
 
@@ -100,6 +148,21 @@ class Case(PerModelCase[list[ModelSpec]], abstract_case=True):
         for spec in model_specs:
             fit, preds = self.run_model(spec, data)
             self._add_figures(output, data, spec, fit, preds)
+
+    @property
+    def parameters(self):
+        return {
+                'model': {
+                    'display_name': 'Model',
+                    'values': self.model_unique_names
+                    }
+                }
+
+    def get_display_id(self, params):
+        """
+        Compat, we unfortunately used inconsistent naming in the past.
+        """
+        return 'x_' + super().get_display_id(params)
 
     def get_params(self) -> Iterator[tuple[str, Any]]:
         """

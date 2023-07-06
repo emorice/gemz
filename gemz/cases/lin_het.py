@@ -51,6 +51,15 @@ class LinHet(PerModelCase):
             }
 
     @property
+    def parameters(self):
+        return { name: {
+                    'display_name': name,
+                    'values': values
+                    }
+                for name, values in self.params.items()
+                }
+
+    @property
     def model_specs(self):
         return [
                 {'model': 'linear'},
