@@ -34,7 +34,7 @@ class LinHet(PerModelCase):
                 },
             'heterogeneity': {
                 'homo': False,
-                #'het': True
+                'het': True
                 },
             'nonlinearity': {
                 'linear': False,
@@ -127,12 +127,15 @@ class LinHet(PerModelCase):
         params = { key: val for key, _printable, val in case_params }
         low_dim = params['dims']
 
-        # TODO: actually honor case_params
+        num_classes = 1
+        num_good_classes = 1
+        # TODO: honor all case_params
+        if params['heterogeneity']:
+            num_classes += 1
 
         if params['nonlinearity']:
-            num_classes = 2
-        else:
-            num_classes = 1
+            num_classes += 1
+            num_good_classes += 1
 
         spectrum = np.array(
                 ([1.] * (low_dim // 2)) + ([.1] * (low_dim - low_dim // 2))
@@ -143,9 +146,10 @@ class LinHet(PerModelCase):
         # Affect random classes
         classes_p = rng.choice(num_classes, size=self.high_dim)
 
-        # Draw covariance and mean for each class
-        ortho_knn, _ = np.linalg.qr(rng.normal(size=(num_classes, low_dim, low_dim)))
+        # Draw covariance and mean for each non-noise class
+        ortho_knn, _ = np.linalg.qr(rng.normal(size=(num_good_classes, low_dim, low_dim)))
 
+        # Draw a mean for everyone, including noise class
         if not params['centered']:
             means_kn1 = rng.normal(size=(num_classes, low_dim, 1))
         else:
@@ -155,7 +159,14 @@ class LinHet(PerModelCase):
 
         innovations_knp = innovations_np + 3.* means_kn1
 
-        data_knp = ((ortho_knn * spectrum) @ np.swapaxes(ortho_knn, -1, -2)) @ innovations_knp
+        transformations_knn = (ortho_knn * spectrum) @ np.swapaxes(ortho_knn, -1, -2)
+        if params['heterogeneity']:
+            transformations_knn = np.concatenate((
+                transformations_knn,
+                np.eye(low_dim)[None, ...]
+                ))
+
+        data_knp = transformations_knn @ innovations_knp
 
         data_np = np.take_along_axis(data_knp, classes_p[None, None, :], 0)[0]
 
