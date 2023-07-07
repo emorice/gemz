@@ -113,7 +113,7 @@ class LinHet(PerModelCase):
 
         conditional =  (
             Model.from_spec(spec)
-            .conditional[cond0, cond1](case_data)
+            .conditional[cond0, cond1](case_data[0])
             )
         out['conditional'] = conditional
 
@@ -180,9 +180,10 @@ class LinHet(PerModelCase):
         data_np = np.take_along_axis(data_knp, classes_p[None, None, :], 0)[0]
 
         output.add_figure(px.scatter(x=data_np[0], y=data_np[-1],
-            title='Dataset (first and last row)'))
+            title='Dataset (first and last row)').update_traces(
+                marker={'symbol': classes_p}))
 
-        return data_np
+        return data_np, classes_p
 
     def make_union_slice(self, index: IndexLike):
         """
@@ -194,7 +195,8 @@ class LinHet(PerModelCase):
             return slice(None)
         raise NotImplementedError
 
-    def _add_figures(self, output: Output, data, case_params, model_out):
+    def _add_figures(self, output: Output, case_data, case_params, model_out):
+        data, classes = case_data
         # todo: dedup
         params = { key: val for key, _, val in case_params }
 
@@ -202,14 +204,17 @@ class LinHet(PerModelCase):
 
         truth_x = data[0, is_test_col]
         truth_y = data[-1, is_test_col]
+        classes = classes[is_test_col]
 
         # means is a 1 x n_test_columns matrix
         pred_y = model_out['mean'][0]
 
         output.add_figure(
                 go.Figure(data=[
-                    go.Scatter(x=truth_x, y=truth_y, mode='markers', name='data'),
-                    go.Scatter(x=truth_x, y=pred_y, mode='markers', name='predictions')
+                    go.Scatter(x=truth_x, y=truth_y, mode='markers',
+                        name='data', marker={'symbol': classes}),
+                    go.Scatter(x=truth_x, y=pred_y, mode='markers',
+                        name='predictions', marker={'symbol': classes}),
                     ],
                     layout={
                         'title': 'Predicted mean and ground truth',
@@ -221,7 +226,8 @@ class LinHet(PerModelCase):
         output.add_figure(
                 go.Figure(data=[
                     go.Scatter(x=pred_y, y=pred_y, name='Expected'),
-                    go.Scatter(x=pred_y, y=truth_y, mode='markers', name='Predicted'),
+                    go.Scatter(x=pred_y, y=truth_y, mode='markers',
+                        name='Predicted', marker={'symbol': classes}),
                     ],
                     layout={
                         'title': 'Predicted mean vs ground truth',
