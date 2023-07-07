@@ -47,9 +47,17 @@ class ScaledModel(TransformedModel):
     is divided by the scale to get the inner model data, and inner model
     predictions, conversely, get multiplied by the scale.
     """
-    def __init__(self, inner: Model, **params):
+    def __init__(self, inner: Model, mode='global', **params):
         super().__init__(inner)
-        self.add_param('scale', jax_utils.RegExp(), 1.0)
+        if mode == 'global':
+            self.add_param('scale', jax_utils.RegExp(), 1.0)
+        elif mode == 'column':
+            self.add_param('scale', jax_utils.RegExp(),
+                    lambda data: np.ones(np.shape(data[-1]))
+                    )
+        else:
+            raise ValueError(f'Unknown scaling mode "{mode}"')
+        self.mode = mode
         self.bind_params(**params)
 
     def _condition(self, unobserved_indexes, data, **params):
@@ -59,12 +67,13 @@ class ScaledModel(TransformedModel):
         cond = self.inner._condition(unobserved_indexes, data / scale,
                 **inner_params)
 
-        return ScaledDistribution(cond, scale)
+        return ScaledDistribution(cond, scale, mode=self.mode)
 
 class ScaledDistribution(Distribution):
-    def __init__(self, inner, scale):
+    def __init__(self, inner, scale, mode):
         self.inner = inner
         self.scale = scale
+        self.mode = mode
 
         # Unchanged
         self.total_dims = inner.total_dims
@@ -83,6 +92,9 @@ class ScaledDistribution(Distribution):
     def logpdf_observed(self):
         # Change of variable
         return self.inner.logpdf_observed - self.inner.total_dims * np.log(self.scale)
+        # FIXME: this is valid only for the global case and for the column case
+        # when doing LOO on columns. Note that in the loo case total_dims will
+        # be the number of new rows.
 
 @jaxify
 def logpdf(model, unobserved, data, **params):
@@ -120,6 +132,12 @@ class PlugInModel(TransformedModel):
         #  * For now, alway use the pseudo-likelihood over columns
         training_cond = as_index(slice(None)), EachIndex
 
+
+        # Initialize parameters that depends on data or data shape
+        params_init = {
+                name: init(training_data) if callable(init) else init
+                for name, init in params_init.items()
+                }
         max_results = jax_utils.maximize(
             logpdf,
             init=params_init,

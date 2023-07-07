@@ -163,6 +163,7 @@ MODULES = {
     'linear': 'gemz.models.linear',
     'mt_std': 'gemz.models.mt_sym',
     'mt_sym': 'gemz.models.mt_sym',
+    'mt_het': 'gemz.models.mt_sym',
     }
 """
 Dictionary of modules defining the corresponding named model for lazy loading

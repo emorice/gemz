@@ -14,7 +14,7 @@ from gemz.model import Model, ModelSpec, Distribution
 from . import methods
 
 from .linear import block_loo
-from .transformations import PlugInModel, ScaledModel, AddedConstantModel
+from .transformations import (PlugInModel, ScaledModel, AddedConstantModel)
 
 class Method:
     """
@@ -180,13 +180,17 @@ def make_model(spec: ModelSpec):
     Create a variant of a matrix-t model according to spec
     """
     if spec['model'] == 'mt_std':
-        return AddedConstantModel(StdMatrixT(dfs=1.0), offset=1.0)
-    if spec['model'] == 'mt_sym':
+        return AddedConstantModel(
+                StdMatrixT(dfs=1.0),
+                offset=1.0
+                )
+    if spec['model'] in ('mt_sym', 'mt_het'):
         return PlugInModel(
                 ScaledModel(
                     AddedConstantModel(
                         StdMatrixT()
-                        )
-                    )
+                        ),
+                    mode=('global' if spec['model'] == 'mt_sym' else 'column')
+                    ),
                 )
     raise ValueError(f'No such model {spec["model"]}')
