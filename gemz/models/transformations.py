@@ -109,6 +109,28 @@ def logpdf(model, unobserved, data, **params):
     """
     return model.conditional[unobserved](data, **params).logpdf_observed.sum()
 
+def get_training_data(data, unobserved_indexes):
+    """
+    Select training data
+
+    For now, keep the observed rows and all columns.
+
+    Fundamentally, this should simply be all the data that is marked as
+    observed, but there are complications.
+     * Many models can only deal with a perfect matrix of observations, without
+        holes.
+     * If we are sharing computations between leave-one-out models, excluding
+        all observed data leaves us with nothing.
+     * If we want to learn per-column or per-row parameters, all rows or columns
+     needed have to be represented in the training data
+
+    This calls for a complex and subtle way of choosing what should be used as
+    "training data" in general, but for now we'll organically add sensible
+    case-by-case definition.
+    """
+    rows, _cols = unobserved_indexes
+    return data[~rows, :]
+
 class PlugInModel(TransformedModel):
     """
     Wraps an other model, optimizing out any unbound parameters
@@ -116,16 +138,11 @@ class PlugInModel(TransformedModel):
     def _condition(self, unobserved_indexes, data):
         params_init, params_bijectors = self.inner.get_unbound_params()
 
-        rows, _cols = unobserved_indexes
-
         # There is in theory a lot going on here, but for now only default
         # behavior for a small subset of configurations is actually implemented
 
         # Select training data
-        #  * Ideally, either the union or intersection of all the observed data
-        # across all conditioning patterns
-        #  * For now, keep the observed rows and all columns
-        training_data = data[~rows, :]
+        training_data = get_training_data(data, unobserved_indexes)
 
         # Marginalize model
         #  * Ideally, should ask the model to marginalize itself
