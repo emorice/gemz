@@ -4,7 +4,7 @@ Clustered matrix t models
 
 import sklearn.cluster
 
-from gemz.model import ModelSpec, TransformedModel
+from gemz.model import Model, ModelSpec, TransformedModel
 from .transformations import (AddedConstantModel, PlugInModel, GroupScaledModel,
     get_training_data)
 from .mt_sym import StdMatrixT
@@ -13,6 +13,16 @@ class PatchworkModel(TransformedModel):
     """
     Hard per-column combination of several inner models
     """
+    def __init__(self, inner: Model, **params):
+        super().__init__(inner)
+        self.add_param('groups')
+        self.bind_params(**params)
+
+    def _condition(self, unobserved_indexes, data, **params):
+        this_params, inner_params = self._split_params(params) # FIXME: dedup too
+        groups = self.get_params(**this_params)['groups']
+
+        raise NotImplementedError
 
 class PreClusterModel(TransformedModel):
     """

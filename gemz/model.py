@@ -234,7 +234,7 @@ class Model:
         """
         for name in param_names:
             if name not in self.parameters:
-                raise TypeError(f'No such parameter: {name}'
+                raise TypeError(f'No such parameter: \'{name}\''
                         + f' (valid parameters: {self.parameters})')
 
     def get_unbound_params(self):
@@ -266,7 +266,6 @@ class FinalModel(Model):
     Model providing concrete numerical implementations of conditionals on a case
     disjunction basis
     """
-
     def _condition(self, unobserved_indexes, data, **params):
         """
         Model-specific implementation of conditionals
@@ -353,6 +352,9 @@ class TransformedModel(Model):
     def bind_params(self, **params):
         """
         Store parameter values in either this model or a wrapped model
+
+        Bugs: this does not display the full list of parameters on error but
+        only the parameters of the innermost model
         """
         this_params, inner_params = self._split_params(params)
         super().bind_params(**this_params)

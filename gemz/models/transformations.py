@@ -135,7 +135,9 @@ class PlugInModel(TransformedModel):
     """
     Wraps an other model, optimizing out any unbound parameters
     """
-    def _condition(self, unobserved_indexes, data):
+    def _condition(self, unobserved_indexes, data, **params):
+        # FIXME: we should absolutely not modify the inner model in place
+        self.inner.bind_params(**params)
         params_init, params_bijectors = self.inner.get_unbound_params()
 
         # There is in theory a lot going on here, but for now only default
@@ -182,7 +184,6 @@ class PlugInModel(TransformedModel):
                 opt_init=params_init,
                 objective_name='Negative pseudo log likelihood'
                 )
-
 
 @dataclass
 class PlugInDistribution:
