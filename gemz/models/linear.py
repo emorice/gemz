@@ -10,7 +10,7 @@ import scipy.special as sc
 
 from gemz import linalg
 from gemz.model import (
-        Model, Distribution, VstackTensorContainer,
+        FinalModel, Distribution, VstackTensorContainer,
         as_tensor_container, IndexTuple, as_index
         )
 
@@ -209,7 +209,7 @@ class FindMeANameDistribution(Distribution):
         # NOT times n_cols, this is a batch of vectors distributions
         return logpdf_p
 
-class LinearModel(Model):
+class LinearModel(FinalModel):
     """
     Linear model, unregularized, without uncertainties
     """

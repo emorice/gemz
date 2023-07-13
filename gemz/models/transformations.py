@@ -69,6 +69,12 @@ class ScaledModel(TransformedModel):
 
         return ScaledDistribution(cond, scale, mode=self.mode)
 
+class GroupScaledModel(TransformedModel):
+    """
+    A ScaledModel where the scales are constrained to be identical inside
+    pre-specified groups of variables
+    """
+
 class ScaledDistribution(Distribution):
     def __init__(self, inner, scale, mode):
         self.inner = inner

@@ -164,6 +164,7 @@ MODULES = {
     'mt_std': 'gemz.models.mt_sym',
     'mt_sym': 'gemz.models.mt_sym',
     'mt_het': 'gemz.models.mt_sym',
+    'clmt': 'gemz.models.clmt',
     }
 """
 Dictionary of modules defining the corresponding named model for lazy loading
@@ -200,53 +201,9 @@ class Model:
 
     def _condition(self, unobserved_indexes, data, **params):
         """
-        Model-specific implementation of conditionals
+        Model-specific implementation of conditionals.
 
-        This attempts to use pattern-specific implementations if available, and
-        raises if they are not. If a subclass has a generic implementation, it
-        should either try it before calling super or catch the
-        NotImplementedError raised by super.
-        """
-        if len(unobserved_indexes) == 2:
-            ind0, ind1 = unobserved_indexes
-            if ind0 is EachIndex:
-                if ind1 is EachIndex:
-                    return self._condition_loo_loo(unobserved_indexes, data,
-                            **params)
-                return self._condition_loo_block(unobserved_indexes, data,
-                        **params)
-            if ind1 is EachIndex:
-                return self._condition_block_loo(unobserved_indexes, data,
-                        **params)
-            return self._condition_block_block(unobserved_indexes, data,
-                    **params)
-        raise NotImplementedError
-
-    def _condition_loo_loo(self, unobserved_indexes, data, **params):
-        """
-        Specialized conditionner for LOO conditioning on both axes of a matrix
-        distribution
-        """
-        raise NotImplementedError
-
-    def _condition_block_loo(self, unobserved_indexes, data, **params):
-        """
-        Specialized conditionner for LOO conditioning on the second axis of a
-        matrix distribution
-        """
-        raise NotImplementedError
-
-    def _condition_loo_block(self, unobserved_indexes, data, **params):
-        """
-        Specialized conditionner for LOO conditioning on the first axis of a
-        matrix distribution
-        """
-        raise NotImplementedError
-
-    def _condition_block_block(self, unobserved_indexes, data, **params):
-        """
-        Specialized conditionner for non-loo conditioning of a
-        matrix distribution
+        This is the most central method to implement in subclasses
         """
         raise NotImplementedError
 
@@ -303,6 +260,64 @@ class Model:
             if name not in merged:
                 raise TypeError(f'Missing parameter: {name}')
         return merged
+
+class FinalModel(Model):
+    """
+    Model providing concrete numerical implementations of conditionals on a case
+    disjunction basis
+    """
+
+    def _condition(self, unobserved_indexes, data, **params):
+        """
+        Model-specific implementation of conditionals
+
+        This attempts to use pattern-specific implementations if available, and
+        raises if they are not. If a subclass has a generic implementation, it
+        should either try it before calling super or catch the
+        NotImplementedError raised by super.
+        """
+        if len(unobserved_indexes) == 2:
+            ind0, ind1 = unobserved_indexes
+            if ind0 is EachIndex:
+                if ind1 is EachIndex:
+                    return self._condition_loo_loo(unobserved_indexes, data,
+                            **params)
+                return self._condition_loo_block(unobserved_indexes, data,
+                        **params)
+            if ind1 is EachIndex:
+                return self._condition_block_loo(unobserved_indexes, data,
+                        **params)
+            return self._condition_block_block(unobserved_indexes, data,
+                    **params)
+        raise NotImplementedError
+
+    def _condition_loo_loo(self, unobserved_indexes, data, **params):
+        """
+        Specialized conditionner for LOO conditioning on both axes of a matrix
+        distribution
+        """
+        raise NotImplementedError
+
+    def _condition_block_loo(self, unobserved_indexes, data, **params):
+        """
+        Specialized conditionner for LOO conditioning on the second axis of a
+        matrix distribution
+        """
+        raise NotImplementedError
+
+    def _condition_loo_block(self, unobserved_indexes, data, **params):
+        """
+        Specialized conditionner for LOO conditioning on the first axis of a
+        matrix distribution
+        """
+        raise NotImplementedError
+
+    def _condition_block_block(self, unobserved_indexes, data, **params):
+        """
+        Specialized conditionner for non-loo conditioning of a
+        matrix distribution
+        """
+        raise NotImplementedError
 
 class TransformedModel(Model):
     """

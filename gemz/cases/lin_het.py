@@ -66,6 +66,7 @@ class LinHet(PerModelCase):
                 {'model': 'mt_std'},
                 {'model': 'mt_sym', 'scale': 'auto'},
                 {'model': 'mt_het'},
+                {'model': 'clmt'},
                 ]
 
 

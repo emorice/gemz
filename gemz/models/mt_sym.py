@@ -10,7 +10,7 @@ from numpy.typing import ArrayLike
 from gemz.jax_utils import maximize, Bijector, Exp
 from gemz.stats.matrixt import NonCentralMatrixT
 from gemz.jax.linalg import ScaledIdentity
-from gemz.model import Model, ModelSpec, Distribution
+from gemz.model import FinalModel, ModelSpec, Distribution
 from . import methods
 
 from .linear import block_loo
@@ -153,7 +153,7 @@ def std_ginv_logdet(matrix):
     _, logdet = np.linalg.slogdet(reg_gram)
     return low_inv @ matrix, logdet
 
-class StdMatrixT(Model):
+class StdMatrixT(FinalModel):
     """
     Standard matrix-t
     """
