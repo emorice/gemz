@@ -237,10 +237,10 @@ class Model:
                 raise TypeError(f'No such parameter: \'{name}\''
                         + f' (valid parameters: {self.parameters})')
 
-    def get_unbound_params(self):
+    def get_local_unbound_params(self):
         """
         Get bijectors and initial values for all declared parameters that haven't
-        been bound yet
+        been bound yet. Only returns this object's parameters.
         """
         bijs, inits = {}, {}
         for name in self.parameters:
@@ -248,6 +248,13 @@ class Model:
                 bijs[name] = self.bijectors[name]
                 inits[name] = self.init[name]
         return inits, bijs
+
+    def get_unbound_params(self):
+        """
+        Get bijectors and initial values for all declared parameters that haven't
+        been bound yet. Returns this object and all nested objects' parameters.
+        """
+        return self.get_local_unbound_params()
 
     def get_params(self, **params):
         """
@@ -331,7 +338,7 @@ class TransformedModel(Model):
     def get_unbound_params(self):
         # Fixme: decorate names to avoid clashes
         return tuple( cur | inner for cur, inner in
-                zip(super().get_unbound_params(),
+                zip(self.get_local_unbound_params(),
                     self.inner.get_unbound_params())
                 )
 

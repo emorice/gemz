@@ -72,8 +72,29 @@ class ScaledModel(TransformedModel):
 class GroupScaledModel(TransformedModel):
     """
     A ScaledModel where the scales are constrained to be identical inside
-    pre-specified groups of variables
+    pre-specified groups of columns
     """
+    def __init__(self, inner: Model, n_groups, **params):
+        super().__init__(inner)
+        self.add_param('in_groups')
+        self.add_param('scales', jax_utils.RegExp(), np.ones(n_groups))
+
+    def _condition(self, unobserved_indexes, data, **params):
+        this_params, inner_params = self._split_params(params)
+        return self.inner._condition(unobserved_indexes, data,
+                **inner_params)
+
+        # TODO
+        agg_params = self.get_params(**this_params)['scales']
+        compact_scale = agg_params['scales']
+        groups = agg_params['in_groups']
+
+        scale = compact_scale[groups]
+
+        cond = self.inner._condition(unobserved_indexes, data / scale,
+                **inner_params)
+
+        return ScaledDistribution(cond, scale, mode='columns')
 
 class ScaledDistribution(Distribution):
     def __init__(self, inner, scale, mode):
