@@ -153,13 +153,12 @@ def fit_eval(model_spec, data_fold, loss_name, _ops=_self):
         data_fold: dict with keys 'train' and 'test'
     Returns:
         dict with keys:
-            'fit': the model fit, type depending on model
             'loss': the loss value on the given data split
     """
 
     fitted = _ops.fit(model_spec, data_fold['train'])
     loss = _ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
-    return { 'fit': fitted, 'loss': loss }
+    return { 'loss': loss }
 
 def cv_fit_eval(model_spec, data, fold_count=10, loss_name='RSS', seed=0, _ops=_self):
     """
