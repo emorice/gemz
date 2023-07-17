@@ -49,39 +49,51 @@ def unapply_bijs(nat_tree, bijs):
     """
     return jax.tree_map(lambda leave, bij: bij.inverse(leave), nat_tree, bijs)
 
-def gen_obj(shapes, struct, bijs, native_obj, obj_mult, has_aux=False):
+def gen_obj(shapes, struct, bijs, native_obj, obj_mult, has_aux=False, jit=True):
     """
     Generates an objective funtion of a flat parameter vector from an
     keyword-based objective function
 
     Args:
+        native_obj: an objective function accepting keyword arguments for all
+            variable and fixed parameters, already constrained
         has_aux: whether native_obj returns a (obj, aux) tuple instead of obj.
+        jit: whether to compile obj just-in-time
+
+    Return:
+        An objective function accepting a flat, unconstrained vector of
+            variable, plus keyword arguments for all fixed parameters
     """
-    def _mult_native_obj(**kwargs):
-        value_aux = native_obj(**kwargs)
+    def _obj(anon_pos, **obj_args):
+        # Unflatten and transform working variables
+        native_pos = apply_bijs(
+                unpack(anon_pos, shapes, struct),
+                bijs)
+        # Call native obj, also with fixed variables
+        value_aux = native_obj(**native_pos, **obj_args)
+
+        # Multiply the result if needed
         if has_aux:
             value, aux = value_aux
             return obj_mult * value, aux
         return obj_mult * value_aux
 
-    return lambda data, **obj_args : jax.value_and_grad(
-        lambda data: _mult_native_obj(
-            **apply_bijs(
-                unpack(data, shapes, struct),
-                bijs),
-            **obj_args
-        ),
-        has_aux=has_aux
-    )(data)
+    # Differentiate
+    _diff_obj = jax.value_and_grad(_obj)
+
+    # Optionally, jit
+    if jit:
+        return jax.jit(_diff_obj)
+    return _diff_obj
 
 def to_np64(obj, has_aux=False):
     """
-    Generates a differentiated objective accepting and returning double arrays
-    from a differentiated objective accepting and returning float arrays
+    Generates a differentiated objective accepting and returning double numpy arrays
+    from a differentiated objective accepting and returning float jax arrays
     """
-    def _obj(np64_pos):
+    def _obj(np64_pos, **obj_args):
         j32_pos = jnp.array(np64_pos, dtype='float32')
-        j32_va, j32_g = obj(j32_pos)
+        j32_va, j32_g = obj(j32_pos, **obj_args)
         if has_aux:
             # Unpack value-aux and convert only value
             j32_v, j32_a = j32_va
@@ -127,6 +139,18 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
     """
     High-level minimization function
 
+    There are two very different ways to handle fixed (i.e., not subject to
+    optimization) arguments of the objective function.
+      * Bind the fixed parameters to the objective, e.g. as
+        `lambda **kw: obj(myarg=myvalue, **kw)` before calling `minimize`. Such
+        arguments will be accessible to JAX during tracing ; this is the
+        strategy that should be used for loop bounds, complex objects, and
+        generally anything that JAX complains about.
+      * Pass the fixed parameters as key-values entries in `data`. Such
+        parameters will be bound "just-in-time" *after* any tracing and compilation
+        has occured. This is better suited for large arrays that you do not want
+        JAX to constant-fold, for instance.
+
     Args:
         native_obj: an objective funtion accepting parameters and fixed values
             as keyword arguments
@@ -151,21 +175,19 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
 
     anon_obj = gen_obj(
         shapes, struct, bijectors,
-        lambda **kw: native_obj(**kw, **data),
+        native_obj,
         obj_mult,
-        has_aux=has_aux)
+        has_aux=has_aux, jit=jit)
 
-    _obj_scipy = to_np64(
-        jax.jit(anon_obj) if jit else anon_obj,
-        has_aux=has_aux)
+    _obj_scipy = to_np64(anon_obj, has_aux=has_aux)
 
     scipy_method = scipy_method or 'BFGS'
 
     def obj_scipy(flat_params):
         """
-        Simple wrapper to record the objective values
+        Simple wrapper to record the objective values and bind fixed parameters
         """
-        value, grad = _obj_scipy(flat_params)
+        value, grad = _obj_scipy(flat_params, **data)
         # Also append aux to hist if present
         hist.append(value)
         # Then discard aux before yielding to scipy

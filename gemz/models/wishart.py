@@ -31,17 +31,21 @@ class Wishart:
         spectrum, _ = np.linalg.eigh(data @ data.T)
 
         opt = jax_utils.maximize(
-            wishart_marginal_likelihood,
-            init=dict(
-                prior_edf_ln=0.,
-                prior_var_ln=0.,
-                ),
-            data=dict(
-                data_cov_spectrum=spectrum,
-                n_samples=data.shape[1], # N2
-                n_dims=data.shape[0] # N1
+                lambda **kw: wishart_marginal_likelihood(
+                    # N1 appears in the multigamma loop, and hence needs to be
+                    # known at tracing time
+                    n_dims=data.shape[0], # N1
+                    **kw),
+                init=dict(
+                    prior_edf_ln=0.,
+                    prior_var_ln=0.,
+                    ),
+                data=dict(
+                    data_cov_spectrum=spectrum,
+                    # N2 never appears in non-traceable contexts
+                    n_samples=data.shape[1], # N2
+                    )
                 )
-            )
 
         return {'opt': opt, 'train': data}
 

@@ -185,16 +185,12 @@ class PlugInModel(TransformedModel):
                 for name, init in params_init.items()
                 }
         max_results = jax_utils.maximize(
-            logpdf,
-            init=params_init,
-            data={
-                'model': marginal,
-                'unobserved': training_cond,
-                'data': training_data,
-                },
-            bijectors=params_bijectors,
-            scipy_method='L-BFGS-B',
-            )
+                lambda **kw: logpdf(marginal, training_cond, **kw),
+                init=params_init,
+                data={'data': training_data},
+                bijectors=params_bijectors,
+                scipy_method='L-BFGS-B',
+                )
 
         opt_params = max_results['opt']
 
