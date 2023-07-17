@@ -167,19 +167,14 @@ def cv_fit_eval(model_spec, data, fold_count=10, loss_name='RSS', seed=0, _ops=_
     Returns:
         a dict with keys:
             'folds': list of per-fold results, each a dict with keys:
-                'data': the train and test data in a two-keys dict
-                'fitted', 'loss': the fitted model and loss value
+                'loss': the loss value
             'loss': the total loss
     """
-    folds = [
-            { 'data': {'train': train, 'test': test}}
-            for train, test, _ in [
-                _ops.fold(data, i, fold_count, seed=seed)
-                for i in range(fold_count) ]
-            ]
-    for _fold in folds:
-        _fold.update(
-            fit_eval(model_spec, _fold['data'], loss_name, _ops=_ops)
+    folds = []
+    for i in range(fold_count):
+        train, test, _ = _ops.fold(data, i, fold_count, seed=seed)
+        folds.append(
+            fit_eval(model_spec, {'train': train, 'test': test}, loss_name, _ops=_ops)
             )
     total_loss = _ops.aggregate_losses([_fold['loss'] for _fold in folds])
 
