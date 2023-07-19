@@ -6,7 +6,11 @@ import sys
 import numpy as np
 import logging
 
+from typing import TypedDict
+from numpy.typing import ArrayLike
+
 from . import methods, cv
+from .methods import ModelSpec
 
 logger = logging.getLogger('gemz')
 
@@ -144,7 +148,14 @@ def build_eval_grid(inner, data, fold_count, loss_name, grid_size, grid_max, gri
 # Pure meta-ops
 # =============
 
-def fit_eval(model_spec, data_fold, loss_name, _ops=_self):
+class FoldDict(TypedDict):
+    """
+    A split of a data matrix into a train and test set
+    """
+    train: ArrayLike
+    test: ArrayLike
+
+def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str, _ops=_self):
     """
     Compound fit and eval_loss call
 

@@ -27,6 +27,7 @@ from .methods import get, get_name, ModelSpec
 
 from .ops import (
         fit,
+        fit_eval,
         predict_loo,
         eval_loss,
         fold,

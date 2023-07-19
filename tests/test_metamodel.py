@@ -45,3 +45,17 @@ def test_cv_residualize():
         print(stat, getattr(np, stat)(np.abs(res)))
 
     assert np.allclose(res, np.zeros(data.shape))
+
+@pytest.mark.xfail
+def test_fit_eval_accepts_v2(data):
+    """
+    The fit_eval op can handle the new kind of specs.
+    """
+    mspec = {'model': 'mt_std'} # only exists in v2
+
+    train, test = data
+
+    ans = models.fit_eval(mspec, {'train': train, 'test': test}, 'RSS')
+
+    assert set(ans.keys()) == {'loss'}
+    assert isinstance(ans['loss'], float)
