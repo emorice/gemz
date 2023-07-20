@@ -4,10 +4,12 @@ Abstract model interface
 
 import importlib
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Iterable
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
+from gemz.models import methods
 from gemz.models.methods import ModelSpec
 
 # Indexing utils
@@ -87,14 +89,14 @@ class InvIndex(Index):
     def __invert__(self):
         return self.index
 
-@dataclass
 class IndexTuple(Index):
     """
     Tuple of other indexes, meant to index logically stacked tensors
     """
-    indexes: tuple[Index, ...]
+    def __init__(self, index_likes: Iterable[IndexLike]):
+        self.indexes = tuple(map(as_index, index_likes))
 
-    def __invert__(self):
+    def __invert__(self) -> 'IndexTuple':
         return IndexTuple(tuple(
             ~index for index in self.indexes
             ))
@@ -106,15 +108,17 @@ class TensorContainer:
     def __getitem__(self, indexes: tuple[Index, ...]):
         raise NotImplementedError
 
-@dataclass
+TensorContainerLike =  TensorContainer | ArrayLike
+
 class SingleTensorContainer(TensorContainer):
     """
     Container for a single Tensor-like object, extends fancy indexing to work
     with Index objects
     """
-    tensor: Any
+    def __init__(self, tensor):
+        self.tensor = np.asarray(tensor)
 
-    def __getitem__(self, indexes):
+    def __getitem__(self, indexes) -> NDArray:
         masks = tuple(
                 as_index(ind_like).to_mask(length)
                 for ind_like, length in zip(indexes, np.shape(self.tensor))
@@ -131,14 +135,22 @@ class SingleTensorContainer(TensorContainer):
     def __truediv__(self, other):
         return SingleTensorContainer(self.tensor / other)
 
-@dataclass
 class VstackTensorContainer(TensorContainer):
     """
     Container representing several other containers, vertically stacked
     """
-    containers: tuple[TensorContainer]
+    def __init__(self, containers: Iterable[ArrayLike]):
+        self.containers = tuple(map(as_tensor_container, containers))
+        n_cols = {cont.shape[-1] for cont in self.containers}
+        if not n_cols:
+            self._n_cols = None
+        elif len(n_cols) == 1:
+            self._n_cols = next(iter(n_cols))
+        else:
+            raise ValueError('Vertically stacked tensor containers must have '
+                f'matching column numbers, got {n_cols}.')
 
-    def __getitem__(self, indexes):
+    def __getitem__(self, indexes) -> NDArray:
         if len(indexes) != 2:
             raise NotImplementedError
         rows, cols = indexes
@@ -149,7 +161,11 @@ class VstackTensorContainer(TensorContainer):
                 for container, cont_rows in zip(self.containers, rows.indexes) ]
         return np.vstack(arrays)
 
-def as_tensor_container(tensor_like):
+    @property
+    def shape(self):
+        return None, self._n_cols
+
+def as_tensor_container(tensor_like: TensorContainerLike):
     """
     Wrap object into a tensor container
     """
@@ -185,7 +201,7 @@ class Model:
             raise ValueError('Invalid spec: spec must contain a "model" key')
         module_name = MODULES.get(spec['model'])
         if not module_name:
-            raise NotImplementedError(f'No such model: {spec["model"]}')
+            return FitPredictCompat.from_spec(spec)
 
         module = importlib.import_module(module_name)
 
@@ -442,30 +458,67 @@ class Distribution:
             }
 
     def export_diagnostics(self, backend):
+        del backend
         return []
 
-class FitPredictCompat:
+    def metric_observed(self, metric_name: str, observed: NDArray | None = None):
+        """
+        Compute a measure of how well the observed data fits the distribution
+        """
+        if observed is None:
+            observed = self.observed
+        if metric_name == 'RSS':
+            return np.sum((observed - self.mean)**2)
+
+        raise ValueError(f'No such metric: {metric_name}')
+
+
+class FitPredictCompat(Model):
     """
     Compatibility layer with old fit-predict interface
     """
-    @classmethod
-    def fit(cls, spec, data):
-        """
-        Just give back args unmodified
-        """
-        return {
-                'spec': spec,
-                'data': data
-                }
+    def __init__(self, method, spec: ModelSpec):
+        super().__init__()
+        self.method = method
+        self.spec = spec
 
     @classmethod
-    def predict_loo(cls, fitted, new_data):
+    def from_spec(cls, spec: ModelSpec) -> 'Model':
         """
-        Concatenate data, build model and compute
+        Generate a Model wrapper for older methods that exposed "fit" and
+        "predict_loo" functions.
+
+        spec is assumed to contain a "model" key.
         """
-        data = np.vstack((fitted['data'], new_data))
-        return (
-            Model.from_spec(fitted['spec'])
-            .conditional[fitted['data'].shape[0]:, LOO]
-            .mean(data)
-            )
+
+        method = methods.get(spec["model"])
+        if method is None:
+            raise NotImplementedError(f'No such model: {spec["model"]}')
+
+        return cls(method, spec)
+
+    def _condition(self, unobserved_indexes, data, **params):
+        rows, cols = unobserved_indexes
+        if cols is not EachIndex:
+            raise ValueError('Legacy models only support leave-one-column-out'
+                    ' patterns')
+        train = data[~rows, :]
+        test = data[rows, :]
+
+        # Copied from deprecated fit opt
+        # ==============================
+
+        kwargs = dict(self.spec)
+        del kwargs['model']
+
+        # FIXME: this is not implemented in Model interface yet
+        #if hasattr(model, 'OPS_AWARE') and model.OPS_AWARE:
+        #    kwargs['_ops'] = _ops
+
+        fitted = self.method.fit(train, **kwargs)
+
+        predictions = self.method.predict_loo(fitted, test)
+        
+        return Distribution(mean=predictions)
+
+

@@ -46,7 +46,19 @@ def test_cv_residualize():
 
     assert np.allclose(res, np.zeros(data.shape))
 
-@pytest.mark.xfail
+def test_fit_eval_accepts_v1(data):
+    """
+    The fit_eval op can handle the old kind of specs.
+    """
+    mspec = {'model': 'svd', 'n_factors': 2} # only exists in v1
+
+    train, test = data
+
+    ans = models.fit_eval(mspec, {'train': train, 'test': test}, 'RSS')
+
+    assert set(ans.keys()) == {'loss'}
+    assert isinstance(ans['loss'], float)
+
 def test_fit_eval_accepts_v2(data):
     """
     The fit_eval op can handle the new kind of specs.
