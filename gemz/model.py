@@ -108,15 +108,15 @@ class TensorContainer:
     def __getitem__(self, indexes: tuple[Index, ...]):
         raise NotImplementedError
 
-TensorContainerLike =  TensorContainer | ArrayLike
+TensorContainerLike =  TensorContainer | NDArray
 
 class SingleTensorContainer(TensorContainer):
     """
     Container for a single Tensor-like object, extends fancy indexing to work
     with Index objects
     """
-    def __init__(self, tensor):
-        self.tensor = np.asarray(tensor)
+    def __init__(self, tensor: NDArray):
+        self.tensor = tensor
 
     def __getitem__(self, indexes) -> NDArray:
         masks = tuple(
@@ -467,11 +467,24 @@ class Distribution:
         """
         if observed is None:
             observed = self.observed
+
+        # RSS: arithmetic aggregation of columns
+        # GEOM: geometric aggregation of columns
+        # iRSS: no aggregation, returns each column
+        squares = (observed - self.mean)**2
         if metric_name == 'RSS':
-            return np.sum((observed - self.mean)**2)
+            return np.sum(squares)
+
+        col_squares = np.sum(squares, 0)
+        if metric_name == 'GEOM':
+            # Note: the axes are swapped compared to the historical
+            # implementation in cv.py. I currently believe that this was a
+            # mistake in the later that never was detected.
+            return np.sum(np.log(col_squares))
+        if metric_name == 'iRSS':
+            return col_squares
 
         raise ValueError(f'No such metric: {metric_name}')
-
 
 class FitPredictCompat(Model):
     """
@@ -520,5 +533,3 @@ class FitPredictCompat(Model):
         predictions = self.method.predict_loo(fitted, test)
         
         return Distribution(mean=predictions)
-
-
