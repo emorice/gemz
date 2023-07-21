@@ -207,7 +207,7 @@ def cv_fit_eval(model_spec, data, fold_count=10, loss_name='RSS', seed=0, _ops=_
     for i in range(fold_count):
         train, test, _ = _ops.fold(data, i, fold_count, seed=seed)
         folds.append(
-            fit_eval(model_spec, {'train': train, 'test': test}, loss_name, _ops=_ops)
+            _ops.fit_eval(model_spec, {'train': train, 'test': test}, loss_name)
             )
     total_loss = _ops.aggregate_losses([_fold['loss'] for _fold in folds])
 
