@@ -9,7 +9,7 @@ from typing import Any, Iterable
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from gemz.models import methods
+from gemz.models import methods, ops
 from gemz.models.methods import ModelSpec
 
 # Indexing utils
@@ -139,7 +139,7 @@ class VstackTensorContainer(TensorContainer):
     """
     Container representing several other containers, vertically stacked
     """
-    def __init__(self, containers: Iterable[ArrayLike]):
+    def __init__(self, containers: Iterable[NDArray]):
         self.containers = tuple(map(as_tensor_container, containers))
         n_cols = {cont.shape[-1] for cont in self.containers}
         if not n_cols:
@@ -190,6 +190,8 @@ class Model:
     """
     Unified model interface
     """
+    ops = ops
+
     @classmethod
     def from_spec(cls, spec: ModelSpec) -> 'Model':
         """
@@ -201,6 +203,8 @@ class Model:
             raise ValueError('Invalid spec: spec must contain a "model" key')
         module_name = MODULES.get(spec['model'])
         if not module_name:
+            spec = spec.copy()
+            spec['_ops'] = cls.ops
             return FitPredictCompat.from_spec(spec)
 
         module = importlib.import_module(module_name)
@@ -430,6 +434,7 @@ class Distribution:
     # differentiating None / non-None case
     logpdf_observed: Any = np.nan
     total_dims: Any = None
+    _ops: Any = ops
 
     def sf_radial(self, observed=None):
         """
@@ -468,10 +473,13 @@ class Distribution:
         if observed is None:
             observed = self.observed
 
+        return self._ops.metric(observed, self.mean, metric_name)
+
+def metric(observed: NDArray, mean: NDArray, metric_name: str):
         # RSS: arithmetic aggregation of columns
         # GEOM: geometric aggregation of columns
         # iRSS: no aggregation, returns each column
-        squares = (observed - self.mean)**2
+        squares = (observed - mean)**2
         if metric_name == 'RSS':
             return np.sum(squares)
 
@@ -523,13 +531,14 @@ class FitPredictCompat(Model):
 
         kwargs = dict(self.spec)
         del kwargs['model']
+        _ops = kwargs['_ops']
 
-        # FIXME: this is not implemented in Model interface yet
-        #if hasattr(model, 'OPS_AWARE') and model.OPS_AWARE:
-        #    kwargs['_ops'] = _ops
+        if not (hasattr(self.method, 'OPS_AWARE') and self.method.OPS_AWARE):
+            del kwargs['_ops']
 
         fitted = self.method.fit(train, **kwargs)
 
-        predictions = self.method.predict_loo(fitted, test)
-        
-        return Distribution(mean=predictions)
+        predictions = _ops.predict_loo(self.spec, fitted, test)
+
+        # At this point, the mean may be a galp reference
+        return Distribution(mean=predictions, _ops=_ops)

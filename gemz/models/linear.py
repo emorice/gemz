@@ -56,6 +56,7 @@ def predict_loo(model, new_data):
     """
     precision = model['precision']
 
+    #import pdb; pdb.set_trace()
     # N1' x N2, linear predictions but not scaled and with the diagonal
     unscaled_residuals = new_data @ precision
 

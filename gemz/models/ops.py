@@ -9,11 +9,12 @@ from typing import TypedDict
 from deprecation import deprecated
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import NDArray
 
+from gemz import model
 from gemz.model import (
         Model, VstackTensorContainer,
-        IndexTuple, EachIndex
+        IndexTuple, EachIndex, metric
         )
 from . import methods, cv
 from .methods import ModelSpec
@@ -122,6 +123,42 @@ def fit(model_spec, train_data, _ops=_self):
 
     return model.fit(train_data, **kwargs)
 
+class FoldDict(TypedDict):
+    """
+    A split of a data matrix into a train and test set
+    """
+    train: NDArray
+    test: NDArray
+
+def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str, _ops=_self):
+    """
+    Compound fit and eval_loss call
+
+    Args:
+        model_spec: dict as expected by the 'fit' op.
+        data_fold: dict with keys 'train' and 'test'
+    Returns:
+        dict with keys:
+            'loss': the loss value on the given data split
+    """
+
+    # !! New style
+    model = _ops.Model.from_spec(model_spec)
+    data = VstackTensorContainer((
+        data_fold['train'], data_fold['test']
+        ))
+    # No rows of train, all rows of test
+    test_rows = IndexTuple((slice(0, 0), slice(None)))
+    test_cols = EachIndex
+    conditional = model._condition((test_rows, test_cols), data)
+    metric = conditional.metric_observed(loss_name, data_fold['test'])
+    return { 'loss': metric }
+
+    # Legacy
+    fitted = _ops.fit(model_spec, data_fold['train'])
+    loss = _ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
+    return { 'loss': loss }
+
 def cv_residualize(model_spec, data, fold_count=10, seed=0, _ops=_self):
     """
     Train and predict on the whole data in folds, returning residuals
@@ -156,42 +193,6 @@ def build_eval_grid(inner, data, fold_count, loss_name, grid_size, grid_max, gri
 
 # Pure meta-ops
 # =============
-
-class FoldDict(TypedDict):
-    """
-    A split of a data matrix into a train and test set
-    """
-    train: ArrayLike
-    test: ArrayLike
-
-def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str, _ops=_self):
-    """
-    Compound fit and eval_loss call
-
-    Args:
-        model_spec: dict as expected by the 'fit' op.
-        data_fold: dict with keys 'train' and 'test'
-    Returns:
-        dict with keys:
-            'loss': the loss value on the given data split
-    """
-
-    # !! New style
-    model = Model.from_spec(model_spec)
-    data = VstackTensorContainer((
-        data_fold['train'], data_fold['test']
-        ))
-    # No rows of train, all rows of test
-    test_rows = IndexTuple((slice(0, 0), slice(None)))
-    test_cols = EachIndex
-    conditional = model._condition((test_rows, test_cols), data)
-    metric = conditional.metric_observed(loss_name, data_fold['test'])
-    return { 'loss': metric }
-
-    # Legacy
-    fitted = _ops.fit(model_spec, data_fold['train'])
-    loss = _ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
-    return { 'loss': loss }
 
 def cv_fit_eval(model_spec, data, fold_count=10, loss_name='RSS', seed=0, _ops=_self):
     """
