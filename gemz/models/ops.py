@@ -17,7 +17,7 @@ from gemz.model import (
         IndexTuple, EachIndex, metric
         )
 from . import methods, cv
-from .methods import ModelSpec
+from .methods import ModelSpec, get_name
 
 logger = logging.getLogger('gemz')
 
@@ -130,7 +130,8 @@ class FoldDict(TypedDict):
     train: NDArray
     test: NDArray
 
-def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str, _ops=_self):
+def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str,
+        _ops=_self, verbose=True):
     """
     Compound fit and eval_loss call
 
@@ -142,6 +143,8 @@ def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str, _ops=_s
             'loss': the loss value on the given data split
     """
 
+    if verbose:
+        print(f'Fitting model: {get_name(model_spec)} {model_spec}', flush=True)
     # !! New style
     model = _ops.Model.from_spec(model_spec)
     data = VstackTensorContainer((
