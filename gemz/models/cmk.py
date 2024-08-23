@@ -18,7 +18,7 @@ from . import methods, cv as _cv
 
 methods.add_module('cmk', __name__)
 
-def fit(data, n_groups: int, n_iter: int = 100, verbose=True) -> dict:
+def fit(data, n_groups: int, n_iter: int = 100, verbose=True, jit=True) -> dict:
     """
     Fit the model with a fixed number of MK-updates iterations
 
@@ -39,8 +39,12 @@ def fit(data, n_groups: int, n_iter: int = 100, verbose=True) -> dict:
     iters = range(n_iter)
     if verbose:
         iters = tqdm(range(n_iter), desc=f'cmk/{n_groups}')
+    if jit:
+        cmk_many_fun = cmk_many_jit
+    else:
+        cmk_many_fun = cmk_many
     for i in iters:
-        inter, aux = cmk_many(**cmk_data, **state)
+        inter, aux = cmk_many_fun(**cmk_data, **state)
         updates = cmk_update(**cmk_data, **state, **inter, **aux)
         hist.append({
             'iteration': i,
@@ -157,7 +161,6 @@ def cmk_factor_roots(group_grams, compact_covariance):
     root_log_dets = jnp.log(jnp.diagonal(root_choleskys, axis1=1, axis2=2)).sum(-1)
     return root_precisions, root_log_dets
 
-@jax.jit
 def cmk_many(
     # Data
     group_grams, groups, data, n_samples,
@@ -256,6 +259,8 @@ def cmk_many(
         'groups_onehot': groups_onehot,
         'own_group_covariance': own_group_covariance,
     }
+
+cmk_many_jit = jax.jit(cmk_many)
 
 def cmk_update(
     # Inputs
