@@ -9,6 +9,7 @@ import sklearn.cluster
 import jax
 import jax.numpy as jnp
 from jax import lax
+from tqdm.auto import tqdm
 
 from . import methods, cv as _cv
 
@@ -17,7 +18,7 @@ from . import methods, cv as _cv
 
 methods.add_module('cmk', __name__)
 
-def fit(data, n_groups, n_iter=100):
+def fit(data, n_groups: int, n_iter: int = 100, verbose=True) -> dict:
     """
     Fit the model with a fixed number of MK-updates iterations
 
@@ -35,7 +36,10 @@ def fit(data, n_groups, n_iter=100):
     hist = []
     abort = False
     abort_msgs = []
-    for i in range(n_iter):
+    iters = range(n_iter)
+    if verbose:
+        iters = tqdm(range(n_iter), desc=f'cmk/{n_groups}')
+    for i in iters:
         inter, aux = cmk_many(**cmk_data, **state)
         updates = cmk_update(**cmk_data, **state, **inter, **aux)
         hist.append({

@@ -8,6 +8,7 @@ dependencies = [
   "jax",
   "jaxlib",
   "deprecation",
+  "tqdm",
 ]
 
 [tool.setuptools]
