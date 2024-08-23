@@ -19,14 +19,14 @@ def test_fit_and_eval(data):
     Fit a model, then call a loss function on a test set
     """
     train, test = data
-    mspec = dict(model='linear')
+    mspec = {'model': 'linear'}
     fitted = models.fit(mspec, train)
 
     rss = models.eval_loss(mspec, fitted, test, 'RSS')
 
     assert isinstance(rss,  float)
 
-# Catastrophic unstability on some platform, leading to residuals of the order
+# Catastrophic unstability on some platforms, leading to residuals of the order
 # of 1e-5 instead of 1e-15. Not critical.
 @pytest.mark.xfail
 def test_cv_residualize():
@@ -48,7 +48,7 @@ def test_cv_residualize():
 
 def test_fit_eval_accepts_v1(data):
     """
-    The fit_eval op can handle the old kind of specs.
+    The fit_eval op can handle the classic kind of specs.
     """
     mspec = {'model': 'svd', 'n_factors': 2} # only exists in v1
 
@@ -56,12 +56,12 @@ def test_fit_eval_accepts_v1(data):
 
     ans = models.fit_eval(mspec, {'train': train, 'test': test}, 'RSS')
 
-    assert set(ans.keys()) == {'loss'}
+    assert set(ans.keys()) == {'fit', 'loss'}
     assert isinstance(ans['loss'], float)
 
 def test_fit_eval_accepts_v2(data):
     """
-    The fit_eval op can handle the new kind of specs.
+    The fit_eval op can handle the experimental kind of specs.
     """
     mspec = {'model': 'mt_std'} # only exists in v2
 

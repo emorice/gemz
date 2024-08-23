@@ -11,11 +11,11 @@ from deprecation import deprecated
 import numpy as np
 from numpy.typing import NDArray
 
-from gemz import model
 from gemz.model import (
         Model, VstackTensorContainer,
-        IndexTuple, EachIndex, metric
-        )
+        IndexTuple, EachIndex, metric,
+        MODULES
+        ) # some reexports
 from . import methods, cv
 from .methods import ModelSpec, get_name
 
@@ -24,14 +24,12 @@ logger = logging.getLogger('gemz')
 # Basic ops
 # =========
 
-@deprecated(details='This op is only implemented for legacy methods')
 def predict_loo(model_spec, model_fit, test_data):
     """
     Like `fit` for the `predict_loo` method
     """
     return methods.get(model_spec['model']).predict_loo(model_fit, test_data)
 
-@deprecated(details='This op is only implemented for legacy methods')
 def eval_loss(model_spec, model_fit, test_data, loss_name):
     """
     Simple wrapper around the losses in `cv`.
@@ -100,7 +98,6 @@ def aggregate_residuals(data, predictions):
 
 _self = sys.modules[__name__]
 
-@deprecated(details='This op is only implemented for legacy methods')
 def fit(model_spec, train_data, _ops=_self):
     """
     Fit a model from a model specification.
@@ -145,22 +142,33 @@ def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str,
 
     if verbose:
         print(f'Fitting model: {get_name(model_spec)} {model_spec}', flush=True)
-    # !! New style
-    model = _ops.Model.from_spec(model_spec)
+
+    model_name: str = model_spec['model']
+
+    # Classic interface
+    # -----------------
+    if model_name not in MODULES:
+        fitted = _ops.fit(model_spec, data_fold['train'])
+        loss = _ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
+        # Note: when the two items are tasks, indexing the result of fit-eval
+        # will safely give you a reference that can be used to get the loss
+        # without loading the whole fitted model from disk. That is, extracting
+        # just the loss from many models should be effcient.
+        return {'fit': fitted, 'loss': loss}
+
+    # Experimental interface
+    # ----------------------
+    model_obj = _ops.Model.from_spec(model_spec)
     data = VstackTensorContainer((
         data_fold['train'], data_fold['test']
         ))
     # No rows of train, all rows of test
     test_rows = IndexTuple((slice(0, 0), slice(None)))
     test_cols = EachIndex
-    conditional = model._condition((test_rows, test_cols), data)
-    metric = conditional.metric_observed(loss_name, data_fold['test'])
-    return { 'loss': metric }
+    conditional = model_obj._condition((test_rows, test_cols), data)
+    metric_value = conditional.metric_observed(loss_name, data_fold['test'])
+    return {'loss': metric_value}
 
-    # Legacy
-    fitted = _ops.fit(model_spec, data_fold['train'])
-    loss = _ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
-    return { 'loss': loss }
 
 def cv_residualize(model_spec, data, fold_count=10, seed=0, _ops=_self):
     """

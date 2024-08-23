@@ -1,7 +1,7 @@
 """
 Clustered McKay model
 
-Reformatted from experimantal notebooks, hence the subpar coding style.
+Reformatted from experimental notebooks, hence the subpar coding style.
 """
 
 import numpy as np
