@@ -86,16 +86,18 @@ def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
         'inner': inner,
         'loss_name': loss_name,
         'selected': best_model,
-        'fit': _ops.fit(best_model, data),
+        'fit': (best_model, _ops.fit(best_model, data)),
         'grid': specs,
         }
+
+EVAL_REQUIRES = 'fit' # Only the "fit" key above to be passed to predict_loo
 
 def predict_loo(model_fit, new_data):
     """
     Linear shrinkage loo prediction for the best model found during cv.
     """
-    inner_model = methods.get(model_fit['inner']['model'])
-    inner_fit = model_fit['fit']
+    model_spec, inner_fit = model_fit
+    inner_model = methods.get(model_spec['model'])
     return inner_model.predict_loo(inner_fit, new_data)
 
 def get_name(spec):

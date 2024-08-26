@@ -28,7 +28,13 @@ def predict_loo(model_spec, model_fit, test_data):
     """
     Like `fit` for the `predict_loo` method
     """
-    return methods.get(model_spec['model']).predict_loo(model_fit, test_data)
+    model = methods.get(model_spec['model'])
+    item = getattr(model, 'EVAL_REQUIRES', None)
+    if item:
+        eval_fit = model_fit[item]
+    else:
+        eval_fit = model_fit
+    return methods.get(model_spec['model']).predict_loo(eval_fit, test_data)
 
 def eval_loss(model_spec, model_fit, test_data, loss_name):
     """
@@ -149,7 +155,17 @@ def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str,
     # -----------------
     if model_name not in MODULES:
         fitted = _ops.fit(model_spec, data_fold['train'])
-        loss = _ops.eval_loss(model_spec, fitted, data_fold['test'], loss_name)
+
+        # Allows to only pass a part if the fit result, quickfix for cv
+        # requiring too much memory
+        model = methods.get(model_spec['model'])
+        item = getattr(model, 'EVAL_REQUIRES', None)
+        if item:
+            eval_fit = fitted[item]
+        else:
+            eval_fit = fitted
+
+        loss = _ops.eval_loss(model_spec, eval_fit, data_fold['test'], loss_name)
         # Note: when the two items are tasks, indexing the result of fit-eval
         # will safely give you a reference that can be used to get the loss
         # without loading the whole fitted model from disk. That is, extracting

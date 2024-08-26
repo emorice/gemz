@@ -29,4 +29,5 @@ def fit(data):
         data,
         )
 
+EVAL_REQUIRES = 'fit' # See cv
 predict_loo = cv.predict_loo
