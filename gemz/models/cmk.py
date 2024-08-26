@@ -80,7 +80,7 @@ def predict_loo(model, new_data):
     Args:
         new_data: N3 x N2, with N2 matching the data given to `fit`.
     """
-    final_inter, final_aux = cmk_many(**model['data'], **model['state'])
+    final_inter, final_aux = cmk_many_jit(**model['data'], **model['state'])
     # Once again, cmk_* functions follow replicate-first convention
     predictions = cmk_predict(
         new_data=new_data,
