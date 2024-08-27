@@ -7,6 +7,7 @@ to natural parameters.
 
 import numpy as np
 import scipy
+from tqdm.auto import tqdm
 
 import jax
 import jax.numpy as jnp
@@ -135,7 +136,7 @@ def vj_argnames(function, names):
     return _vg
 
 def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
-    obj_mult=1., jit=True, has_aux=False):
+    obj_mult=1., jit=True, has_aux=False, prog_desc=None):
     """
     High-level minimization function
 
@@ -183,6 +184,11 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
 
     scipy_method = scipy_method or 'BFGS'
 
+    if prog_desc is None:
+        progress = None
+    else:
+        progress = tqdm(desc=prog_desc)
+
     def obj_scipy(flat_params):
         """
         Simple wrapper to record the objective values and bind fixed parameters
@@ -193,6 +199,8 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
         # Then discard aux before yielding to scipy
         if has_aux:
             value, _ = value
+        if progress is not None:
+            progress.update()
         return value, grad
 
     if len(init_anon) > 0:
@@ -210,6 +218,9 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
             'x': init_anon
             }
 
+    if progress is not None:
+        progress.close()
+
     nat_opt = apply_bijs(unpack(opt['x'], shapes, struct), bijectors)
 
     return {
@@ -219,7 +230,7 @@ def minimize(native_obj, init, data, bijectors=None, scipy_method=None,
         }
 
 def maximize(native_obj, init, data, bijectors=None, scipy_method=None,
-    obj_mult=1., jit=True, has_aux=False):
+    obj_mult=1., jit=True, has_aux=False, prog_desc=None):
     """
     Counterpart to minimize
     """
@@ -228,7 +239,8 @@ def maximize(native_obj, init, data, bijectors=None, scipy_method=None,
         bijectors=bijectors, scipy_method=scipy_method,
         obj_mult=-obj_mult,
         jit=jit,
-        has_aux=has_aux
+        has_aux=has_aux,
+        prog_desc=prog_desc,
         )
 
 class Bijector:

@@ -13,7 +13,8 @@ methods.add_module('igmm', __name__)
 # Public interface
 # ================
 
-def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
+def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None,
+    verbose=True):
     """
     Learns a GMM with an information loss
 
@@ -44,6 +45,7 @@ def fit(data, n_groups, seed=0, barrier_strength=1e-2, init_resps=None):
             'reg_covar': jax_utils.RegExp(),
             },
         scipy_method='L-BFGS-B',
+        prog_desc=f'igmm/{n_groups}' if verbose else None,
         )
 
     resps = max_results['opt']['responsibilities']
