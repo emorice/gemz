@@ -3,11 +3,13 @@ Regularized linear model obtained by keeping only some factors of a singular
 value decompistion
 """
 
+import sys
 import numpy as np
 
 from gemz import linalg
 from .methods import add_module
 from . import svd
+from tqdm.auto import tqdm
 
 try:
     import pmbio_peer
@@ -18,7 +20,7 @@ except ModuleNotFoundError:
 
 add_module('peer', __name__)
 
-def fit(data, n_factors, reestimate_precision=False):
+def fit(data, n_factors, reestimate_precision=False, verbose=True):
     """
     Builds a representation of the precision matrix by using `n_factors`
     inferred PEER factors.
@@ -33,6 +35,11 @@ def fit(data, n_factors, reestimate_precision=False):
     if not HAS_PEER:
         raise RuntimeError('The module pmbio_peer could not be loaded')
 
+    n_iter = 1000
+
+    if verbose:
+        progress = tqdm(desc=get_name({'model': 'peer', 'n_factors': n_factors,
+            'restimate_precision': reestimate_precision}), total=n_iter)
 
     # Define model
     model = pmbio_peer.PEER()
@@ -44,10 +51,42 @@ def fit(data, n_factors, reestimate_precision=False):
 
     model.setPriorAlpha(0.001, 0.01)
     model.setPriorEps(0.1, 10.)
-    model.setNmax_iterations(1000)
 
-    # Run it
-    model.update()
+    tolerance = model.getTolerance()
+    var_tolerance = model.getVarTolerance()
+
+    # Convergence logic ported from cpp so that we can manually step and stop
+    # the loop
+    last_bound = -np.inf
+    last_residual_var = np.inf
+    current_bound = -np.inf
+    current_residual_var = -np.inf
+    delta_bound = np.inf
+    delta_residual_var = np.inf
+
+    # Run it for one iteration at once
+    model.setNmax_iterations(1)
+    for i in range(n_iter):
+        model.update()
+
+        if verbose:
+            progress.update(1)
+
+        last_bound = current_bound
+        last_residual_var = current_residual_var
+        current_bound = model.calcBound()
+        current_residual_var = np.mean(model.getResiduals() ** 2)
+        delta_bound = current_bound - last_bound
+        delta_residual_var = last_residual_var - current_residual_var
+
+        if (abs(delta_bound) < tolerance
+                or abs(delta_residual_var) < var_tolerance):
+            break
+
+    if verbose:
+        progress.close()
+        if i + 1 < n_iter:
+            print(f'Converged after {i + 1} iterations', file=sys.stderr, flush=True)
 
     # Extract relevant parameters
     cofactors_gk = model.getW()
