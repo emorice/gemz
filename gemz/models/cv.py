@@ -80,7 +80,9 @@ def fit(data, inner, fold_count=10, seed=0, loss_name="RSS", grid_size=20,
                 seed
             )
 
-    best_model = _ops.select_best(specs)
+    reduced_grid = _ops.extract_cv(specs)
+
+    best_model = _ops.select_best(reduced_grid)
 
     return {
         'inner': inner,

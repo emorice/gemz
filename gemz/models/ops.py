@@ -70,6 +70,24 @@ def aggregate_losses(losses):
     """
     return sum(losses)
 
+def extract_cv(grid):
+    """
+    Gather only the cross-validation data necessary for decision and plotting
+
+    (The sum of all the cross validation models is commonly too large for memory)
+
+    Args:
+        t_grid: the grid task
+    """
+    # When not using galp this is trivial
+    return s_extract_cv_losses(grid)
+
+def s_extract_cv_losses(grid):
+    """
+    Extract only the loss item from the fits in the grid
+    """
+    return [(spec, {'loss': cfe['loss']}) for spec, cfe in grid]
+
 def select_best(grid):
     """
     Trivial selection of model with smallest loss
