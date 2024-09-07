@@ -68,4 +68,4 @@ def get_name(spec):
         return f"{name}/{spec['n_factors']}"
     return name
 
-cv = cv.Int1dCV('n_factors', 'factors')
+cv = cv.Int1dCV('n_factors', 'components')
