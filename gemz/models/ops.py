@@ -122,7 +122,7 @@ def aggregate_residuals(data, predictions):
 
 _self = sys.modules[__name__]
 
-def fit(model_spec, train_data, _ops=_self):
+def fit(model_spec, train_data, _ops=_self, verbose=True):
     """
     Fit a model from a model specification.
 
@@ -140,7 +140,9 @@ def fit(model_spec, train_data, _ops=_self):
     if hasattr(model, 'OPS_AWARE') and model.OPS_AWARE:
         kwargs['_ops'] = _ops
 
-    logger.info('Fitting %s', methods.get_name(model_spec))
+    if verbose:
+        print(f'Fitting model: {get_name(model_spec)} {model_spec}', flush=True)
+
 
     return model.fit(train_data, **kwargs)
 
@@ -164,15 +166,12 @@ def fit_eval(model_spec: ModelSpec, data_fold: FoldDict, loss_name: str,
             'loss': the loss value on the given data split
     """
 
-    if verbose:
-        print(f'Fitting model: {get_name(model_spec)} {model_spec}', flush=True)
-
     model_name: str = model_spec['model']
 
     # Classic interface
     # -----------------
     if model_name not in MODULES:
-        fitted = _ops.fit(model_spec, data_fold['train'])
+        fitted = _ops.fit(model_spec, data_fold['train'], verbose=verbose)
 
         # Allows to only pass a part if the fit result, quickfix for cv
         # requiring too much memory

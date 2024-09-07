@@ -103,6 +103,7 @@ class LinearReg(Case):
             {'model': 'peer',	'n_factors': 4},
             {'model': 'peer',	'n_factors': 4, 'reestimate_precision': True},
             {'model': 'cv',	'inner': {'model': 'svd'}},
+            {'model': 'cv',	'inner': {'model': 'svd', 'revision': 2}},
             ]
             # Slow
             # {'model': 'cv',	'inner': {'model': 'peer'}, 'grid': np.arange(1, 20)},

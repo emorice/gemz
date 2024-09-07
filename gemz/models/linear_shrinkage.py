@@ -56,4 +56,7 @@ def get_name(spec):
     """
     Descriptive name
     """
-    return f"{spec['model']}/{spec['prior_var']}"
+    name = spec['model']
+    if 'prior_var' in spec:
+        return f"{name}/{spec['prior_var']}"
+    return name

@@ -4,6 +4,7 @@ Cross-validation utils
 
 import numpy as np
 
+import gemz.models
 from . import methods, ops
 
 methods.add_module('cv', __name__)
@@ -106,7 +107,7 @@ def get_name(spec):
     """
     Readable description
     """
-    return f"{spec['model']}/{spec['inner']['model']}"
+    return f"{spec['model']}/{gemz.models.get_name(spec['inner'])}"
 
 class OneDimCV:
     """
@@ -154,7 +155,8 @@ class Int1dCV(OneDimCV):
         """
 
         if grid_max is None:
-            grid_max = min(data.shape)
+            # Make sure the last point is the integer just below
+            grid_max = min(data.shape) - 1e-3
 
         return [ int(size) for size in np.unique(
                 np.int32(np.floor(

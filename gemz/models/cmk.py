@@ -93,8 +93,10 @@ def get_name(spec):
     """
     Readable name
     """
-    return f"{spec['model']}/{spec['n_groups']}"
-
+    name = spec['model']
+    if 'n_groups' in spec:
+        return f"{name}/{spec['n_groups']}"
+    return name
 
 cv = _cv.Int1dCV('n_groups', 'groups')
 

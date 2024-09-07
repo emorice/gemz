@@ -119,7 +119,9 @@ def get_name(spec):
     """
     Descriptive name
     """
-    name = f"{spec['model']}/{spec['n_groups']}"
+    name = spec['model']
+    if 'n_groups' in spec:
+        name = f"{name}/{spec['n_groups']}"
 
     if 'reg_covar' in spec:
         name = f'{name}:{spec["reg_covar"]}'
