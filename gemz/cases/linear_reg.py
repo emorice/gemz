@@ -102,6 +102,9 @@ class LinearReg(Case):
             {'model': 'svd',	'n_factors': 4},
             {'model': 'peer',	'n_factors': 4},
             {'model': 'peer',	'n_factors': 4, 'reestimate_precision': True},
+            {'model': 'peer',	'n_factors': 4, 'custom_covariance': False},
+            {'model': 'peer',	'n_factors': 4, 'reestimate_precision': True,
+                'custom_covariance': False},
             {'model': 'cv',	'inner': {'model': 'svd'}},
             {'model': 'cv',	'inner': {'model': 'svd', 'revision': 2}},
             ]

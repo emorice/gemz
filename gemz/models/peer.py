@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 
 add_module('peer', __name__)
 
-def fit(data, n_factors, reestimate_precision=False, verbose=True):
+def fit(data, n_factors, reestimate_precision=False, custom_covariance=True, verbose=True):
     """
     Builds a representation of the precision matrix by using `n_factors`
     inferred PEER factors.
@@ -29,7 +29,11 @@ def fit(data, n_factors, reestimate_precision=False, verbose=True):
         data: N1 x N2 matrix to factor, expecting N1 < N2
         n_factors: number of peer factors to learn.
         restimate_precision: whether to use the per-gene precision parameters
-            learned by PEER for inference, or recalculate a simple estimate.
+            learned by PEER for inference (default, False), or recalculate a
+            simple estimate (True).
+        custom_covariance: whether to assume loadings with covariance learned
+            from the PEER loadings (default, True), or use loadings from the
+            standard prior (False).
     """
 
     if not HAS_PEER:
@@ -97,10 +101,15 @@ def fit(data, n_factors, reestimate_precision=False, verbose=True):
     else:
         variances_g = 1. / np.squeeze(model.getEps())
 
+    if custom_covariance:
+        root_signal_cov = cofactors_gk @ factors_nk.T / np.sqrt(data.shape[0])
+    else:
+        root_signal_cov = cofactors_gk
+
     # Build covariance
     cov = linalg.SymmetricLowRankUpdate(
             variances_g,
-            cofactors_gk @ factors_nk.T / np.sqrt(data.shape[0]),
+            root_signal_cov,
             1.
             )
 
@@ -117,6 +126,9 @@ def get_name(spec):
     """
     return svd.get_name(spec) + (
             'r' if spec.get('reestimate_precision')
+            else ''
+            ) + (
+            'p' if not spec.get('custom_covariance', True)
             else ''
             )
 
