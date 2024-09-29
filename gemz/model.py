@@ -178,7 +178,7 @@ def as_tensor_container(tensor_like: TensorContainerLike):
 MODULES = {
     'linear': 'gemz.models.linear',
     'mt_std': 'gemz.models.mt_sym',
-    'mt_sym': 'gemz.models.mt_sym',
+    #'mt_sym': 'gemz.models.mt_sym',
     'mt_het': 'gemz.models.mt_sym',
     'clmt': 'gemz.models.clmt',
     }
