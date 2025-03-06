@@ -1,12 +1,13 @@
 [project]
 name = "gemz"
 version = "0.0.1"
+requires-python = ">= 3.10"
 dependencies = [
   "numpy",
   "scipy",
   "scikit-learn",
   "jax",
-  "jaxlib",
+  "jaxlib!=0.5.1",
   "deprecation",
   "tqdm",
 ]

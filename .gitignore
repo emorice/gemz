@@ -8,3 +8,4 @@ demo/
 .mypy_cache
 htmlcov/
 tests/test_regressions/*
+poetry.lock
